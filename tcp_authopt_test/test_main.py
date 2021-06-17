@@ -1,62 +1,13 @@
 import logging
-import selectors
 import socket
-import os
-from ipaddress import IPv4Address
 from contextlib import ExitStack
-from threading import Thread
+from ipaddress import IPv4Address
+
 import pytest
 
+from .server import SimpleServerThread
+
 logger = logging.getLogger(__name__)
-
-
-class SimpleServerThread(Thread):
-    def __init__(self, socket, mode="recv"):
-        self.listen_socket = socket
-        self.mode = mode
-        super().__init__()
-
-    def read_echo(self, conn, events):
-        data = conn.recv(1000)
-        if len(data) == 0:
-            print("closing", conn)
-            self.sel.unregister(conn)
-        else:
-            if self.mode == "echo":
-                conn.sendall(data)
-            elif self.mode == "recv":
-                pass
-            else:
-                raise ValueError(f"Unknown mode {self.mode}")
-
-    def _stop_pipe_read(self, conn, events):
-        self.should_loop = False
-
-    def start(self) -> None:
-        self.exit_stack = ExitStack()
-        self._stop_pipe_rfd, self._stop_pipe_wfd = os.pipe()
-        self.exit_stack.callback(lambda: os.close(self._stop_pipe_rfd))
-        self.exit_stack.callback(lambda: os.close(self._stop_pipe_wfd))
-        return super().start()
-
-    def run(self):
-        self.should_loop = True
-        conn, _addr = self.listen_socket.accept()
-        conn = self.exit_stack.enter_context(conn)
-        conn.setblocking(False)
-        self.sel = self.exit_stack.enter_context(selectors.DefaultSelector())
-        self.sel.register(conn, selectors.EVENT_READ, self.read_echo)
-        self.sel.register(self._stop_pipe_rfd, selectors.EVENT_READ, self._stop_pipe_read)
-        while self.should_loop:
-            for key, events in self.sel.select(timeout=1):
-                callback = key.data
-                callback(key.fileobj, events)
-
-    def stop(self):
-        """Try to stop nicely"""
-        os.write(self._stop_pipe_wfd, b'Q')
-        self.join()
-        self.exit_stack.close()
 
 
 def recvall(sock, todo):
