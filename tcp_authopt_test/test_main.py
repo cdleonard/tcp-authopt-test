@@ -6,6 +6,8 @@ from ipaddress import IPv4Address
 import pytest
 
 from .server import SimpleServerThread
+from .sockaddr import sockaddr_in
+from .tcp_md5sig import setsockopt_md5sig, tcp_md5sig
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +60,6 @@ def test_multi():
         with ExitStack() as exit_stack:
             logger.info("ITER %d", i)
             test_nonauth_connect(exit_stack)
-
-
-from .tcp_md5sig import setsockopt_md5sig, tcp_md5sig, sockaddr_in
 
 
 def test_md5sig_packunpack():
