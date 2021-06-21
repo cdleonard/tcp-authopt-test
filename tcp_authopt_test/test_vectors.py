@@ -29,10 +29,20 @@ def tcpao_context_vector(saddr, daddr, sport, dport, src_isn, dst_isn) -> bytes:
     )
 
 
-def scapy_tcpao_context_vector(p: Packet) -> bytes:
+def scapy_tcpao_context_vector(p: Packet, src_isn: int, dst_isn:int) -> bytes:
     return tcpao_context_vector(
-        p[IP].src, p[IP].dst, p[TCP].sport, p[TCP].dport, p[TCP].seq, 0
+        p[IP].src, p[IP].dst, p[TCP].sport, p[TCP].dport, src_isn, dst_isn
     )
+
+
+def scapy_tcpao_context_vector_send_syn(p: Packet) -> bytes:
+    """Context for SYN"""
+    return scapy_tcpao_context_vector(p, p[TCP].seq, 0)
+
+
+def scapy_tcpao_context_vector_recv_syn(p: Packet) -> bytes:
+    """Context for SYN/ACK"""
+    return scapy_tcpao_context_vector(p, p[TCP].seq, p[TCP].ack - 1)
 
 
 def scapy_tcpao_message(p: Packet, include_options=True, sne=0) -> bytearray:
@@ -129,7 +139,7 @@ class TestIETFVectors:
         assert p[TCP].chksum == 0xCAC4
         assert p[TCP].dataofs == 14
 
-        context_bytes = scapy_tcpao_context_vector(p)
+        context_bytes = scapy_tcpao_context_vector_send_syn(p)
         logger.info("context: %s", context_bytes.hex(" "))
         assert kdf_sha1(self.master_key, context_bytes).hex() == traffic_key.hex()
 
@@ -147,6 +157,30 @@ class TestIETFVectors:
 
         logger.info("message: %s", message_bytes.hex(" "))
         assert mac_sha1(traffic_key, message_bytes).hex() == mac.hex()
+
+    def test_4_1_2(self):
+        ipv4_tcp_bytes = bytes.fromhex("""\
+            45 e0 00 4c 65 06 40 00 ff 06 37 75 ac 1b 1c 1d
+            0a 0b 0c 0d 00 b3 e9 d7 11 c1 42 61 fb fb ab 5b
+            e0 12 ff ff 37 76 00 00 02 04 05 b4 01 03 03 08
+            04 02 08 0a 84 a5 0b eb 00 15 5a b7 1d 10 54 3d
+            ee ab 0f e2 4c 30 10 81 51 16 b3 be
+        """)
+        traffic_key = bytes.fromhex(
+            """d9 e2 17 e4 83 4a 80 ca 2f 3f d8 de 2e 41 b8 e6 79 7f ea 96"""
+        )
+        mac = bytes.fromhex("ee ab 0f e2 4c 30 10 81 51 16 b3 be")
+
+        p = IP(ipv4_tcp_bytes)
+        assert p[IP].src == str(self.server_ipv4)
+        assert p[IP].sport == 179
+        assert p[TCP].flags.S == True
+        assert p[TCP].flags.A == True
+        context_bytes = scapy_tcpao_context_vector_recv_syn(p)
+        logger.info("context: %s", context_bytes.hex(" "))
+        assert kdf_sha1(self.master_key, context_bytes).hex(" ") == traffic_key.hex(" ")
+        message_bytes = scapy_tcpao_message(p, include_options=True)
+        assert mac_sha1(traffic_key, message_bytes).hex(" ") == mac.hex(" ")
 
     def test_4_2_1(self):
         ipv4_tcp_bytes = bytes.fromhex(
@@ -173,7 +207,7 @@ class TestIETFVectors:
         assert p[TCP].ack == 0
         assert p[TCP].dataofs == 14
 
-        context_bytes = scapy_tcpao_context_vector(p)
+        context_bytes = scapy_tcpao_context_vector_send_syn(p)
         logger.info("context: %s", context_bytes.hex(" "))
         assert kdf_sha1(self.master_key, context_bytes).hex() == traffic_key.hex()
 
