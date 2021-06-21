@@ -1,5 +1,8 @@
 import logging
 import socket
+import time
+from scapy.sendrecv import AsyncSniffer
+from scapy.layers.inet import TCP, IP
 from contextlib import ExitStack
 from ipaddress import IPv4Address
 
@@ -102,4 +105,85 @@ def test_md5_basic(exit_stack):
 
     client_socket.sendall(b"0" * 3000)
     buf = recvall(client_socket, 3000)
-    assert(len(buf) == 3000)
+    assert len(buf) == 3000
+
+
+def scapy_sniffer_start_spin(sniffer: AsyncSniffer):
+    sniffer.start()
+    for i in range(500):
+        if getattr(sniffer, "stop_cb", None) is not None:
+            return True
+        time.sleep(0.01)
+    return False
+
+
+class Context:
+    sniffer: AsyncSniffer
+
+    def __init__(self, should_sniff: bool = True):
+        self.should_sniff = should_sniff
+
+    def stop_sniffer(self):
+        if self.sniffer and self.sniffer.running:
+            self.sniffer.stop()
+
+    def start(self):
+        self.exit_stack = ExitStack()
+        if self.should_sniff:
+            self.sniffer = AsyncSniffer(
+                filter=f"tcp port {TCP_SERVER_PORT}", iface="lo"
+            )
+            scapy_sniffer_start_spin(self.sniffer)
+            self.exit_stack.callback(self.stop_sniffer)
+
+        self.listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listen_socket = self.exit_stack.push(self.listen_socket)
+        self.listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.listen_socket.bind(("", TCP_SERVER_PORT))
+        self.listen_socket.listen(1)
+
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client_socket = self.exit_stack.push(self.client_socket)
+
+        self.server_thread = SimpleServerThread(self.listen_socket, mode="echo")
+        self.server_thread.start()
+        self.exit_stack.callback(self.server_thread.stop)
+
+    def stop(self):
+        self.exit_stack.close()
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, *args):
+        self.stop()
+
+
+class TestMain:
+    def test_connect_nosniff(self):
+        with Context(should_sniff=False) as context:
+            context.client_socket.connect(("localhost", TCP_SERVER_PORT))
+
+    def test_connect_sniff(self):
+        with Context() as context:
+            context.client_socket.connect(("localhost", TCP_SERVER_PORT))
+            time.sleep(1)
+            context.sniffer.stop()
+
+            found_syn = False
+            found_synack = False
+            for p in context.sniffer.results:
+                if p[TCP].flags.S and not p[TCP].flags.A:
+                    assert p[TCP].dport == TCP_SERVER_PORT
+                    found_syn = True
+                if p[TCP].flags.S and p[TCP].flags.A:
+                    assert p[TCP].sport == TCP_SERVER_PORT
+                    found_synack = True
+            assert found_syn
+            assert found_synack
+
+    def test_sniffer_works(self):
+        sniffer = AsyncSniffer(filter=f"tcp port {TCP_SERVER_PORT}", iface="lo")
+        scapy_sniffer_start_spin(sniffer)
+        sniffer.stop()
