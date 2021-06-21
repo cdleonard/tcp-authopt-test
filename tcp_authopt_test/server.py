@@ -41,20 +41,26 @@ class SimpleServerThread(Thread):
         self.exit_stack.callback(lambda: os.close(self._stop_pipe_wfd))
         return super().start()
 
-    def run(self):
-        self.should_loop = True
+    def _accept(self, conn, events):
+        assert(conn == self.listen_socket)
         conn, _addr = self.listen_socket.accept()
         conn = self.exit_stack.enter_context(conn)
         conn.setblocking(False)
-        self.sel = self.exit_stack.enter_context(selectors.DefaultSelector())
         self.sel.register(conn, selectors.EVENT_READ, self.read_echo)
+
+    def run(self):
+        self.should_loop = True
+        self.sel = self.exit_stack.enter_context(selectors.DefaultSelector())
         self.sel.register(
             self._stop_pipe_rfd, selectors.EVENT_READ, self._stop_pipe_read
         )
+        self.sel.register(self.listen_socket, selectors.EVENT_READ, self._accept)
+        #logger.debug("loop init")
         while self.should_loop:
             for key, events in self.sel.select(timeout=1):
                 callback = key.data
                 callback(key.fileobj, events)
+        #logger.debug("loop done")
 
     def stop(self):
         """Try to stop nicely"""
