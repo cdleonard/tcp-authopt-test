@@ -275,10 +275,10 @@ class TestIETFVectors:
             04 02 08 0a 00 02 4c ce 00 00 00 00 1d 10 3d 54
             80 af 3c fe b8 53 68 93 7b 8f 9e c2
         """
-        traffic_key = bytes.fromhex(
-            "30 ea a1 56 0c f0 be 57 da b5 c0 45 22 9f b1 0a 42 3c d7 ea"
-        )
-        mac = bytes.fromhex("80 af 3c fe b8 53 68 93 7b 8f 9e c2")
+        traffic_key_hex = "30 ea a1 56 0c f0 be 57 da b5 c0 45 22 9f b1 0a 42 3c d7 ea"
+        mac_hex = "80 af 3c fe b8 53 68 93 7b 8f 9e c2"
+        traffic_key = bytes.fromhex(traffic_key_hex)
+        mac = bytes.fromhex(mac_hex)
 
         p = IP(bytes.fromhex(packet_hex))
         assert p[IP].src == str(self.client_ipv4)
@@ -289,6 +289,8 @@ class TestIETFVectors:
         assert p[TCP].sport == 0xFF12
         assert p[TCP].ack == 0
         assert p[TCP].dataofs == 14
+        assert p[TCP].seq == self.client_isn_42x
+        assert p[TCP].ack == 0
 
         context_bytes = scapy_tcpao_context_vector_send_syn(p)
         logger.info("context: %s", context_bytes.hex(" "))
@@ -307,12 +309,19 @@ class TestIETFVectors:
         message_bytes += packet_bytes[0x3C:0x40]
         message_bytes += b"\x00" * 12
 
+        logger.info("message: %s", message_bytes.hex(" "))
         assert (
             message_bytes.hex() == scapy_tcpao_message(p, include_options=False).hex()
         )
-
-        logger.info("message: %s", message_bytes.hex(" "))
         assert mac_sha1(traffic_key, message_bytes).hex() == mac.hex()
+        self.check(
+            packet_hex,
+            traffic_key_hex,
+            mac_hex,
+            self.client_isn_42x,
+            0,
+            include_options=False,
+        )
 
     def test_4_2_2(self):
         self.check(
@@ -322,9 +331,49 @@ class TestIETFVectors:
             e0 12 ff ff 38 8e 00 00 02 04 05 b4 01 03 03 08
             04 02 08 0a 57 67 72 f3 00 02 4c ce 1d 10 54 3d
             09 30 6f 9a ce a6 3a 8c 68 cb 9a 70
-        """,
+            """,
             "b5 b2 89 6b b3 66 4e 81 76 b0 ed c6 e7 99 52 41 01 a8 30 7f",
             "09 30 6f 9a ce a6 3a 8c 68 cb 9a 70",
+            self.server_isn_42x,
+            self.client_isn_42x,
+            include_options=False,
+        )
+
+    def test_4_2_3(self):
+        self.check(
+            """
+            45 e0 00 87 a8 f5 40 00 ff 06 f3 4a 0a 0b 0c 0d
+            ac 1b 1c 1d ff 12 00 b3 cb 0e fb ef ac d5 b5 e2
+            c0 18 01 04 6c 45 00 00 01 01 08 0a 00 02 4c ce
+            57 67 72 f3 1d 10 3d 54 71 06 08 cc 69 6c 03 a2
+            71 c9 3a a5 ff ff ff ff ff ff ff ff ff ff ff ff
+            ff ff ff ff 00 43 01 04 da bf 00 b4 0a 0b 0c 0d
+            26 02 06 01 04 00 01 00 01 02 02 80 00 02 02 02
+            00 02 02 42 00 02 06 41 04 00 00 da bf 02 08 40
+            06 00 64 00 01 01 00
+            """,
+            "f3 db 17 93 d7 91 0e cd 80 6c 34 f1 55 ea 1f 00 34 59 53 e3",
+            "71 06 08 cc 69 6c 03 a2 71 c9 3a a5",
+            self.client_isn_42x,
+            self.server_isn_42x,
+            include_options=False,
+        )
+
+    def test_4_2_4(self):
+        self.check(
+            """
+            45 e0 00 87 54 37 40 00 ff 06 48 09 ac 1b 1c 1d
+            0a 0b 0c 0d 00 b3 ff 12 ac d5 b5 e2 cb 0e fc 32
+            c0 18 01 00 46 b6 00 00 01 01 08 0a 57 67 72 f3
+            00 02 4c ce 1d 10 54 3d 97 76 6e 48 ac 26 2d e9
+            ae 61 b4 f9 ff ff ff ff ff ff ff ff ff ff ff ff
+            ff ff ff ff 00 43 01 04 da c0 00 b4 ac 1b 1c 1d
+            26 02 06 01 04 00 01 00 01 02 02 80 00 02 02 02
+            00 02 02 42 00 02 06 41 04 00 00 da c0 02 08 40
+            06 00 64 00 01 01 00
+            """,
+            "b5 b2 89 6b b3 66 4e 81 76 b0 ed c6 e7 99 52 41 01 a8 30 7f",
+            "97 76 6e 48 ac 26 2d e9 ae 61 b4 f9",
             self.server_isn_42x,
             self.client_isn_42x,
             include_options=False,
