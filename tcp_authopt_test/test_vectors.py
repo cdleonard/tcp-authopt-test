@@ -113,6 +113,9 @@ class TestIETFVectors:
     server_ipv4 = IPv4Address("172.27.28.29")
     server_ipv6 = IPv6Address("FD00::2")
 
+    client_isn_41x = 0xFBFBAB5A
+    server_isn_41x = 0x11C14261
+
     def test_4_1_1(self):
         ipv4_tcp_bytes = bytes.fromhex(
             """
@@ -138,7 +141,8 @@ class TestIETFVectors:
         assert p[TCP].ack == 0
         assert p[TCP].chksum == 0xCAC4
         assert p[TCP].dataofs == 14
-        assert p[TCP].seq == 0xFBFBAB5A
+        assert p[TCP].seq == self.client_isn_41x
+        assert p[TCP].ack == 0
 
         context_bytes = scapy_tcpao_context_vector_send_syn(p)
         logger.info("context: %s", context_bytes.hex(" "))
@@ -179,8 +183,8 @@ class TestIETFVectors:
         assert p[IP].sport == 179
         assert p[TCP].flags.S == True
         assert p[TCP].flags.A == True
-        assert p[TCP].seq == 0x11C14261
-        assert p[TCP].ack == 0xFBFBAB5B
+        assert p[TCP].seq == self.server_isn_41x
+        assert p[TCP].ack == self.client_isn_41x + 1
         context_bytes = scapy_tcpao_context_vector_recv_syn(p)
         logger.info("context: %s", context_bytes.hex(" "))
         assert kdf_sha1(self.master_key, context_bytes).hex(" ") == traffic_key.hex(" ")
@@ -207,7 +211,9 @@ class TestIETFVectors:
         mac = bytes.fromhex("70 64 cf 99 8c c6 c3 15 c2 c2 e2 bf")
 
         p = IP(ipv4_tcp_bytes)
-        context_bytes = scapy_tcpao_context_vector(p, 0xFBFBAB5A, 0x11C14261)
+        context_bytes = scapy_tcpao_context_vector(
+            p, self.client_isn_41x, self.server_isn_41x
+        )
         logger.info("context: %s", context_bytes.hex(" "))
         assert kdf_sha1(self.master_key, context_bytes).hex(" ") == traffic_key.hex(" ")
         message_bytes = scapy_tcpao_message(p, include_options=True)
@@ -233,7 +239,9 @@ class TestIETFVectors:
         mac = bytes.fromhex("a6 3f 0e cb bb 2e 63 5c 95 4d ea c7")
 
         p = IP(ipv4_tcp_bytes)
-        context_bytes = scapy_tcpao_context_vector(p, 0x11C14261, 0xFBFBAB5A)
+        context_bytes = scapy_tcpao_context_vector(
+            p, self.server_isn_41x, self.client_isn_41x
+        )
         logger.info("context: %s", context_bytes.hex(" "))
         assert kdf_sha1(self.master_key, context_bytes).hex(" ") == traffic_key.hex(" ")
         message_bytes = scapy_tcpao_message(p, include_options=True)
