@@ -35,18 +35,62 @@ def scapy_tcpao_context_vector(p: Packet) -> bytes:
     )
 
 
-def scapy_tcpao_message(p: Packet, include_options=True) -> bytes:
-    sne_bytes = struct.pack("!I", 0)
-    ipv4_pseudo_header = struct.pack(
+def scapy_tcpao_message(p: Packet, include_options=True, sne=0) -> bytearray:
+    # Described by RFC5925 5.1
+    result = bytearray()
+    result += struct.pack("!I", sne)
+    # ipv4 pseudo-header:
+    result += struct.pack(
         "!4s4sHH",
         IPv4Address(p[IP].src).packed,
         IPv4Address(p[IP].dst).packed,
         6,
         p[TCP].dataofs * 4 + len(p[TCP].payload),
     )
-    logger.info("ipv4 pseudo header: %s", ipv4_pseudo_header.hex(" "))
-    tcp_header = bytes(p[TCP])[:16] + b"\x00\x00" + bytes(p[TCP])[18:20]
-    return sne_bytes + ipv4_pseudo_header + tcp_header + bytes(p[TCP].payload)
+
+    # tcp header with checksum set to zero
+    th_bytes = bytes(p[TCP])
+    result += th_bytes[:16]
+    result += b"\x00\x00"
+    result += th_bytes[18:20]
+
+    # Even if include_options=False the TCP-AO option itself is still included
+    # with the MAC set to all-zeros. This means we need to parse TCP options.
+    pos = 20
+    tcphdr_optend = p[TCP].dataofs * 4
+    # logger.info("th_bytes: %s", th_bytes.hex(' '))
+    assert len(th_bytes) == tcphdr_optend
+    while pos < tcphdr_optend:
+        optnum = th_bytes[pos]
+        pos += 1
+        if optnum == 0 or optnum == 1:
+            if include_options:
+                result += bytes([optnum])
+            continue
+
+        optlen = th_bytes[pos]
+        pos += 1
+        if pos + optlen - 2 > tcphdr_optend:
+            logger.info(
+                "bad tcp option %d optlen %d beyond end-of-header", optnum, optlen
+            )
+            break
+        if optlen < 2:
+            logger.info("bad tcp option %d optlen %d less than two", optnum, optlen)
+            break
+        if optnum == 29:
+            if optlen < 4:
+                logger.info("bad tcp option %d optlen %d", optnum, optlen)
+                break
+            result += bytes([optnum, optlen])
+            result += th_bytes[pos : pos + 2]
+            result += (optlen - 4) * b"\x00"
+        elif include_options:
+            result += bytes([optnum, optlen])
+            result += th_bytes[pos : pos + optlen - 2]
+        pos += optlen - 2
+    result += bytes(p[TCP].payload)
+    return result
 
 
 class TestIETFVectors:
@@ -99,7 +143,7 @@ class TestIETFVectors:
         message_bytes += ipv4_tcp_bytes[0x26:0x40]
         message_bytes += b"\x00" * 12
 
-        # assert (message_bytes == scapy_tcpao_message(p, include_options=True))
+        assert message_bytes.hex() == scapy_tcpao_message(p, include_options=True).hex()
 
         logger.info("message: %s", message_bytes.hex(" "))
         assert mac_sha1(traffic_key, message_bytes).hex() == mac.hex()
@@ -145,7 +189,9 @@ class TestIETFVectors:
         message_bytes += ipv4_tcp_bytes[0x3C:0x40]
         message_bytes += b"\x00" * 12
 
-        # assert (message_bytes == scapy_tcpao_message(p, include_options=False))
+        assert (
+            message_bytes.hex() == scapy_tcpao_message(p, include_options=False).hex()
+        )
 
         logger.info("message: %s", message_bytes.hex(" "))
         assert mac_sha1(traffic_key, message_bytes).hex() == mac.hex()
