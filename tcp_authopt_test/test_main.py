@@ -1,10 +1,19 @@
+from dataclasses import dataclass
 import logging
 import socket
+from tcp_authopt_test.linux_tcp_authopt import (
+    tcp_authopt,
+    set_tcp_authopt,
+    tcp_authopt_key,
+    set_tcp_authopt_key,
+)
 import time
+import os
 from scapy.sendrecv import AsyncSniffer
 from scapy.layers.inet import TCP, IP
 from contextlib import ExitStack
 from ipaddress import IPv4Address
+import typing
 
 import pytest
 
@@ -13,6 +22,16 @@ from .sockaddr import sockaddr_in
 from .tcp_md5sig import setsockopt_md5sig, tcp_md5sig
 
 logger = logging.getLogger(__name__)
+
+
+def can_capture():
+    # This is too restrictive:
+    return os.geteuid() == 0
+
+
+skipif_cant_capture = pytest.mark.skipif(
+    not can_capture(), reason="run as root to capture packets"
+)
 
 TCP_SERVER_PORT = 17971
 
@@ -160,11 +179,30 @@ class Context:
         self.stop()
 
 
+@dataclass
+class tcphdr_authopt:
+    keyid: int
+    rnextkeyid: int
+    mac: bytes
+
+    @classmethod
+    def unpack(cls, buf) -> "tcphdr_authopt":
+        return cls(buf[0], buf[1], buf[2:])
+
+
+def scapy_tcp_get_authopt_val(tcp) -> typing.Optional[tcphdr_authopt]:
+    for optnum, optval in tcp.options:
+        if optnum == 29:
+            return tcphdr_authopt.unpack(optval)
+    return None
+
+
 class TestMain:
     def test_connect_nosniff(self):
         with Context(should_sniff=False) as context:
             context.client_socket.connect(("localhost", TCP_SERVER_PORT))
 
+    @skipif_cant_capture
     def test_connect_sniff(self):
         with Context() as context:
             context.client_socket.connect(("localhost", TCP_SERVER_PORT))
@@ -183,7 +221,36 @@ class TestMain:
             assert found_syn
             assert found_synack
 
+    @skipif_cant_capture
     def test_sniffer_works(self):
         sniffer = AsyncSniffer(filter=f"tcp port {TCP_SERVER_PORT}", iface="lo")
         scapy_sniffer_start_spin(sniffer)
         sniffer.stop()
+
+    @skipif_cant_capture
+    def test_authopt_connect_sniff(self):
+        with Context() as context:
+            set_tcp_authopt(context.listen_socket, tcp_authopt(send_local_id=1))
+            set_tcp_authopt_key(
+                context.listen_socket, tcp_authopt_key(local_id=1, key=b"12345")
+            )
+            set_tcp_authopt(context.client_socket, tcp_authopt(send_local_id=1))
+            set_tcp_authopt_key(
+                context.client_socket, tcp_authopt_key(local_id=1, key=b"12345")
+            )
+            context.client_socket.connect(("localhost", TCP_SERVER_PORT))
+            context.client_socket.close()
+
+            time.sleep(1)
+            context.sniffer.stop()
+
+            def is_expected_syn(p):
+                if p[TCP].flags.S and not p[TCP].flags.A:
+                    assert p[TCP].dport == TCP_SERVER_PORT
+                    opt = scapy_tcp_get_authopt_val(p[TCP])
+                    assert opt is not None
+                    assert opt.keyid == 0
+                    logger.info("opt: %r", opt)
+                    return True
+
+            assert any(is_expected_syn(p) for p in context.sniffer.results)
