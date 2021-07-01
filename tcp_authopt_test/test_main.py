@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 import logging
 import socket
+from struct import pack
+from tcp_authopt_test import tcp_authopt_alg
+from scapy.packet import Packet
 from tcp_authopt_test.linux_tcp_authopt import (
     tcp_authopt,
     set_tcp_authopt,
@@ -189,6 +192,9 @@ class tcphdr_authopt:
     def unpack(cls, buf) -> "tcphdr_authopt":
         return cls(buf[0], buf[1], buf[2:])
 
+    def __repr__(self):
+        return f"tcphdr_authopt({self.keyid}, {self.rnextkeyid}, bytes.fromhex({self.mac.hex(' ')!r})"
+
 
 def scapy_tcp_get_authopt_val(tcp) -> typing.Optional[tcphdr_authopt]:
     for optnum, optval in tcp.options:
@@ -198,6 +204,20 @@ def scapy_tcp_get_authopt_val(tcp) -> typing.Optional[tcphdr_authopt]:
 
 
 class TestMain:
+    """Eventually this should be paratrized based on ipv and alg"""
+
+    master_key = b'testvector'
+
+    def kdf(self, context: bytes) -> bytes:
+        return tcp_authopt_alg.kdf_sha1(self.master_key, context)
+
+    def mac(self, traffic_key: bytes, message_bytes: bytes) -> bytes:
+        return tcp_authopt_alg.mac_sha1(traffic_key, message_bytes)
+
+    def mac_from_scapy_packet(self, traffic_key: bytes, packet: Packet) -> bytes:
+        message_bytes = tcp_authopt_alg.build_message_from_scapy(packet, include_options=False)
+        return self.mac(traffic_key, message_bytes)
+
     def test_connect_nosniff(self):
         with Context(should_sniff=False) as context:
             context.client_socket.connect(("localhost", TCP_SERVER_PORT))
@@ -232,11 +252,11 @@ class TestMain:
         with Context() as context:
             set_tcp_authopt(context.listen_socket, tcp_authopt(send_local_id=1))
             set_tcp_authopt_key(
-                context.listen_socket, tcp_authopt_key(local_id=1, key=b"12345")
+                context.listen_socket, tcp_authopt_key(local_id=1, key=self.master_key)
             )
             set_tcp_authopt(context.client_socket, tcp_authopt(send_local_id=1))
             set_tcp_authopt_key(
-                context.client_socket, tcp_authopt_key(local_id=1, key=b"12345")
+                context.client_socket, tcp_authopt_key(local_id=1, key=self.master_key)
             )
             context.client_socket.connect(("localhost", TCP_SERVER_PORT))
             context.client_socket.close()
@@ -248,9 +268,16 @@ class TestMain:
                 if p[TCP].flags.S and not p[TCP].flags.A:
                     assert p[TCP].dport == TCP_SERVER_PORT
                     opt = scapy_tcp_get_authopt_val(p[TCP])
+
                     assert opt is not None
                     assert opt.keyid == 0
                     logger.info("opt: %r", opt)
-                    return True
+
+                    context_bytes = tcp_authopt_alg.build_context_from_scapy(p, p[TCP].seq, 0)
+                    traffic_key = self.kdf(context_bytes)
+                    logger.info("traffic_key: %s", traffic_key.hex(" "))
+                    computed_mac = self.mac_from_scapy_packet(traffic_key, p)
+                    logger.info("computed_mac: %s", computed_mac.hex(" "))
+                    assert(computed_mac == opt.mac)
 
             assert any(is_expected_syn(p) for p in context.sniffer.results)
