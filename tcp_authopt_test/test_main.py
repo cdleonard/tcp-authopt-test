@@ -214,8 +214,8 @@ class TestMain:
     def mac(self, traffic_key: bytes, message_bytes: bytes) -> bytes:
         return tcp_authopt_alg.mac_sha1(traffic_key, message_bytes)
 
-    def mac_from_scapy_packet(self, traffic_key: bytes, packet: Packet) -> bytes:
-        message_bytes = tcp_authopt_alg.build_message_from_scapy(packet, include_options=False)
+    def mac_from_scapy_packet(self, traffic_key: bytes, packet: Packet, include_options=True) -> bytes:
+        message_bytes = tcp_authopt_alg.build_message_from_scapy(packet, include_options=include_options)
         return self.mac(traffic_key, message_bytes)
 
     def test_connect_nosniff(self):
