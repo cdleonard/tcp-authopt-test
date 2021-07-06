@@ -279,5 +279,6 @@ class TestMain:
                     computed_mac = self.mac_from_scapy_packet(traffic_key, p)
                     logger.info("computed_mac: %s", computed_mac.hex(" "))
                     assert(computed_mac == opt.mac)
+                    return True
 
             assert any(is_expected_syn(p) for p in context.sniffer.results)
