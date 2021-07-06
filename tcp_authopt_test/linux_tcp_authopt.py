@@ -51,7 +51,7 @@ class tcp_authopt_key:
     kdf: int = TCP_AUTHOPT_KDF_HMAC_SHA1
     mac: int = TCP_AUTHOPT_MAC_HMAC_SHA_1_96
 
-    struct_format = "IIBBBBHxx80s"
+    struct_format = "IIBBBBH80sxx"
     sizeof = struct.calcsize(struct_format)
 
     def pack(self) -> bytes:
