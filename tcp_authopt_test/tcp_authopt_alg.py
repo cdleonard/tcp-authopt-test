@@ -1,6 +1,7 @@
 """Packet-processing utilities implementing RFC5925 and RFC2926"""
 
 import logging
+from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address
 from scapy.layers.inet import IP, TCP
 from scapy.packet import Packet
@@ -107,3 +108,66 @@ def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearra
         pos += optlen - 2
     result += bytes(p[TCP].payload)
     return result
+
+
+@dataclass
+class TCPAuthContext:
+    """Context used to TCP Authentication option as defined in RFC5925 5.2"""
+
+    saddr: IPv4Address = None
+    daddr: IPv4Address = None
+    sport: int = 0
+    dport: int = 0
+    sisn: int = 0
+    disn: int = 0
+
+    def pack(self, syn=True, rev=False) -> bytes:
+        if rev:
+            return build_context(
+                self.daddr,
+                self.saddr,
+                self.dport,
+                self.sport,
+                self.disn if not syn else 0,
+                self.sisn,
+            )
+        else:
+            return build_context(
+                self.saddr,
+                self.daddr,
+                self.sport,
+                self.dport,
+                self.sisn,
+                self.disn if not syn else 0,
+            )
+
+    def rev(self) -> "TCPAuthContext":
+        """Reverse"""
+        return TCPAuthContext(
+            saddr=self.daddr,
+            daddr=self.saddr,
+            sport=self.dport,
+            dport=self.sport,
+            sisn=self.disn,
+            disn=self.sisn,
+        )
+
+    def init_from_syn_packet(self, p):
+        """Init from a SYN packet (and set dist to zero)"""
+        assert p[TCP].flags.S and not p[TCP].flags.A and p[TCP].ack == 0
+        self.saddr = IPv4Address(p[IP].src)
+        self.daddr = IPv4Address(p[IP].dst)
+        self.sport = p[TCP].sport
+        self.dport = p[TCP].dport
+        self.sisn = p[TCP].seq
+        self.disn = 0
+
+    def update_from_synack_packet(self, p):
+        """Update disn and check everything else matches"""
+        assert p[TCP].flags.S and p[TCP].flags.A
+        assert self.saddr == IPv4Address(p[IP].dst)
+        assert self.daddr == IPv4Address(p[IP].src)
+        assert self.sport == p[TCP].dport
+        assert self.dport == p[TCP].sport
+        assert self.sisn == p[TCP].ack - 1
+        self.disn = p[TCP].seq

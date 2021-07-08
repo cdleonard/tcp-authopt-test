@@ -1,6 +1,7 @@
 import logging
 import os
 import socket
+import random
 import time
 import typing
 from contextlib import ExitStack
@@ -13,8 +14,12 @@ from scapy.packet import Packet
 from scapy.sendrecv import AsyncSniffer
 
 from . import tcp_authopt_alg
-from .linux_tcp_authopt import (set_tcp_authopt, set_tcp_authopt_key,
-                                tcp_authopt, tcp_authopt_key)
+from .linux_tcp_authopt import (
+    set_tcp_authopt,
+    set_tcp_authopt_key,
+    tcp_authopt,
+    tcp_authopt_key,
+)
 from .linux_tcp_md5sig import setsockopt_md5sig, tcp_md5sig
 from .server import SimpleServerThread
 from .sockaddr import sockaddr_in
@@ -46,6 +51,10 @@ def recvall(sock, todo):
         if todo == 0:
             return data
         assert todo > 0
+
+
+def randbytes(count) -> bytes:
+    return bytes([random.randint(0, 255) for index in range(count)])
 
 
 @pytest.fixture
@@ -201,7 +210,7 @@ def scapy_tcp_get_authopt_val(tcp) -> typing.Optional[tcphdr_authopt]:
 class TestMain:
     """Eventually this should be paratrized based on ipv and alg"""
 
-    master_key = b'testvector'
+    master_key = b"testvector"
 
     def kdf(self, context: bytes) -> bytes:
         return tcp_authopt_alg.kdf_sha1(self.master_key, context)
@@ -209,8 +218,12 @@ class TestMain:
     def mac(self, traffic_key: bytes, message_bytes: bytes) -> bytes:
         return tcp_authopt_alg.mac_sha1(traffic_key, message_bytes)
 
-    def mac_from_scapy_packet(self, traffic_key: bytes, packet: Packet, include_options=True) -> bytes:
-        message_bytes = tcp_authopt_alg.build_message_from_scapy(packet, include_options=include_options)
+    def mac_from_scapy_packet(
+        self, traffic_key: bytes, packet: Packet, include_options=True
+    ) -> bytes:
+        message_bytes = tcp_authopt_alg.build_message_from_scapy(
+            packet, include_options=include_options
+        )
         return self.mac(traffic_key, message_bytes)
 
     def test_connect_nosniff(self):
@@ -254,26 +267,58 @@ class TestMain:
                 context.client_socket, tcp_authopt_key(local_id=1, key=self.master_key)
             )
             context.client_socket.connect(("localhost", TCP_SERVER_PORT))
-            context.client_socket.close()
 
+            buf = randbytes(128)
+            assert len(buf) == 128
+            context.client_socket.sendall(buf)
+            recv_buf = recvall(context.client_socket, len(buf))
+            assert recv_buf == buf
+
+            context.client_socket.close()
             time.sleep(1)
             context.sniffer.stop()
 
-            def is_expected_syn(p):
+            found_syn = False
+            found_synack = False
+            auth_context = tcp_authopt_alg.TCPAuthContext()
+
+            logger.info("capture: %r", context.sniffer.results)
+            for p in context.sniffer.results:
+                opt = scapy_tcp_get_authopt_val(p[TCP])
+                if opt is None:
+                    # this should be an error
+                    logger.warning("missing tcp-ao: %r", p)
+                    continue
+                assert opt is not None
+                assert opt.keyid == 0
+                logger.info("opt: %r", opt)
+
                 if p[TCP].flags.S and not p[TCP].flags.A:
                     assert p[TCP].dport == TCP_SERVER_PORT
-                    opt = scapy_tcp_get_authopt_val(p[TCP])
-
-                    assert opt is not None
-                    assert opt.keyid == 0
-                    logger.info("opt: %r", opt)
-
-                    context_bytes = tcp_authopt_alg.build_context_from_scapy(p, p[TCP].seq, 0)
+                    context_bytes = tcp_authopt_alg.build_context_from_scapy(
+                        p, p[TCP].seq, 0
+                    )
+                    auth_context.init_from_syn_packet(p)
+                    assert auth_context.pack() == context_bytes
                     traffic_key = self.kdf(context_bytes)
-                    logger.info("traffic_key: %s", traffic_key.hex(" "))
-                    computed_mac = self.mac_from_scapy_packet(traffic_key, p)
-                    logger.info("computed_mac: %s", computed_mac.hex(" "))
-                    assert(computed_mac == opt.mac)
-                    return True
+                    found_syn = True
+                elif p[TCP].flags.S and p[TCP].flags.A:
+                    assert p[TCP].sport == TCP_SERVER_PORT
+                    context_bytes = tcp_authopt_alg.build_context_from_scapy(
+                        p, p[TCP].seq, p[TCP].ack - 1
+                    )
+                    auth_context.update_from_synack_packet(p)
+                    assert auth_context.pack() == context_bytes
+                    traffic_key = self.kdf(auth_context.pack())
+                    found_synack = True
+                else:
+                    assert found_synack
+                    traffic_key = self.kdf(auth_context.pack())
 
-            assert any(is_expected_syn(p) for p in context.sniffer.results)
+                logger.info("traffic_key: %s", traffic_key.hex(" "))
+                computed_mac = self.mac_from_scapy_packet(traffic_key, p)
+                logger.info("computed_mac: %s", computed_mac.hex(" "))
+                assert computed_mac == opt.mac
+
+            assert found_syn
+            # assert found_synack
