@@ -85,8 +85,6 @@ def main(argv=None):
             continue
         tcp = p[TCP]
         for optnum, optval in tcp.options:
-            import binascii
-
             if optnum != 29:
                 logger.debug("[%s]: TCP %r optval %r", packet_index, optnum, optval)
                 continue
