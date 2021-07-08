@@ -1,28 +1,23 @@
-from dataclasses import dataclass
 import logging
-import socket
-from struct import pack
-from tcp_authopt_test import tcp_authopt_alg
-from scapy.packet import Packet
-from tcp_authopt_test.linux_tcp_authopt import (
-    tcp_authopt,
-    set_tcp_authopt,
-    tcp_authopt_key,
-    set_tcp_authopt_key,
-)
-import time
 import os
-from scapy.sendrecv import AsyncSniffer
-from scapy.layers.inet import TCP, IP
-from contextlib import ExitStack
-from ipaddress import IPv4Address
+import socket
+import time
 import typing
+from contextlib import ExitStack
+from dataclasses import dataclass
+from ipaddress import IPv4Address
 
 import pytest
+from scapy.layers.inet import IP, TCP
+from scapy.packet import Packet
+from scapy.sendrecv import AsyncSniffer
 
+from . import tcp_authopt_alg
+from .linux_tcp_authopt import (set_tcp_authopt, set_tcp_authopt_key,
+                                tcp_authopt, tcp_authopt_key)
+from .linux_tcp_md5sig import setsockopt_md5sig, tcp_md5sig
 from .server import SimpleServerThread
 from .sockaddr import sockaddr_in
-from .tcp_md5sig import setsockopt_md5sig, tcp_md5sig
 
 logger = logging.getLogger(__name__)
 

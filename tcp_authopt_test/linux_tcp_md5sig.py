@@ -1,3 +1,5 @@
+"""Python wrapper around linux TCP_MD5SIG ABI"""
+
 import socket
 import struct
 from dataclasses import dataclass

@@ -1,4 +1,4 @@
-"""Python wrapper around linux TCP_MD5SIG ioctls"""
+"""Python wrapper around linux TCP_AUTHOPT ABI"""
 
 import socket
 import struct
