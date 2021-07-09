@@ -121,7 +121,7 @@ class TCPAuthContext:
     sisn: int = 0
     disn: int = 0
 
-    def pack(self, syn=True, rev=False) -> bytes:
+    def pack(self, syn=False, rev=False) -> bytes:
         if rev:
             return build_context(
                 self.daddr,

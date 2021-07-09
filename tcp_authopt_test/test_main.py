@@ -266,18 +266,21 @@ class TestMain:
             set_tcp_authopt_key(
                 context.client_socket, tcp_authopt_key(local_id=1, key=self.master_key)
             )
+            context.client_socket.settimeout(1.0);
             context.client_socket.connect(("localhost", TCP_SERVER_PORT))
 
-            buf = randbytes(128)
-            assert len(buf) == 128
-            context.client_socket.sendall(buf)
-            recv_buf = recvall(context.client_socket, len(buf))
-            assert recv_buf == buf
+            if False:
+                buf = randbytes(128)
+                assert len(buf) == 128
+                context.client_socket.sendall(buf)
+                recv_buf = recvall(context.client_socket, len(buf))
+                assert recv_buf == buf
 
             context.client_socket.close()
             time.sleep(1)
             context.sniffer.stop()
 
+            fail = False
             found_syn = False
             found_synack = False
             auth_context = tcp_authopt_alg.TCPAuthContext()
@@ -285,13 +288,18 @@ class TestMain:
             logger.info("capture: %r", context.sniffer.results)
             for p in context.sniffer.results:
                 opt = scapy_tcp_get_authopt_val(p[TCP])
+                assert p[TCP].sport == TCP_SERVER_PORT or p[TCP].dport == TCP_SERVER_PORT
                 if opt is None:
                     # this should be an error
-                    logger.warning("missing tcp-ao: %r", p)
+                    logger.error("missing tcp-ao on packet %r", p)
+                    fail = True
                     continue
                 assert opt is not None
                 assert opt.keyid == 0
-                logger.info("opt: %r", opt)
+                #logger.info("opt: %r", opt)
+                #logger.info("flags: %r", p[TCP].flags)
+                #logger.info("p[TCP]: %r", p[TCP])
+                #logger.info("p[IP]: %r", p[IP])
 
                 if p[TCP].flags.S and not p[TCP].flags.A:
                     assert p[TCP].dport == TCP_SERVER_PORT
@@ -299,26 +307,35 @@ class TestMain:
                         p, p[TCP].seq, 0
                     )
                     auth_context.init_from_syn_packet(p)
-                    assert auth_context.pack() == context_bytes
-                    traffic_key = self.kdf(context_bytes)
+                    assert auth_context.pack(syn=True) == context_bytes
                     found_syn = True
                 elif p[TCP].flags.S and p[TCP].flags.A:
                     assert p[TCP].sport == TCP_SERVER_PORT
+                    assert found_syn
                     context_bytes = tcp_authopt_alg.build_context_from_scapy(
                         p, p[TCP].seq, p[TCP].ack - 1
                     )
                     auth_context.update_from_synack_packet(p)
-                    assert auth_context.pack() == context_bytes
-                    traffic_key = self.kdf(auth_context.pack())
+                    assert auth_context.pack(rev=True).hex(" ") == context_bytes.hex(" ")
                     found_synack = True
                 else:
                     assert found_synack
-                    traffic_key = self.kdf(auth_context.pack())
+                    context_bytes = auth_context.pack(rev=(p[TCP].sport == TCP_SERVER_PORT))
 
-                logger.info("traffic_key: %s", traffic_key.hex(" "))
+                traffic_key = self.kdf(context_bytes)
                 computed_mac = self.mac_from_scapy_packet(traffic_key, p)
-                logger.info("computed_mac: %s", computed_mac.hex(" "))
-                assert computed_mac == opt.mac
+                captured_mac = opt.mac
+                if computed_mac != captured_mac:
+                    logger.error("fail computed_mac=%s != captured_mac=%s traffic_key=%s context=%s packet=%r",
+                            computed_mac.hex(" "), opt.mac.hex(" "),
+                            traffic_key.hex(" "),
+                            context_bytes.hex(" "),
+                            p)
+                    fail = True
+                else:
+                    logger.info("correct mac=%s packet=%r", computed_mac.hex(" "), p)
+                #assert computed_mac == opt.mac
 
             assert found_syn
-            # assert found_synack
+            assert found_synack
+            assert not fail
