@@ -280,6 +280,7 @@ class TestMain:
             time.sleep(1)
             context.sniffer.stop()
 
+            # even if one signature is incorrect keep processing the acture
             fail = False
             found_syn = False
             found_synack = False
@@ -290,7 +291,6 @@ class TestMain:
                 opt = scapy_tcp_get_authopt_val(p[TCP])
                 assert p[TCP].sport == TCP_SERVER_PORT or p[TCP].dport == TCP_SERVER_PORT
                 if opt is None:
-                    # this should be an error
                     logger.error("missing tcp-ao on packet %r", p)
                     fail = True
                     continue
