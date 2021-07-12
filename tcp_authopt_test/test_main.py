@@ -269,7 +269,7 @@ class TestMain:
             context.client_socket.settimeout(1.0);
             context.client_socket.connect(("localhost", TCP_SERVER_PORT))
 
-            if False:
+            for index in range(2):
                 buf = randbytes(128)
                 assert len(buf) == 128
                 context.client_socket.sendall(buf)
