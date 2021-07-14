@@ -259,13 +259,11 @@ class TestMain:
     def test_authopt_connect_sniff(self):
         with Context() as context:
             set_tcp_authopt(context.listen_socket, tcp_authopt(send_local_id=1))
-            set_tcp_authopt_key(
-                context.listen_socket, tcp_authopt_key(local_id=1, key=self.master_key)
-            )
+            server_key = tcp_authopt_key(local_id=1, key=self.master_key)
+            set_tcp_authopt_key(context.listen_socket, server_key)
             set_tcp_authopt(context.client_socket, tcp_authopt(send_local_id=1))
-            set_tcp_authopt_key(
-                context.client_socket, tcp_authopt_key(local_id=1, key=self.master_key)
-            )
+            client_key = tcp_authopt_key(local_id=1, key=self.master_key)
+            set_tcp_authopt_key(context.client_socket, client_key)
             context.client_socket.settimeout(1.0);
             context.client_socket.connect(("localhost", TCP_SERVER_PORT))
 

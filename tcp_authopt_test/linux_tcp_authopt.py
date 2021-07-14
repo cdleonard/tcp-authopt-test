@@ -1,82 +1,105 @@
 """Python wrapper around linux TCP_AUTHOPT ABI"""
 
 import socket
-import struct
-from dataclasses import dataclass
-from .sockaddr import sockaddr_unpack
+import logging
+import ctypes
+from ctypes import c_uint32, c_uint8, c_byte, c_uint16
 
+logger = logging.getLogger(__name__)
 
 TCP_AUTHOPT = 38
 TCP_AUTHOPT_KEY = 39
 
 TCP_AUTHOPT_MAXKEYLEN = 80
-TCP_AUTHOPT_KDF_HMAC_SHA1 = 1
-TCP_AUTHOPT_KDF_AES_128_CMAC = 2
-TCP_AUTHOPT_MAC_HMAC_SHA_1_96 = 1
-TCP_AUTHOPT_MAC_AES_128_CMAC_96 = 2
+
+TCP_AUTHOPT_KEY_DEL = 1 << 0
+TCP_AUTHOPT_KEY_EXCLUDE_OPTS = 1 << 1
+
+TCP_AUTHOPT_ALG_HMAC_SHA_1_96 = 1
+TCP_AUTHOPT_ALG_AES_128_CMAC_96 = 2
 
 
-@dataclass
-class tcp_authopt:
+class tcp_authopt(ctypes.Structure):
     """Like linux struct tcp_authopt"""
 
-    flags: int = 0
-    send_local_id: int = 0
-
-    struct_format = "II"
-    sizeof = struct.calcsize(struct_format)
+    _fields_ = [
+        ("flags", c_uint32),
+        ("send_local_id", c_uint32),
+    ]
 
     def pack(self) -> bytes:
-        return struct.pack(self.struct_format, self.flags, self.send_local_id)
-
-    @classmethod
-    def unpack(cls, buffer: bytes) -> "tcp_authopt":
-        args = struct.unpack(cls.struct_format, buffer)
-        return cls(*args)
+        return bytes(self)
 
 
 def set_tcp_authopt(sock, opt: tcp_authopt):
-    return sock.setsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT, opt.pack())
+    return sock.setsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT, bytes(opt))
 
 
-@dataclass
-class tcp_authopt_key:
+_keybuf = c_byte * TCP_AUTHOPT_MAXKEYLEN
+
+
+class tcp_authopt_key(ctypes.Structure):
     """Like linux struct tcp_authopt_key"""
 
-    local_id: int
-    key: bytes
-    flags: int = 0
-    send_id: int = 0
-    recv_id: int = 0
-    kdf: int = TCP_AUTHOPT_KDF_HMAC_SHA1
-    mac: int = TCP_AUTHOPT_MAC_HMAC_SHA_1_96
+    _fields_ = [
+        ("flags", c_uint32),
+        ("local_id", c_uint32),
+        ("send_id", c_uint8),
+        ("recv_id", c_uint8),
+        ("kdf", c_uint8),
+        ("mac", c_uint8),
+        ("keylen", c_uint16),
+        ("keybuf", _keybuf),
+        ("pad0", c_uint8),
+        ("pad1", c_uint8),
+    ]
 
-    struct_format = "IIBBBBH80sxx"
-    sizeof = struct.calcsize(struct_format)
+    def __init__(
+        self,
+        flags: int = 0,
+        local_id: int = 0,
+        send_id: int = 0,
+        recv_id: int = 0,
+        kdf=TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+        mac=TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+        key: bytes = b"",
+    ):
+        self.local_id = local_id
+        self.flags = flags
+        self.send_id = send_id
+        self.recv_id = recv_id
+        self.kdf = kdf
+        self.mac = mac
+        self.key = key
 
-    def pack(self) -> bytes:
-        return struct.pack(
-            self.struct_format,
-            self.flags,
-            self.local_id,
-            self.send_id,
-            self.recv_id,
-            self.kdf,
-            self.mac,
-            len(self.key),
-            self.key,
-        )
+    @property
+    def key(self) -> bytes:
+        return bytes(self.keybuf[: self.keylen])
 
-    @classmethod
-    def unpack(cls, buffer: bytes) -> "tcp_authopt_key":
-        flags, local_id, send_id, recv_id, kdf, mac, keylen, key = struct.unpack(
-            cls.struct_format, buffer
-        )
-        key = key[:keylen]
-        return cls(
-            flags, local_id, send_id=send_id, recv_id=recv_id, kdf=kdf, mac=mac, key=key
-        )
+    @key.setter
+    def key(self, val: bytes) -> bytes:
+        if len(val) > TCP_AUTHOPT_MAXKEYLEN:
+            raise ValueError(f"Max key length is {TCP_AUTHOPT_MAXKEYLEN}")
+        self.keylen = len(val)
+        self.keybuf = _keybuf.from_buffer_copy(val.ljust(TCP_AUTHOPT_MAXKEYLEN, b"\0"))
+        return val
+
+    @property
+    def include_options(self) -> bool:
+        return (self.flags & TCP_AUTHOPT_KEY_EXCLUDE_OPTS) == 0
+
+    @include_options.setter
+    def include_options(self, value) -> bool:
+        if value:
+            self.flags &= ~TCP_AUTHOPT_KEY_EXCLUDE_OPTS
+        else:
+            self.flags |= TCP_AUTHOPT_KEY_EXCLUDE_OPTS
 
 
 def set_tcp_authopt_key(sock, key: tcp_authopt_key):
-    return sock.setsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT_KEY, key.pack())
+    return sock.setsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT_KEY, bytes(key))
+
+
+def del_tcp_authopt_key_by_id(sock, local_id: int):
+    opt = tcp_authopt_key(local_id=local_id, flags=TCP_AUTHOPT_KEY_DEL)
+    return sock.setsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT_KEY, bytes(opt))
