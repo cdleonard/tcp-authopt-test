@@ -46,12 +46,9 @@ class tcp_authopt_key(ctypes.Structure):
         ("local_id", c_uint32),
         ("send_id", c_uint8),
         ("recv_id", c_uint8),
-        ("kdf", c_uint8),
-        ("mac", c_uint8),
-        ("keylen", c_uint16),
+        ("alg", c_uint8),
+        ("keylen", c_uint8),
         ("keybuf", _keybuf),
-        ("pad0", c_uint8),
-        ("pad1", c_uint8),
     ]
 
     def __init__(
@@ -60,16 +57,14 @@ class tcp_authopt_key(ctypes.Structure):
         local_id: int = 0,
         send_id: int = 0,
         recv_id: int = 0,
-        kdf=TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
-        mac=TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+        alg=TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
         key: bytes = b"",
     ):
         self.local_id = local_id
         self.flags = flags
         self.send_id = send_id
         self.recv_id = recv_id
-        self.kdf = kdf
-        self.mac = mac
+        self.alg = alg
         self.key = key
 
     @property
