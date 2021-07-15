@@ -150,8 +150,9 @@ def scapy_sniffer_start_spin(sniffer: AsyncSniffer):
 class Context:
     sniffer: AsyncSniffer
 
-    def __init__(self, should_sniff: bool = True):
+    def __init__(self, should_sniff: bool = True, address_family=socket.AF_INET):
         self.should_sniff = should_sniff
+        self.address_family = address_family
 
     def stop_sniffer(self):
         if self.sniffer and self.sniffer.running:
@@ -166,13 +167,13 @@ class Context:
             scapy_sniffer_start_spin(self.sniffer)
             self.exit_stack.callback(self.stop_sniffer)
 
-        self.listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listen_socket = socket.socket(self.address_family, socket.SOCK_STREAM)
         self.listen_socket = self.exit_stack.push(self.listen_socket)
         self.listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.listen_socket.bind(("", TCP_SERVER_PORT))
         self.listen_socket.listen(1)
 
-        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client_socket = socket.socket(self.address_family, socket.SOCK_STREAM)
         self.client_socket = self.exit_stack.push(self.client_socket)
 
         self.server_thread = SimpleServerThread(self.listen_socket, mode="echo")
@@ -222,10 +223,16 @@ def nstat_json(command_prefix: str = ""):
     return json.loads(runres.stdout)
 
 
-class TestMain:
-    """Eventually this should be paratrized based on ipv and alg"""
+def test_connect_nosniff():
+    with Context(should_sniff=False) as context:
+        context.client_socket.connect(("localhost", TCP_SERVER_PORT))
+
+
+class MainTestBase:
+    """Can be parametrized by inheritance"""
 
     master_key = b"testvector"
+    address_family = None
 
     def kdf(self, context: bytes) -> bytes:
         return tcp_authopt_alg.kdf_sha1(self.master_key, context)
@@ -241,13 +248,9 @@ class TestMain:
         )
         return self.mac(traffic_key, message_bytes)
 
-    def test_connect_nosniff(self):
-        with Context(should_sniff=False) as context:
-            context.client_socket.connect(("localhost", TCP_SERVER_PORT))
-
     @skipif_cant_capture
     def test_connect_sniff(self):
-        with Context() as context:
+        with Context(address_family=self.address_family) as context:
             context.client_socket.connect(("localhost", TCP_SERVER_PORT))
             time.sleep(1)
             context.sniffer.stop()
@@ -272,7 +275,7 @@ class TestMain:
 
     @skipif_cant_capture
     def test_authopt_connect_sniff(self, exit_stack: ExitStack):
-        context = exit_stack.enter_context(Context())
+        context = exit_stack.enter_context(Context(address_family=self.address_family))
 
         set_tcp_authopt(context.listen_socket, tcp_authopt(send_local_id=1))
         server_key = tcp_authopt_key(local_id=1, key=self.master_key)
@@ -399,3 +402,10 @@ def test_tcp_authopt_key_setdel(exit_stack):
     with pytest.raises(OSError) as e:
         del_tcp_authopt_key_by_id(sock, 1)
     assert e.value.errno == errno.ENOENT
+
+
+class TestMainV4(MainTestBase):
+    address_family = socket.AF_INET
+
+#class TestMainV6(MainTestBase):
+#    address_family = socket.AF_INET6
