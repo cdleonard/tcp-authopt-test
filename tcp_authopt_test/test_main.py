@@ -271,105 +271,103 @@ class TestMain:
         sniffer.stop()
 
     @skipif_cant_capture
-    def test_authopt_connect_sniff(self):
-        with Context() as context:
-            set_tcp_authopt(context.listen_socket, tcp_authopt(send_local_id=1))
-            server_key = tcp_authopt_key(local_id=1, key=self.master_key)
-            set_tcp_authopt_key(context.listen_socket, server_key)
-            set_tcp_authopt(context.client_socket, tcp_authopt(send_local_id=1))
-            client_key = tcp_authopt_key(local_id=1, key=self.master_key)
-            set_tcp_authopt_key(context.client_socket, client_key)
+    def test_authopt_connect_sniff(self, exit_stack: ExitStack):
+        context = exit_stack.enter_context(Context())
 
-            # even if one signature is incorrect keep processing the capture
-            fail = False
-            found_syn = False
-            found_synack = False
-            old_nstat = nstat_json()
+        set_tcp_authopt(context.listen_socket, tcp_authopt(send_local_id=1))
+        server_key = tcp_authopt_key(local_id=1, key=self.master_key)
+        set_tcp_authopt_key(context.listen_socket, server_key)
+        set_tcp_authopt(context.client_socket, tcp_authopt(send_local_id=1))
+        client_key = tcp_authopt_key(local_id=1, key=self.master_key)
+        set_tcp_authopt_key(context.client_socket, client_key)
 
-            try:
-                context.client_socket.settimeout(1.0)
-                context.client_socket.connect(("localhost", TCP_SERVER_PORT))
-                for _ in range(2):
-                    buf = randbytes(128)
-                    assert len(buf) == 128
-                    context.client_socket.sendall(buf)
-                    recv_buf = recvall(context.client_socket, len(buf))
-                    assert recv_buf == buf
-            except socket.timeout:
-                logger.warning("socket timeout", exc_info=True)
-                pass
-            context.client_socket.close()
-            time.sleep(1)
-            context.sniffer.stop()
+        # even if one signature is incorrect keep processing the capture
+        fail = False
+        found_syn = False
+        found_synack = False
+        old_nstat = nstat_json()
 
-            auth_context = tcp_authopt_alg.TCPAuthContext()
+        try:
+            context.client_socket.settimeout(1.0)
+            context.client_socket.connect(("localhost", TCP_SERVER_PORT))
+            for _ in range(2):
+                buf = randbytes(128)
+                assert len(buf) == 128
+                context.client_socket.sendall(buf)
+                recv_buf = recvall(context.client_socket, len(buf))
+                assert recv_buf == buf
+        except socket.timeout:
+            logger.warning("socket timeout", exc_info=True)
+            pass
+        context.client_socket.close()
+        time.sleep(1)
+        context.sniffer.stop()
 
-            logger.info("capture: %r", context.sniffer.results)
-            for p in context.sniffer.results:
-                opt = scapy_tcp_get_authopt_val(p[TCP])
-                assert (
-                    p[TCP].sport == TCP_SERVER_PORT or p[TCP].dport == TCP_SERVER_PORT
+        auth_context = tcp_authopt_alg.TCPAuthContext()
+
+        logger.info("capture: %r", context.sniffer.results)
+        for p in context.sniffer.results:
+            opt = scapy_tcp_get_authopt_val(p[TCP])
+            assert p[TCP].sport == TCP_SERVER_PORT or p[TCP].dport == TCP_SERVER_PORT
+            if opt is None:
+                logger.error("missing tcp-ao on packet %r", p)
+                fail = True
+                continue
+            assert opt is not None
+            assert opt.keyid == 0
+            # logger.info("opt: %r", opt)
+            # logger.info("flags: %r", p[TCP].flags)
+            # logger.info("p[TCP]: %r", p[TCP])
+            # logger.info("p[IP]: %r", p[IP])
+
+            if p[TCP].flags.S and not p[TCP].flags.A:
+                assert p[TCP].dport == TCP_SERVER_PORT
+                context_bytes = tcp_authopt_alg.build_context_from_scapy(
+                    p, p[TCP].seq, 0
                 )
-                if opt is None:
-                    logger.error("missing tcp-ao on packet %r", p)
-                    fail = True
-                    continue
-                assert opt is not None
-                assert opt.keyid == 0
-                # logger.info("opt: %r", opt)
-                # logger.info("flags: %r", p[TCP].flags)
-                # logger.info("p[TCP]: %r", p[TCP])
-                # logger.info("p[IP]: %r", p[IP])
+                auth_context.init_from_syn_packet(p)
+                assert auth_context.pack(syn=True) == context_bytes
+                found_syn = True
+            elif p[TCP].flags.S and p[TCP].flags.A:
+                assert p[TCP].sport == TCP_SERVER_PORT
+                assert found_syn
+                context_bytes = tcp_authopt_alg.build_context_from_scapy(
+                    p, p[TCP].seq, p[TCP].ack - 1
+                )
+                auth_context.update_from_synack_packet(p)
+                assert auth_context.pack(rev=True).hex() == context_bytes.hex()
+                found_synack = True
+            else:
+                assert found_synack
+                context_bytes = auth_context.pack(rev=(p[TCP].sport == TCP_SERVER_PORT))
 
-                if p[TCP].flags.S and not p[TCP].flags.A:
-                    assert p[TCP].dport == TCP_SERVER_PORT
-                    context_bytes = tcp_authopt_alg.build_context_from_scapy(
-                        p, p[TCP].seq, 0
-                    )
-                    auth_context.init_from_syn_packet(p)
-                    assert auth_context.pack(syn=True) == context_bytes
-                    found_syn = True
-                elif p[TCP].flags.S and p[TCP].flags.A:
-                    assert p[TCP].sport == TCP_SERVER_PORT
-                    assert found_syn
-                    context_bytes = tcp_authopt_alg.build_context_from_scapy(
-                        p, p[TCP].seq, p[TCP].ack - 1
-                    )
-                    auth_context.update_from_synack_packet(p)
-                    assert auth_context.pack(rev=True).hex() == context_bytes.hex()
-                    found_synack = True
-                else:
-                    assert found_synack
-                    context_bytes = auth_context.pack(
-                        rev=(p[TCP].sport == TCP_SERVER_PORT)
-                    )
+            # logger.info("context=%s packet=%r", context_bytes.hex(" "), p);
+            traffic_key = self.kdf(context_bytes)
+            computed_mac = self.mac_from_scapy_packet(traffic_key, p)
+            captured_mac = opt.mac
+            if computed_mac != captured_mac:
+                fail = True
+                logger.error(
+                    "fail computed_mac=%s != captured_mac=%s traffic_key=%s context=%s packet=%r",
+                    computed_mac.hex(" "),
+                    opt.mac.hex(" "),
+                    traffic_key.hex(" "),
+                    context_bytes.hex(" "),
+                    p,
+                )
+            else:
+                logger.info("correct mac=%s packet=%r", computed_mac.hex(" "), p)
+            # assert computed_mac == opt.mac
 
-                # logger.info("context=%s packet=%r", context_bytes.hex(" "), p);
-                traffic_key = self.kdf(context_bytes)
-                computed_mac = self.mac_from_scapy_packet(traffic_key, p)
-                captured_mac = opt.mac
-                if computed_mac != captured_mac:
-                    fail = True
-                    logger.error(
-                        "fail computed_mac=%s != captured_mac=%s traffic_key=%s context=%s packet=%r",
-                        computed_mac.hex(" "),
-                        opt.mac.hex(" "),
-                        traffic_key.hex(" "),
-                        context_bytes.hex(" "),
-                        p,
-                    )
-                else:
-                    logger.info("correct mac=%s packet=%r", computed_mac.hex(" "), p)
-                # assert computed_mac == opt.mac
-
-            new_nstat = nstat_json()
-            assert 0 == (
-                new_nstat["kernel"]["TcpExtTCPAuthOptFailure"]
-                - old_nstat["kernel"]["TcpExtTCPAuthOptFailure"]
-            )
-            assert found_syn
-            assert found_synack
-            assert not fail
+        new_nstat = nstat_json()
+        assert (
+            0
+            == new_nstat["kernel"]["TcpExtTCPAuthOptFailure"]
+            - old_nstat["kernel"]["TcpExtTCPAuthOptFailure"]
+        )
+        assert found_syn
+        assert found_synack
+        assert not fail
 
 
 def test_tcp_authopt_key_del_without_active(exit_stack):
