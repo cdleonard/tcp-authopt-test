@@ -3,6 +3,7 @@ import os
 import socket
 import random
 import time
+import errno
 import typing
 from contextlib import ExitStack
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ from scapy.sendrecv import AsyncSniffer
 
 from . import tcp_authopt_alg
 from .linux_tcp_authopt import (
+    del_tcp_authopt_key_by_id,
     set_tcp_authopt,
     set_tcp_authopt_key,
     tcp_authopt,
@@ -337,3 +339,34 @@ class TestMain:
             assert found_syn
             assert found_synack
             assert not fail
+
+
+def test_tcp_authopt_key_del_without_active(exit_stack):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    exit_stack.push(sock)
+
+    # nothing happens:
+    with pytest.raises(OSError) as e:
+        del_tcp_authopt_key_by_id(sock, 1)
+    assert e.value.errno == errno.EINVAL
+
+
+def test_tcp_authopt_key_setdel(exit_stack):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    exit_stack.push(sock)
+    set_tcp_authopt(sock, tcp_authopt(send_local_id=0))
+
+    # delete returns ENOENT
+    with pytest.raises(OSError) as e:
+        del_tcp_authopt_key_by_id(sock, 1)
+    assert e.value.errno == errno.ENOENT
+    key = tcp_authopt_key(local_id=1, key=b"123")
+
+    # add and del
+    set_tcp_authopt_key(sock, key)
+    del_tcp_authopt_key_by_id(sock, key.local_id)
+
+    # duplicate delete returns ENOENT
+    with pytest.raises(OSError) as e:
+        del_tcp_authopt_key_by_id(sock, 1)
+    assert e.value.errno == errno.ENOENT
