@@ -1,10 +1,9 @@
 import logging
 from ipaddress import IPv4Address, IPv6Address
 from scapy.layers.inet import IP, TCP
-from scapy.packet import Packet
-import struct
-import hmac
+from scapy.layers.inet6 import IPv6
 from .tcp_authopt_alg import *
+import socket
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,16 @@ class TestIETFVectors:
         include_options=True,
         sne=0,
     ):
-        p = IP(bytes.fromhex(packet_hex))
+        packet_bytes = bytes.fromhex(packet_hex)
+        ipv = packet_bytes[0] >> 4
+        if ipv == 4:
+            p = IP(bytes.fromhex(packet_hex))
+            assert p[IP].proto == socket.IPPROTO_TCP
+        elif ipv == 6:
+            p = IPv6(bytes.fromhex(packet_hex))
+            assert p[IPv6].nh == socket.IPPROTO_TCP
+        else:
+            raise ValueError(f"bad ipv={ipv}")
         if p[TCP].flags.S and p[TCP].flags.A is False:
             assert p[TCP].seq == src_isn
             assert p[TCP].ack == 0
