@@ -22,6 +22,10 @@ class TestIETFVectors:
     server_isn_41x = 0x11C14261
     client_isn_42x = 0xCB0EFBEE
     server_isn_42x = 0xACD5B5E1
+    client_isn_61x = 0x176A833F
+    server_isn_61x = 0x3F51994B
+    client_isn_62x = 0x020C1E69
+    server_isn_62x = 0xEBA3734D
 
     def check(
         self,
@@ -289,5 +293,77 @@ class TestIETFVectors:
             "97 76 6e 48 ac 26 2d e9 ae 61 b4 f9",
             self.server_isn_42x,
             self.client_isn_42x,
+            include_options=False,
+        )
+
+    def test_6_1_1(self):
+        self.check(
+            """
+            6e 08 91 dc 00 38 06 40 fd 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 01 fd 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 02 f7 e4 00 b3 17 6a 83 3f
+            00 00 00 00 e0 02 ff ff 47 21 00 00 02 04 05 a0
+            01 03 03 08 04 02 08 0a 00 41 d0 87 00 00 00 00
+            1d 10 3d 54 90 33 ec 3d 73 34 b6 4c 5e dd 03 9f
+            """,
+            "62 5e c0 9d 57 58 36 ed c9 b6 42 84 18 bb f0 69 89 a3 61 bb",
+            "90 33 ec 3d 73 34 b6 4c 5e dd 03 9f",
+            self.client_isn_61x,
+            0,
+            include_options=True,
+        )
+
+    def test_6_1_2(self):
+        self.check(
+            """
+            6e 01 00 9e 00 38 06 40 fd 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 02 fd 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 01 00 b3 f7 e4 3f 51 99 4b
+            17 6a 83 40 e0 12 ff ff bf ec 00 00 02 04 05 a0
+            01 03 03 08 04 02 08 0a bd 33 12 9b 00 41 d0 87
+            1d 10 54 3d f1 cb a3 46 c3 52 61 63 f7 1f 1f 55
+            """,
+            "e4 a3 7a da 2a 0a fc a8 71 14 34 91 3f e1 38 c7 71 eb cb 4a",
+            "f1 cb a3 46 c3 52 61 63 f7 1f 1f 55",
+            self.server_isn_61x,
+            self.client_isn_61x,
+            include_options=True,
+        )
+
+    def test_6_2_2(self):
+        self.check(
+            """
+            6e 0a 7e 1f 00 38 06 40 fd 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 02 fd 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 01 00 b3 c6 cd eb a3 73 4d
+            02 0c 1e 6a e0 12 ff ff 77 4d 00 00 02 04 05 a0
+            01 03 03 08 04 02 08 0a 5e c9 9b 70 00 9d b9 5b
+            1d 10 54 3d 3c 54 6b ad 97 43 f1 2d f8 b8 01 0d
+            """,
+            "40 51 08 94 7f 99 65 75 e7 bd bc 26 d4 02 16 a2 c7 fa 91 bd",
+            "3c 54 6b ad 97 43 f1 2d f8 b8 01 0d",
+            self.server_isn_62x,
+            self.client_isn_62x,
+            include_options=False,
+        )
+
+    def test_6_2_4(self):
+        self.check(
+            """
+            6e 0a 7e 1f 00 73 06 40 fd 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 02 fd 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 01 00 b3 c6 cd eb a3 73 4e
+            02 0c 1e ad c0 18 01 00 71 6a 00 00 01 01 08 0a
+            5e c9 9b 7a 00 9d b9 65 1d 10 54 3d 55 9a 81 94
+            45 b4 fd e9 8d 9e 13 17 ff ff ff ff ff ff ff ff
+            ff ff ff ff ff ff ff ff 00 43 01 04 fd e8 00 b4
+            01 01 01 7a 26 02 06 01 04 00 01 00 01 02 02 80
+            00 02 02 02 00 02 02 42 00 02 06 41 04 00 00 fd
+            e8 02 08 40 06 00 64 00 01 01 00
+            """,
+            "40 51 08 94 7f 99 65 75 e7 bd bc 26 d4 02 16 a2 c7 fa 91 bd",
+            "55 9a 81 94 45 b4 fd e9 8d 9e 13 17",
+            self.server_isn_62x,
+            self.client_isn_62x,
             include_options=False,
         )
