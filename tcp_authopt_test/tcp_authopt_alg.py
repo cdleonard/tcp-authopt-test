@@ -6,6 +6,7 @@ from ipaddress import IPv4Address, IPv6Address
 from scapy.layers.inet import IP, TCP
 from scapy.layers.inet6 import IPv6
 from scapy.packet import Packet
+import socket
 import struct
 import typing
 import hmac
@@ -89,13 +90,26 @@ def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearra
     result = bytearray()
     result += struct.pack("!I", sne)
     # ip pseudo-header:
-    result += get_scapy_ipvx_src(p).packed
-    result += get_scapy_ipvx_dst(p).packed
-    result += struct.pack(
-        "!HH",
-        6,
-        p[TCP].dataofs * 4 + len(p[TCP].payload),
-    )
+    if IP in p:
+        result += struct.pack(
+            "!4s4sHH",
+            IPv4Address(p[IP].src).packed,
+            IPv4Address(p[IP].dst).packed,
+            socket.IPPROTO_TCP,
+            p[TCP].dataofs * 4 + len(p[TCP].payload),
+        )
+        assert p[TCP].dataofs * 4 + len(p[TCP].payload) + p[IP].ihl * 4 == p[IP].len
+    elif IPv6 in p:
+        result += struct.pack(
+            "!16s16sII",
+            IPv6Address(p[IPv6].src).packed,
+            IPv6Address(p[IPv6].dst).packed,
+            p[IPv6].plen,
+            socket.IPPROTO_TCP,
+        )
+        assert p[TCP].dataofs * 4 + len(p[TCP].payload) == p[IPv6].plen
+    else:
+        raise Exception("Neither IP nor IPv6 found on packet")
 
     # tcp header with checksum set to zero
     th_bytes = bytes(p[TCP])
