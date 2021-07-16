@@ -13,6 +13,7 @@ from ipaddress import IPv4Address
 
 import pytest
 from scapy.layers.inet import IP, TCP
+from scapy.layers.inet6 import IPv6
 from scapy.packet import Packet
 from scapy.sendrecv import AsyncSniffer
 
@@ -310,8 +311,15 @@ class MainTestBase:
 
         logger.info("capture: %r", context.sniffer.results)
         for p in context.sniffer.results:
-            opt = scapy_tcp_get_authopt_val(p[TCP])
+            # check packet matches address family
+            if self.address_family == socket.AF_INET:
+                assert IP in p
+            elif self.address_family == socket.AF_INET6:
+                assert IPv6 in p
+            # check packets is only for our packet
             assert p[TCP].sport == TCP_SERVER_PORT or p[TCP].dport == TCP_SERVER_PORT
+
+            opt = scapy_tcp_get_authopt_val(p[TCP])
             if opt is None:
                 logger.error("missing tcp-ao on packet %r", p)
                 fail = True
@@ -407,5 +415,5 @@ def test_tcp_authopt_key_setdel(exit_stack):
 class TestMainV4(MainTestBase):
     address_family = socket.AF_INET
 
-#class TestMainV6(MainTestBase):
-#    address_family = socket.AF_INET6
+class TestMainV6(MainTestBase):
+    address_family = socket.AF_INET6
