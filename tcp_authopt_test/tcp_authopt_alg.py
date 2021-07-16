@@ -4,8 +4,10 @@ import logging
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address
 from scapy.layers.inet import IP, TCP
+from scapy.layers.inet6 import IPv6
 from scapy.packet import Packet
 import struct
+import typing
 import hmac
 
 logger = logging.getLogger(__name__)
@@ -22,23 +24,53 @@ def mac_sha1(traffic_key: bytes, message: bytes) -> bytes:
     return hmac.digest(traffic_key, message, "SHA1")[:12]
 
 
-def build_context(saddr, daddr, sport, dport, src_isn, dst_isn) -> bytes:
+IPvXAddress = typing.Union[IPv4Address, IPv6Address]
+
+
+def get_scapy_ipvx_src(p: Packet) -> IPvXAddress:
+    if IP in p:
+        return IPv4Address(p[IP].src)
+    elif IPv6 in p:
+        return IPv6Address(p[IPv6].src)
+    else:
+        raise Exception("Neither IP nor IPv6 found on packet")
+
+
+def get_scapy_ipvx_dst(p: Packet) -> IPvXAddress:
+    if IP in p:
+        return IPv4Address(p[IP].dst)
+    elif IPv6 in p:
+        return IPv6Address(p[IPv6].dst)
+    else:
+        raise Exception("Neither IP nor IPv6 found on packet")
+
+
+def build_context(
+    saddr: IPvXAddress, daddr: IPvXAddress, sport, dport, src_isn, dst_isn
+) -> bytes:
     """Build context bytes as specified by RFC5925 section 5.2"""
-    return struct.pack(
-        "!4s4sHHII",
-        IPv4Address(saddr).packed,
-        IPv4Address(daddr).packed,
-        sport,
-        dport,
-        src_isn,
-        dst_isn,
+    return (
+        saddr.packed
+        + daddr.packed
+        + struct.pack(
+            "!HHII",
+            sport,
+            dport,
+            src_isn,
+            dst_isn,
+        )
     )
 
 
 def build_context_from_scapy(p: Packet, src_isn: int, dst_isn: int) -> bytes:
     """Build context based on a scapy Packet and src/dst initial-sequence numbers"""
     return build_context(
-        p[IP].src, p[IP].dst, p[TCP].sport, p[TCP].dport, src_isn, dst_isn
+        get_scapy_ipvx_src(p),
+        get_scapy_ipvx_dst(p),
+        p[TCP].sport,
+        p[TCP].dport,
+        src_isn,
+        dst_isn,
     )
 
 
@@ -56,11 +88,11 @@ def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearra
     """Build message bytes as described by RFC5925 section 5.1"""
     result = bytearray()
     result += struct.pack("!I", sne)
-    # ipv4 pseudo-header:
+    # ip pseudo-header:
+    result += get_scapy_ipvx_src(p).packed
+    result += get_scapy_ipvx_dst(p).packed
     result += struct.pack(
-        "!4s4sHH",
-        IPv4Address(p[IP].src).packed,
-        IPv4Address(p[IP].dst).packed,
+        "!HH",
         6,
         p[TCP].dataofs * 4 + len(p[TCP].payload),
     )
@@ -114,8 +146,8 @@ def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearra
 class TCPAuthContext:
     """Context used to TCP Authentication option as defined in RFC5925 5.2"""
 
-    saddr: IPv4Address = None
-    daddr: IPv4Address = None
+    saddr: IPvXAddress = None
+    daddr: IPvXAddress = None
     sport: int = 0
     dport: int = 0
     sisn: int = 0
@@ -155,8 +187,8 @@ class TCPAuthContext:
     def init_from_syn_packet(self, p):
         """Init from a SYN packet (and set dist to zero)"""
         assert p[TCP].flags.S and not p[TCP].flags.A and p[TCP].ack == 0
-        self.saddr = IPv4Address(p[IP].src)
-        self.daddr = IPv4Address(p[IP].dst)
+        self.saddr = get_scapy_ipvx_src(p)
+        self.daddr = get_scapy_ipvx_dst(p)
         self.sport = p[TCP].sport
         self.dport = p[TCP].dport
         self.sisn = p[TCP].seq
@@ -165,8 +197,8 @@ class TCPAuthContext:
     def update_from_synack_packet(self, p):
         """Update disn and check everything else matches"""
         assert p[TCP].flags.S and p[TCP].flags.A
-        assert self.saddr == IPv4Address(p[IP].dst)
-        assert self.daddr == IPv4Address(p[IP].src)
+        assert self.saddr == get_scapy_ipvx_dst(p)
+        assert self.daddr == get_scapy_ipvx_src(p)
         assert self.sport == p[TCP].dport
         assert self.dport == p[TCP].sport
         assert self.sisn == p[TCP].ack - 1
