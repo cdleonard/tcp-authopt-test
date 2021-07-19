@@ -25,6 +25,62 @@ def mac_sha1(traffic_key: bytes, message: bytes) -> bytes:
     return hmac.digest(traffic_key, message, "SHA1")[:12]
 
 
+def cmac_aes_digest(key: bytes, msg: bytes) -> bytes:
+    from cryptography.hazmat.primitives import cmac
+    from cryptography.hazmat.primitives.ciphers import algorithms
+    from cryptography.hazmat.backends import default_backend
+
+    backend = default_backend()
+    c = cmac.CMAC(algorithms.AES(key), backend=backend)
+    c.update(bytes(msg))
+    return c.finalize()
+
+
+def kdf_cmac_aes(master_key: bytes, context: bytes) -> bytes:
+    if len(master_key) == 16:
+        key = master_key
+    else:
+        key = cmac_aes_digest(b"\x00" * 16, master_key)
+    return cmac_aes_digest(key, b"\x01" + b"TCP-AO" + context + b"\x00\x80")
+
+
+def mac_cmac_aes(traffic_key: bytes, message: bytes) -> bytes:
+    return cmac_aes_digest(traffic_key, message)[:12]
+
+
+class TcpAuthOptAlg:
+    def kdf(self, master_key: bytes, context: bytes) -> bytes:
+        raise NotImplementedError()
+
+    def mac(self, traffic_key: bytes, message: bytes) -> bytes:
+        raise NotImplementedError()
+
+
+class TcpAuthOptAlg_HMAC_SHA1(TcpAuthOptAlg):
+    def kdf(self, master_key: bytes, context: bytes) -> bytes:
+        return kdf_sha1(master_key, context)
+
+    def mac(self, traffic_key: bytes, message: bytes) -> bytes:
+        return mac_sha1(traffic_key, message)
+
+
+class TcpAuthOptAlg_CMAC_AES(TcpAuthOptAlg):
+    def kdf(self, master_key: bytes, context: bytes) -> bytes:
+        return kdf_cmac_aes(master_key, context)
+
+    def mac(self, traffic_key: bytes, message: bytes) -> bytes:
+        return mac_cmac_aes(traffic_key, message)
+
+
+def get_alg(name) -> TcpAuthOptAlg:
+    if name.upper() == "HMAC-SHA-1-96":
+        return TcpAuthOptAlg_HMAC_SHA1()
+    elif name.upper() == "AES-128-CMAC-96":
+        return TcpAuthOptAlg_CMAC_AES()
+    else:
+        raise ValueError(f"Bad TCP AuthOpt algorithms {name}")
+
+
 IPvXAddress = typing.Union[IPv4Address, IPv6Address]
 
 

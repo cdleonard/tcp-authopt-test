@@ -3,6 +3,7 @@ from ipaddress import IPv4Address, IPv6Address
 from scapy.layers.inet import IP, TCP
 from scapy.layers.inet6 import IPv6
 from .tcp_authopt_alg import *
+from .tcp_authopt_alg import get_alg
 import socket
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ class TestIETFVectors:
         src_isn,
         dst_isn,
         include_options=True,
+        alg_name="HMAC-SHA-1-96",
         sne=0,
     ):
         packet_bytes = bytes.fromhex(packet_hex)
@@ -54,11 +56,14 @@ class TestIETFVectors:
             assert p[TCP].seq == src_isn
             assert p[TCP].ack == dst_isn + 1
 
+        alg = get_alg(alg_name)
         context_bytes = build_context_from_scapy(p, src_isn, dst_isn)
-        traffic_key = kdf_sha1(self.master_key, context_bytes)
+        traffic_key = alg.kdf(self.master_key, context_bytes)
         assert traffic_key.hex(" ") == traffic_key_hex
-        message_bytes = build_message_from_scapy(p, include_options=include_options, sne=sne)
-        mac = mac_sha1(traffic_key, message_bytes)
+        message_bytes = build_message_from_scapy(
+            p, include_options=include_options, sne=sne
+        )
+        mac = alg.mac(traffic_key, message_bytes)
         assert mac.hex(" ") == mac_hex
 
     def test_4_1_1(self):
@@ -101,7 +106,10 @@ class TestIETFVectors:
         message_bytes += packet_bytes[0x26:0x40]
         message_bytes += b"\x00" * 12
 
-        assert message_bytes.hex() == build_message_from_scapy(p, include_options=True).hex()
+        assert (
+            message_bytes.hex()
+            == build_message_from_scapy(p, include_options=True).hex()
+        )
 
         logger.info("message: %s", message_bytes.hex(" "))
         assert mac_sha1(traffic_key, message_bytes).hex() == mac.hex()
@@ -228,7 +236,8 @@ class TestIETFVectors:
 
         logger.info("message: %s", message_bytes.hex(" "))
         assert (
-            message_bytes.hex() == build_message_from_scapy(p, include_options=False).hex()
+            message_bytes.hex()
+            == build_message_from_scapy(p, include_options=False).hex()
         )
         assert mac_sha1(traffic_key, message_bytes).hex() == mac.hex()
         self.check(
@@ -294,6 +303,23 @@ class TestIETFVectors:
             self.server_isn_42x,
             self.client_isn_42x,
             include_options=False,
+        )
+
+    def test_5_1_1(self):
+        self.check(
+            """
+            45 e0 00 4c 7b 9f 40 00 ff 06 20 dc 0a 0b 0c 0d
+            ac 1b 1c 1d c4 fa 00 b3 78 7a 1d df 00 00 00 00
+            e0 02 ff ff 5a 0f 00 00 02 04 05 b4 01 03 03 08
+            04 02 08 0a 00 01 7e d0 00 00 00 00 1d 10 3d 54
+            e4 77 e9 9c 80 40 76 54 98 e5 50 91
+            """,
+            "f5 b8 b3 d5 f3 4f db b6 eb 8d 4a b9 66 0e 60 e3",
+            "e4 77 e9 9c 80 40 76 54 98 e5 50 91",
+            0x787A1DDF,
+            0,
+            include_options=True,
+            alg_name="AES-128-CMAC-96",
         )
 
     def test_6_1_1(self):
