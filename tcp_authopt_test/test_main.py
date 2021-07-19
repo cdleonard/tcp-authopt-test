@@ -234,12 +234,16 @@ class MainTestBase:
 
     master_key = b"testvector"
     address_family = None
+    alg_name = "HMAC-SHA-1-96"
+
+    def get_alg(self):
+        return tcp_authopt_alg.get_alg(self.alg_name)
 
     def kdf(self, context: bytes) -> bytes:
-        return tcp_authopt_alg.kdf_sha1(self.master_key, context)
+        return self.get_alg().kdf(self.master_key, context)
 
     def mac(self, traffic_key: bytes, message_bytes: bytes) -> bytes:
-        return tcp_authopt_alg.mac_sha1(traffic_key, message_bytes)
+        return self.get_alg().mac(traffic_key, message_bytes)
 
     def mac_from_scapy_packet(
         self, traffic_key: bytes, packet: Packet, include_options=True
