@@ -428,5 +428,9 @@ def test_tcp_authopt_key_setdel(exit_stack):
 class TestMainV4(MainTestBase):
     address_family = socket.AF_INET
 
+class TestMainV4AES(MainTestBase):
+    address_family = socket.AF_INET
+    alg_name = "AES-128-CMAC-96"
+
 class TestMainV6(MainTestBase):
     address_family = socket.AF_INET6
