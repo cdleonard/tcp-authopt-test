@@ -18,6 +18,7 @@ from scapy.packet import Packet
 from scapy.sendrecv import AsyncSniffer
 
 from . import tcp_authopt_alg
+from . import linux_tcp_authopt
 from .linux_tcp_authopt import (
     del_tcp_authopt_key_by_id,
     set_tcp_authopt,
@@ -239,6 +240,14 @@ class MainTestBase:
     def get_alg(self):
         return tcp_authopt_alg.get_alg(self.alg_name)
 
+    def get_alg_id(self) -> int:
+        if self.alg_name == "HMAC-SHA-1-96":
+            return linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96
+        elif self.alg_name == "AES-128-CMAC-96":
+            return linux_tcp_authopt.TCP_AUTHOPT_ALG_AES_128_CMAC_96
+        else:
+            raise ValueError()
+
     def kdf(self, context: bytes) -> bytes:
         return self.get_alg().kdf(self.master_key, context)
 
@@ -283,10 +292,10 @@ class MainTestBase:
         context = exit_stack.enter_context(Context(address_family=self.address_family))
 
         set_tcp_authopt(context.listen_socket, tcp_authopt(send_local_id=1))
-        server_key = tcp_authopt_key(local_id=1, key=self.master_key)
+        server_key = tcp_authopt_key(local_id=1, alg=self.get_alg_id(), key=self.master_key)
         set_tcp_authopt_key(context.listen_socket, server_key)
         set_tcp_authopt(context.client_socket, tcp_authopt(send_local_id=1))
-        client_key = tcp_authopt_key(local_id=1, key=self.master_key)
+        client_key = tcp_authopt_key(local_id=1, alg=self.get_alg_id(), key=self.master_key)
         set_tcp_authopt_key(context.client_socket, client_key)
 
         # even if one signature is incorrect keep processing the capture
