@@ -393,3 +393,44 @@ class TestIETFVectors:
             self.client_isn_62x,
             include_options=False,
         )
+
+    server_isn_71x = 0xA6744ECB
+    client_isn_71x = 0x193CCCEC
+
+    def test_7_1_2(self):
+        self.check(
+            """
+            6e 06 15 20 00 38 06 40 fd 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 02 fd 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 01 00 b3 f8 5a a6 74 4e cb
+            19 3c cc ed e0 12 ff ff ea bb 00 00 02 04 05 a0
+            01 03 03 08 04 02 08 0a 71 da ab c8 13 e4 ab 99
+            1d 10 54 3d dc 28 43 a8 4e 78 a6 bc fd c5 ed 80
+            """,
+            "cf 1b 1e 22 5e 06 a6 36 16 76 4a 06 7b 46 f4 b1",
+            "dc 28 43 a8 4e 78 a6 bc fd c5 ed 80",
+            self.server_isn_71x,
+            self.client_isn_71x,
+            alg_name="AES-128-CMAC-96",
+            include_options=True)
+
+    def test_7_1_4(self):
+        self.check(
+            """
+            6e 06 15 20 00 73 06 40 fd 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 02 fd 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 01 00 b3 f8 5a a6 74 4e cc
+            19 3c cd 30 c0 18 01 00 52 f4 00 00 01 01 08 0a
+            71 da ab d3 13 e4 ab a3 1d 10 54 3d c1 06 9b 7d
+            fd 3d 69 3a 6d f3 f2 89 ff ff ff ff ff ff ff ff
+            ff ff ff ff ff ff ff ff 00 43 01 04 fd e8 00 b4
+            01 01 01 7a 26 02 06 01 04 00 01 00 01 02 02 80
+            00 02 02 02 00 02 02 42 00 02 06 41 04 00 00 fd
+            e8 02 08 40 06 00 64 00 01 01 00
+            """,
+            "cf 1b 1e 22 5e 06 a6 36 16 76 4a 06 7b 46 f4 b1",
+            "c1 06 9b 7d fd 3d 69 3a 6d f3 f2 89",
+            self.server_isn_71x,
+            self.client_isn_71x,
+            alg_name="AES-128-CMAC-96",
+            include_options=True)
