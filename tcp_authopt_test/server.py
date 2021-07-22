@@ -19,9 +19,12 @@ class SimpleServerThread(Thread):
         super().__init__()
 
     def read_echo(self, conn, events):
+        #logger.debug("events=%r", events)
         data = conn.recv(1000)
+        #logger.debug("len(data)=%r", len(data))
         if len(data) == 0:
-            print("closing", conn)
+            #logger.info("closing %r", conn)
+            conn.close()
             self.sel.unregister(conn)
         else:
             if self.mode == "echo":
