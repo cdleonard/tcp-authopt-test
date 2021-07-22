@@ -9,6 +9,9 @@ from scapy.utils import rdpcap
 from scapy.layers.inet import TCP
 from scapy.layers.inet import IP
 from . import tcp_authopt_alg
+from .tcp_authopt_alg import TCPAuthContext
+from .tcp_authopt_alg import get_scapy_ipvx_src
+from .tcp_authopt_alg import get_scapy_ipvx_dst
 from .utils import scapy_tcp_get_authopt_val
 
 logger = logging.getLogger()
@@ -50,26 +53,6 @@ def create_parser():
     return parser
 
 
-@dataclass
-class TCPConnectionContext:
-    saddr: IPv4Address = None
-    daddr: IPv4Address = None
-    sport: int = 0
-    dport: int = 0
-    src_isn: int = 0
-    dst_isn: int = 0
-
-    def build_tcp_authopt_traffic_context(self, is_init_syn=False):
-        return tcp_authopt_alg.build_context(
-            self.saddr,
-            self.daddr,
-            self.sport,
-            self.dport,
-            self.src_isn,
-            self.dst_isn if not is_init_syn else 0,
-        )
-
-
 def is_init_syn(p: Packet) -> bool:
     return p[TCP].flags.S and not p[TCP].flags.A
 
@@ -93,14 +76,17 @@ def main(argv=None):
         authopt = scapy_tcp_get_authopt_val(p[TCP])
         captured_mac = authopt.mac
 
+        saddr = get_scapy_ipvx_src(p)
+        daddr = get_scapy_ipvx_dst(p)
+
         conn_key = p[IP].src, p[IP].dst, p[TCP].sport, p[TCP].dport
         if p[TCP].flags.S:
             conn = conn_dict.get(conn_key, None)
             if conn is not None:
                 logger.warning("overwrite %r", conn)
-            conn = TCPConnectionContext()
-            conn.saddr = IPv4Address(p[IP].src)
-            conn.daddr = IPv4Address(p[IP].dst)
+            conn = TCPAuthContext()
+            conn.saddr = saddr
+            conn.daddr = daddr
             conn.sport = p[TCP].sport
             conn.dport = p[TCP].dport
             conn_dict[conn_key] = conn
@@ -131,7 +117,7 @@ def main(argv=None):
                 continue
         logger.debug("index %d key %r conn %r", packet_index, conn_key, conn)
 
-        context_bytes = conn.build_tcp_authopt_traffic_context(is_init_syn(p))
+        context_bytes = conn.pack(syn=is_init_syn(p))
         traffic_key = alg.kdf(master_key, context_bytes)
         message_bytes = tcp_authopt_alg.build_message_from_scapy(
             p, include_options=False
