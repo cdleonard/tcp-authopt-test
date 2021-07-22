@@ -52,10 +52,13 @@ class TCPConnectionContext:
 
     def build_tcp_authopt_traffic_context(self, is_init_syn=False):
         return tcp_authopt_alg.build_context(
-                self.saddr, self.daddr,
-                self.sport, self.dport,
-                self.src_isn,
-                self.dst_isn if not is_init_syn else 0)
+            self.saddr,
+            self.daddr,
+            self.sport,
+            self.dport,
+            self.src_isn,
+            self.dst_isn if not is_init_syn else 0,
+        )
 
 
 def is_init_syn(p: Packet) -> bool:
@@ -125,8 +128,8 @@ def main(argv=None):
                     if rconn is None:
                         logger.warning("missing reverse connection %s", rconn_key)
                     else:
-                        assert(rconn.src_isn == conn.dst_isn)
-                        assert(rconn.dst_isn == 0)
+                        assert rconn.src_isn == conn.dst_isn
+                        assert rconn.dst_isn == 0
                         rconn.dst_isn = conn.src_isn
             else:
                 conn = conn_dict.get(conn_key, None)
@@ -137,13 +140,19 @@ def main(argv=None):
 
             context_bytes = conn.build_tcp_authopt_traffic_context(is_init_syn(p))
             traffic_key = kdf_alg(master_key, context_bytes)
-            message_bytes = tcp_authopt_alg.build_message_from_scapy(p, include_options=False)
+            message_bytes = tcp_authopt_alg.build_message_from_scapy(
+                p, include_options=False
+            )
             computed_mac = mac_alg(traffic_key, message_bytes)
             if computed_mac == captured_mac:
                 logger.info("ok - packet %d mac %s", packet_index, hexstr(computed_mac))
             else:
-                logger.info("not ok - packet %d captured %s computed %s",
-                        packet_index, captured_mac, computed_mac)
+                logger.info(
+                    "not ok - packet %d captured %s computed %s",
+                    packet_index,
+                    captured_mac,
+                    computed_mac,
+                )
 
 
 if __name__ == "__main__":
