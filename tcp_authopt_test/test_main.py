@@ -99,7 +99,7 @@ def test_md5_basic(exit_stack):
     setsockopt_md5sig(
         listen_socket,
         key=tcp_md5_key,
-        addr=sockaddr_in(port=0, addr=IPv4Address("127.0.0.1")),
+        addr=sockaddr_in(addr=IPv4Address("127.0.0.1")),
     )
     listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     listen_socket.bind((tcp_server_host, TCP_SERVER_PORT))
@@ -111,7 +111,7 @@ def test_md5_basic(exit_stack):
     setsockopt_md5sig(
         client_socket,
         key=tcp_md5_key,
-        addr=sockaddr_in(port=TCP_SERVER_PORT, addr=IPv4Address("127.0.0.1")),
+        addr=sockaddr_in(addr=IPv4Address("127.0.0.1")),
     )
 
     client_socket.connect(("localhost", TCP_SERVER_PORT))
