@@ -1,12 +1,9 @@
 import logging
 import os
 import socket
-import random
 import time
 import errno
 import typing
-import subprocess
-import json
 from contextlib import ExitStack
 from dataclasses import dataclass
 from ipaddress import IPv4Address
@@ -29,6 +26,9 @@ from .linux_tcp_authopt import (
 from .linux_tcp_md5sig import setsockopt_md5sig, tcp_md5sig
 from .server import SimpleServerThread
 from .sockaddr import sockaddr_in
+from .utils import randbytes
+from .utils import recvall
+from .utils import nstat_json
 
 logger = logging.getLogger(__name__)
 
@@ -43,24 +43,6 @@ skipif_cant_capture = pytest.mark.skipif(
 )
 
 TCP_SERVER_PORT = 17971
-
-
-def recvall(sock, todo):
-    """Receive exactly todo bytes unless EOF"""
-    data = bytes()
-    while True:
-        chunk = sock.recv(todo)
-        if not len(chunk):
-            return data
-        data += chunk
-        todo -= len(chunk)
-        if todo == 0:
-            return data
-        assert todo > 0
-
-
-def randbytes(count) -> bytes:
-    return bytes([random.randint(0, 255) for index in range(count)])
 
 
 @pytest.fixture
@@ -91,7 +73,8 @@ def test_nonauth_connect(exit_stack):
     assert len(buf) == 3000
 
 
-def test_multi():
+def test_multi_nonauth_connect():
+    """Test that the client/server infrastructure does not leak or hang"""
     for i in range(10):
         with ExitStack() as exit_stack:
             logger.info("ITER %d", i)
@@ -212,17 +195,6 @@ def scapy_tcp_get_authopt_val(tcp) -> typing.Optional[tcphdr_authopt]:
         if optnum == 29:
             return tcphdr_authopt.unpack(optval)
     return None
-
-
-def nstat_json(command_prefix: str = ""):
-    runres = subprocess.run(
-        f"{command_prefix}nstat -a --zeros --json",
-        shell=True,
-        check=True,
-        stdout=subprocess.PIPE,
-        encoding="utf-8",
-    )
-    return json.loads(runres.stdout)
 
 
 def test_connect_nosniff():
