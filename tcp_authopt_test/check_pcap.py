@@ -78,12 +78,6 @@ def main(argv=None):
     master_key = opts.master_key.encode()
     alg = tcp_authopt_alg.get_alg(opts.alg_name)
 
-    def kdf_alg(master_key, context_bytes):
-        return alg.kdf(master_key, context_bytes)
-
-    def mac_alg(traffic_key, message_bytes):
-        return bytes(alg.mac(traffic_key, message_bytes))
-
     def hexstr(arg: bytes) -> str:
         return arg.hex(" ")
 
@@ -148,11 +142,11 @@ def main(argv=None):
             logger.debug("index %d key %r conn %r", packet_index, conn_key, conn)
 
             context_bytes = conn.build_tcp_authopt_traffic_context(is_init_syn(p))
-            traffic_key = kdf_alg(master_key, context_bytes)
+            traffic_key = alg.kdf(master_key, context_bytes)
             message_bytes = tcp_authopt_alg.build_message_from_scapy(
                 p, include_options=False
             )
-            computed_mac = mac_alg(traffic_key, message_bytes)
+            computed_mac = alg.mac(traffic_key, message_bytes)
             if computed_mac == captured_mac:
                 logger.info("ok - packet %d mac %s", packet_index, hexstr(computed_mac))
             else:
