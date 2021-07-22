@@ -38,6 +38,14 @@ def create_parser():
     )
     parser.add_argument("-f", "--file", help="capture file")
     parser.add_argument("-k", "--master-key", help="master secret key")
+    parser.add_argument(
+        "-a",
+        "--algorithm",
+        dest="alg_name",
+        help="Algorithm name",
+        default="HMAC-SHA-1-96",
+        choices=["HMAC-SHA-1-96", "AES-128-CMAC-96"],
+    )
     return parser
 
 
@@ -68,12 +76,13 @@ def is_init_syn(p: Packet) -> bool:
 def main(argv=None):
     opts = create_parser().parse_args(argv)
     master_key = opts.master_key.encode()
+    alg = tcp_authopt_alg.get_alg(opts.alg_name)
 
     def kdf_alg(master_key, context_bytes):
-        return tcp_authopt_alg.kdf_sha1(master_key, context_bytes)
+        return alg.kdf(master_key, context_bytes)
 
     def mac_alg(traffic_key, message_bytes):
-        return bytes(tcp_authopt_alg.mac_sha1(traffic_key, message_bytes))
+        return bytes(alg.mac(traffic_key, message_bytes))
 
     def hexstr(arg: bytes) -> str:
         return arg.hex(" ")
