@@ -5,7 +5,6 @@ import time
 import errno
 import typing
 from contextlib import ExitStack
-from dataclasses import dataclass
 from ipaddress import IPv4Address
 
 import pytest
@@ -29,6 +28,7 @@ from .sockaddr import sockaddr_in
 from .utils import randbytes
 from .utils import recvall
 from .utils import nstat_json
+from .utils import scapy_tcp_get_authopt_val
 
 logger = logging.getLogger(__name__)
 
@@ -168,27 +168,6 @@ class Context:
 
     def __exit__(self, *args):
         self.stop()
-
-
-@dataclass
-class tcphdr_authopt:
-    keyid: int
-    rnextkeyid: int
-    mac: bytes
-
-    @classmethod
-    def unpack(cls, buf) -> "tcphdr_authopt":
-        return cls(buf[0], buf[1], buf[2:])
-
-    def __repr__(self):
-        return f"tcphdr_authopt({self.keyid}, {self.rnextkeyid}, bytes.fromhex({self.mac.hex(' ')!r})"
-
-
-def scapy_tcp_get_authopt_val(tcp) -> typing.Optional[tcphdr_authopt]:
-    for optnum, optval in tcp.options:
-        if optnum == 29:
-            return tcphdr_authopt.unpack(optval)
-    return None
 
 
 def test_connect_nosniff():

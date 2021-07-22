@@ -1,6 +1,8 @@
 import json
 import random
 import subprocess
+import typing
+from dataclasses import dataclass
 
 
 def recvall(sock, todo):
@@ -33,3 +35,24 @@ def nstat_json(command_prefix: str = ""):
     )
     return json.loads(runres.stdout)
 
+
+@dataclass
+class tcphdr_authopt:
+    """Representation of a TCP auth option as it appears in a TCP packet"""
+    keyid: int
+    rnextkeyid: int
+    mac: bytes
+
+    @classmethod
+    def unpack(cls, buf) -> "tcphdr_authopt":
+        return cls(buf[0], buf[1], buf[2:])
+
+    def __repr__(self):
+        return f"tcphdr_authopt({self.keyid}, {self.rnextkeyid}, bytes.fromhex({self.mac.hex(' ')!r})"
+
+
+def scapy_tcp_get_authopt_val(tcp) -> typing.Optional[tcphdr_authopt]:
+    for optnum, optval in tcp.options:
+        if optnum == 29:
+            return tcphdr_authopt.unpack(optval)
+    return None

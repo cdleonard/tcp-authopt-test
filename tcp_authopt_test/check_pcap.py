@@ -9,6 +9,7 @@ from scapy.utils import rdpcap
 from scapy.layers.inet import TCP
 from scapy.layers.inet import IP
 from . import tcp_authopt_alg
+from .utils import scapy_tcp_get_authopt_val
 
 logger = logging.getLogger()
 
@@ -89,73 +90,62 @@ def main(argv=None):
         if TCP not in p.layers():
             logger.debug("skip non-TCP packet")
             continue
-        tcp = p[TCP]
-        for optnum, optval in tcp.options:
-            if optnum != 29:
-                logger.debug("[%s]: TCP %r optval %r", packet_index, optnum, optval)
-                continue
-            logger.info("[%d]: TCP-AO %s", packet_index, hexstr(optval))
-            if len(optval) < 2:
-                logger.warning("TCP-AO option too short!")
-                continue
+        authopt = scapy_tcp_get_authopt_val(p[TCP])
+        captured_mac = authopt.mac
 
-            keyid = optval[0]
-            rnextkeyid = optval[1]
-            captured_mac = optval[2:]
+        conn_key = p[IP].src, p[IP].dst, p[TCP].sport, p[TCP].dport
+        if p[TCP].flags.S:
+            conn = conn_dict.get(conn_key, None)
+            if conn is not None:
+                logger.warning("overwrite %r", conn)
+            conn = TCPConnectionContext()
+            conn.saddr = IPv4Address(p[IP].src)
+            conn.daddr = IPv4Address(p[IP].dst)
+            conn.sport = p[TCP].sport
+            conn.dport = p[TCP].dport
+            conn_dict[conn_key] = conn
 
-            conn_key = p[IP].src, p[IP].dst, p[TCP].sport, p[TCP].dport
-            if p[TCP].flags.S:
-                conn = conn_dict.get(conn_key, None)
-                if conn is not None:
-                    logger.warning("overwrite %r", conn)
-                conn = TCPConnectionContext()
-                conn.saddr = IPv4Address(p[IP].src)
-                conn.daddr = IPv4Address(p[IP].dst)
-                conn.sport = p[TCP].sport
-                conn.dport = p[TCP].dport
-                conn_dict[conn_key] = conn
+            logger.info("conn %r", conn)
+            if p[TCP].flags.A == False:
+                # SYN
+                conn.src_isn = p[TCP].seq
+                conn.dst_isn = 0
+            else:
+                # SYN/ACK
+                conn.src_isn = p[TCP].seq
+                conn.dst_isn = p[TCP].ack - 1
 
-                logger.info("conn %r", conn)
-                if p[TCP].flags.A == False:
-                    # SYN
-                    conn.src_isn = p[TCP].seq
-                    conn.dst_isn = 0
+                # Update opposite connection with dst_isn
+                rconn_key = p[IP].dst, p[IP].src, p[TCP].dport, p[TCP].sport
+                rconn = conn_dict.get(rconn_key, None)
+                if rconn is None:
+                    logger.warning("missing reverse connection %s", rconn_key)
                 else:
-                    # SYN/ACK
-                    conn.src_isn = p[TCP].seq
-                    conn.dst_isn = p[TCP].ack - 1
+                    assert rconn.src_isn == conn.dst_isn
+                    assert rconn.dst_isn == 0
+                    rconn.dst_isn = conn.src_isn
+        else:
+            conn = conn_dict.get(conn_key, None)
+            if conn is None:
+                logger.warning("missing TCP syn for %r", conn_key)
+                continue
+        logger.debug("index %d key %r conn %r", packet_index, conn_key, conn)
 
-                    # Update opposite connection with dst_isn
-                    rconn_key = p[IP].dst, p[IP].src, p[TCP].dport, p[TCP].sport
-                    rconn = conn_dict.get(rconn_key, None)
-                    if rconn is None:
-                        logger.warning("missing reverse connection %s", rconn_key)
-                    else:
-                        assert rconn.src_isn == conn.dst_isn
-                        assert rconn.dst_isn == 0
-                        rconn.dst_isn = conn.src_isn
-            else:
-                conn = conn_dict.get(conn_key, None)
-                if conn is None:
-                    logger.warning("missing TCP syn for %r", conn_key)
-                    continue
-            logger.debug("index %d key %r conn %r", packet_index, conn_key, conn)
-
-            context_bytes = conn.build_tcp_authopt_traffic_context(is_init_syn(p))
-            traffic_key = alg.kdf(master_key, context_bytes)
-            message_bytes = tcp_authopt_alg.build_message_from_scapy(
-                p, include_options=False
+        context_bytes = conn.build_tcp_authopt_traffic_context(is_init_syn(p))
+        traffic_key = alg.kdf(master_key, context_bytes)
+        message_bytes = tcp_authopt_alg.build_message_from_scapy(
+            p, include_options=False
+        )
+        computed_mac = alg.mac(traffic_key, message_bytes)
+        if computed_mac == captured_mac:
+            logger.info("ok - packet %d mac %s", packet_index, hexstr(computed_mac))
+        else:
+            logger.info(
+                "not ok - packet %d captured %s computed %s",
+                packet_index,
+                captured_mac,
+                computed_mac,
             )
-            computed_mac = alg.mac(traffic_key, message_bytes)
-            if computed_mac == captured_mac:
-                logger.info("ok - packet %d mac %s", packet_index, hexstr(computed_mac))
-            else:
-                logger.info(
-                    "not ok - packet %d captured %s computed %s",
-                    packet_index,
-                    captured_mac,
-                    computed_mac,
-                )
 
 
 if __name__ == "__main__":
