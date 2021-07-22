@@ -59,13 +59,10 @@ def test_nonauth_connect(exit_stack):
     listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     listen_socket.bind((tcp_server_host, TCP_SERVER_PORT))
     listen_socket.listen(1)
+    exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
+
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket = exit_stack.push(client_socket)
-
-    server_thread = SimpleServerThread(listen_socket, mode="echo")
-    server_thread.start()
-    exit_stack.callback(server_thread.stop)
-
     client_socket.connect(("localhost", TCP_SERVER_PORT))
 
     client_socket.sendall(b"0" * 3000)
@@ -102,6 +99,8 @@ def test_md5_basic(exit_stack):
     listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     listen_socket.bind((tcp_server_host, TCP_SERVER_PORT))
     listen_socket.listen(1)
+    exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
+
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket = exit_stack.push(client_socket)
     setsockopt_md5sig(
@@ -109,10 +108,6 @@ def test_md5_basic(exit_stack):
         key=tcp_md5_key,
         addr=sockaddr_in(port=TCP_SERVER_PORT, addr=IPv4Address("127.0.0.1")),
     )
-
-    server_thread = SimpleServerThread(listen_socket, mode="echo")
-    server_thread.start()
-    exit_stack.callback(server_thread.stop)
 
     client_socket.connect(("localhost", TCP_SERVER_PORT))
 
@@ -160,8 +155,7 @@ class Context:
         self.client_socket = self.exit_stack.push(self.client_socket)
 
         self.server_thread = SimpleServerThread(self.listen_socket, mode="echo")
-        self.server_thread.start()
-        self.exit_stack.callback(self.server_thread.stop)
+        self.exit_stack.enter_context(self.server_thread)
 
     def stop(self):
         self.exit_stack.close()

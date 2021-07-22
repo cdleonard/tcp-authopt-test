@@ -67,3 +67,10 @@ class SimpleServerThread(Thread):
         os.write(self._stop_pipe_wfd, b"Q")
         self.join()
         self.exit_stack.close()
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, *args):
+        self.stop()
