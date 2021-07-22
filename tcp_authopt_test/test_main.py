@@ -208,23 +208,34 @@ class MainTestBase:
         return self.mac(traffic_key, message_bytes)
 
     @skipif_cant_capture
-    def test_connect_sniff(self):
+    def test_complete_sniff(self):
+        """Test that the whole TCP conversation is sniffed"""
         with Context(address_family=self.address_family) as context:
             context.client_socket.connect(("localhost", TCP_SERVER_PORT))
+            check_socket_echo(context.client_socket)
+            context.client_socket.close()
             time.sleep(1)
             context.sniffer.stop()
 
             found_syn = False
             found_synack = False
+            found_client_fin = False
+            found_server_fin = False
             for p in context.sniffer.results:
+                th = p[TCP]
+                logger.info("sport=%d dport=%d flags=%s", th.sport, th.dport, th.flags)
                 if p[TCP].flags.S and not p[TCP].flags.A:
                     assert p[TCP].dport == TCP_SERVER_PORT
                     found_syn = True
                 if p[TCP].flags.S and p[TCP].flags.A:
                     assert p[TCP].sport == TCP_SERVER_PORT
                     found_synack = True
-            assert found_syn
-            assert found_synack
+                if p[TCP].flags.F:
+                    if p[TCP].dport == TCP_SERVER_PORT:
+                        found_client_fin = True
+                    else:
+                        found_server_fin = True
+            assert found_syn and found_synack and found_client_fin and found_server_fin
 
     @skipif_cant_capture
     def test_sniffer_works(self):
