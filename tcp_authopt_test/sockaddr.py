@@ -1,13 +1,19 @@
 import socket
 import struct
 from dataclasses import dataclass
-from ipaddress import IPv4Address
+from ipaddress import IPv4Address, ip_address
 
 
 @dataclass
 class sockaddr_in:
     port: int
     addr: IPv4Address
+
+    def __init__(self, port=0, addr=None):
+        self.port = port
+        if addr is None:
+            addr = IPv4Address(0)
+        self.addr = IPv4Address(addr)
 
     def pack(self):
         return struct.pack("HH4s", socket.AF_INET, self.port, self.addr.packed)
