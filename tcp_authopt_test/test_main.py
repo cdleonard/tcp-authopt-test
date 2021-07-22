@@ -51,6 +51,14 @@ def exit_stack():
         yield exit_stack
 
 
+def check_socket_echo(sock, size=1024):
+    """Send random bytes and check they are received"""
+    send_buf = randbytes(size)
+    sock.sendall(send_buf)
+    recv_buf = recvall(sock, size)
+    assert send_buf == recv_buf
+
+
 def test_nonauth_connect(exit_stack):
     tcp_server_host = ""
 
@@ -64,10 +72,7 @@ def test_nonauth_connect(exit_stack):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket = exit_stack.push(client_socket)
     client_socket.connect(("localhost", TCP_SERVER_PORT))
-
-    client_socket.sendall(b"0" * 3000)
-    buf = recvall(client_socket, 3000)
-    assert len(buf) == 3000
+    check_socket_echo(client_socket)
 
 
 def test_multi_nonauth_connect():
@@ -110,10 +115,7 @@ def test_md5_basic(exit_stack):
     )
 
     client_socket.connect(("localhost", TCP_SERVER_PORT))
-
-    client_socket.sendall(b"0" * 3000)
-    buf = recvall(client_socket, 3000)
-    assert len(buf) == 3000
+    check_socket_echo(client_socket)
 
 
 def scapy_sniffer_start_spin(sniffer: AsyncSniffer):
@@ -271,12 +273,8 @@ class MainTestBase:
         try:
             context.client_socket.settimeout(1.0)
             context.client_socket.connect(("localhost", TCP_SERVER_PORT))
-            for _ in range(2):
-                buf = randbytes(128)
-                assert len(buf) == 128
-                context.client_socket.sendall(buf)
-                recv_buf = recvall(context.client_socket, len(buf))
-                assert recv_buf == buf
+            for _ in range(5):
+                check_socket_echo(context.client_socket)
         except socket.timeout:
             logger.warning("socket timeout", exc_info=True)
             pass
