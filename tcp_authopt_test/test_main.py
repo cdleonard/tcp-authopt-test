@@ -1,6 +1,7 @@
 import logging
 import os
 import socket
+import threading
 import time
 import errno
 import subprocess
@@ -159,6 +160,23 @@ def test_md5_basic(exit_stack):
     check_socket_echo(client_socket)
 
 
+def scapy_sniffer_start_block(sniffer: AsyncSniffer, timeout=1):
+    """Like AsyncSniffer.start except block until sniffing starts
+
+    This ensures no lost packets and no delays
+    """
+    if sniffer.kwargs.get("started_callback"):
+        raise ValueError("sniffer must not already have a started_callback")
+
+    e = threading.Event()
+    sniffer.kwargs["started_callback"] = e.set
+    sniffer.start()
+    assert not e.is_set()
+    e.wait(timeout=timeout)
+    if not e.is_set():
+        raise TimeoutError(f"sniffer did not start timeout={timeout!r}")
+
+
 def scapy_sniffer_start_spin(sniffer: AsyncSniffer):
     sniffer.start()
     for i in range(500):
@@ -185,7 +203,7 @@ class Context:
             self.sniffer = AsyncSniffer(
                 filter=f"tcp port {TCP_SERVER_PORT}", iface="lo"
             )
-            scapy_sniffer_start_spin(self.sniffer)
+            scapy_sniffer_start_block(self.sniffer)
             self.exit_stack.callback(self.stop_sniffer)
 
         self.listen_socket = socket.socket(self.address_family, socket.SOCK_STREAM)
@@ -220,7 +238,7 @@ def test_connect_nosniff():
 def test_sniff_nothing():
     """Test the scapy sniffer can start and stop."""
     sniffer = AsyncSniffer(filter=f"tcp port {TCP_SERVER_PORT}", iface="lo")
-    scapy_sniffer_start_spin(sniffer)
+    scapy_sniffer_start_block(sniffer)
     sniffer.stop()
 
 
