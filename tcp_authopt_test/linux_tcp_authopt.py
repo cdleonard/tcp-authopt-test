@@ -2,6 +2,7 @@
 
 import socket
 import logging
+import typing
 import ctypes
 from ctypes import c_uint32, c_uint8, c_byte, c_uint16
 
@@ -72,9 +73,11 @@ class tcp_authopt_key(ctypes.Structure):
         return bytes(self.keybuf[: self.keylen])
 
     @key.setter
-    def key(self, val: bytes) -> bytes:
+    def key(self, val: typing.Union[bytes, str]) -> bytes:
         if len(val) > TCP_AUTHOPT_MAXKEYLEN:
             raise ValueError(f"Max key length is {TCP_AUTHOPT_MAXKEYLEN}")
+        if isinstance(val, str):
+            val = val.encode("utf-8")
         self.keylen = len(val)
         self.keybuf = _keybuf.from_buffer_copy(val.ljust(TCP_AUTHOPT_MAXKEYLEN, b"\0"))
         return val
