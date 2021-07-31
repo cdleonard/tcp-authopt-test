@@ -3,9 +3,11 @@ import os
 import socket
 import time
 import errno
+import subprocess
 import typing
 from contextlib import ExitStack
 from ipaddress import IPv4Address
+from nsenter import Namespace
 
 import pytest
 from scapy.layers.inet import IP, TCP
@@ -49,6 +51,45 @@ TCP_SERVER_PORT = 17971
 def exit_stack():
     with ExitStack() as exit_stack:
         yield exit_stack
+
+
+class NamespaceFixture:
+    """Create a pair of namespace connect by one veth pair"""
+
+    ns1_name = "tcp_authopt_test_1"
+    ns2_name = "tcp_authopt_test_2"
+    ns1_addr_list = ["10.0.0.1/16"]
+    ns2_addr_list = ["10.0.1.1/16"]
+
+    def __init__(self, **kw):
+        for k, v in kw.items():
+            setattr(self, k, v)
+
+    def __enter__(self):
+        script = f"""
+set -e -x
+ip netns del {self.ns1_name} || true
+ip netns del {self.ns2_name} || true
+ip netns add {self.ns1_name}
+ip netns add {self.ns2_name}
+ip link add veth0 netns {self.ns1_name} type veth peer name veth0 netns {self.ns2_name}
+ip netns exec {self.ns1_name} ip link set veth0 up
+ip netns exec {self.ns2_name} ip link set veth0 up
+"""
+        for item in self.ns1_addr_list:
+            script += f"ip netns exec {self.ns1_name} ip addr add {item} dev veth0\n"
+        for item in self.ns2_addr_list:
+            script += f"ip netns exec {self.ns2_name} ip addr add {item} dev veth0\n"
+        subprocess.run(script, shell=True, check=True)
+        return self
+
+    def __exit__(self, *a):
+        script = f"""
+set -e -x
+ip netns del {self.ns1_name} || true
+ip netns del {self.ns2_name} || true
+"""
+        subprocess.run(script, shell=True, check=True)
 
 
 def check_socket_echo(sock, size=1024):
@@ -251,10 +292,14 @@ class MainTestBase:
         context = exit_stack.enter_context(Context(address_family=self.address_family))
 
         set_tcp_authopt(context.listen_socket, tcp_authopt(send_local_id=1))
-        server_key = tcp_authopt_key(local_id=1, alg=self.get_alg_id(), key=self.master_key)
+        server_key = tcp_authopt_key(
+            local_id=1, alg=self.get_alg_id(), key=self.master_key
+        )
         set_tcp_authopt_key(context.listen_socket, server_key)
         set_tcp_authopt(context.client_socket, tcp_authopt(send_local_id=1))
-        client_key = tcp_authopt_key(local_id=1, alg=self.get_alg_id(), key=self.master_key)
+        client_key = tcp_authopt_key(
+            local_id=1, alg=self.get_alg_id(), key=self.master_key
+        )
         set_tcp_authopt_key(context.client_socket, client_key)
 
         # even if one signature is incorrect keep processing the capture
@@ -383,9 +428,59 @@ def test_tcp_authopt_key_setdel(exit_stack):
 class TestMainV4(MainTestBase):
     address_family = socket.AF_INET
 
+
 class TestMainV4AES(MainTestBase):
     address_family = socket.AF_INET
     alg_name = "AES-128-CMAC-96"
 
+
 class TestMainV6(MainTestBase):
     address_family = socket.AF_INET6
+
+
+def test_namespace_fixture(exit_stack: ExitStack):
+    nsfixture = exit_stack.enter_context(NamespaceFixture())
+
+    # create listen socket:
+    with Namespace("/var/run/netns/" + nsfixture.ns1_name, "net"):
+        listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listen_socket = exit_stack.push(listen_socket)
+    listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listen_socket.bind(("10.0.0.1", TCP_SERVER_PORT))
+    listen_socket.listen(1)
+
+    # create client socket:
+    with Namespace("/var/run/netns/" + nsfixture.ns2_name, "net"):
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket = exit_stack.push(client_socket)
+
+    # create server thread:
+    server_thread = SimpleServerThread(listen_socket, mode="echo")
+    exit_stack.enter_context(server_thread)
+
+    # set keys:
+    server_key = tcp_authopt_key(
+        local_id=1,
+        alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+        key="hello",
+        send_id=5,
+        recv_id=5,
+    )
+    client_key = tcp_authopt_key(
+        local_id=1,
+        alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+        key="hello",
+        send_id=5,
+        recv_id=5,
+    )
+    set_tcp_authopt(listen_socket, tcp_authopt(send_local_id=1))
+    set_tcp_authopt_key(listen_socket, server_key)
+    set_tcp_authopt(listen_socket, tcp_authopt(send_local_id=1))
+    set_tcp_authopt_key(listen_socket, client_key)
+
+    # Run test test
+    client_socket.settimeout(1.0)
+    client_socket.connect(("10.0.0.1", TCP_SERVER_PORT))
+    for _ in range(3):
+        check_socket_echo(client_socket)
+    client_socket.close()
