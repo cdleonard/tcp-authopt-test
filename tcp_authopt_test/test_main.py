@@ -15,6 +15,7 @@ from scapy.layers.inet import IP, TCP
 from scapy.layers.inet6 import IPv6
 from scapy.packet import Packet
 from scapy.sendrecv import AsyncSniffer
+import scapy.sessions
 
 from . import tcp_authopt_alg
 from . import linux_tcp_authopt
@@ -160,6 +161,25 @@ def test_md5_basic(exit_stack):
     check_socket_echo(client_socket)
 
 
+class SimpleWaitEvent(threading.Event):
+    @property
+    def value(self) -> bool:
+        return self.is_set()
+
+    @value.setter
+    def value(self, value: bool):
+        if value:
+            self.set()
+        else:
+            self.clear()
+
+    def wait(self, timeout=None):
+        """Like Event.wait except raise on timeout"""
+        super().wait(timeout)
+        if not self.is_set():
+            raise TimeoutError(f"Timed out timeout={timeout!r}")
+
+
 def scapy_sniffer_start_block(sniffer: AsyncSniffer, timeout=1):
     """Like AsyncSniffer.start except block until sniffing starts
 
@@ -168,21 +188,25 @@ def scapy_sniffer_start_block(sniffer: AsyncSniffer, timeout=1):
     if sniffer.kwargs.get("started_callback"):
         raise ValueError("sniffer must not already have a started_callback")
 
-    e = threading.Event()
+    e = SimpleWaitEvent()
     sniffer.kwargs["started_callback"] = e.set
     sniffer.start()
     assert not e.is_set()
     e.wait(timeout=timeout)
-    if not e.is_set():
-        raise TimeoutError(f"sniffer did not start timeout={timeout!r}")
 
 
 class Context:
     sniffer: AsyncSniffer
 
-    def __init__(self, should_sniff: bool = True, address_family=socket.AF_INET):
+    def __init__(
+        self,
+        should_sniff: bool = True,
+        address_family=socket.AF_INET,
+        sniffer_kwargs=None,
+    ):
         self.should_sniff = should_sniff
         self.address_family = address_family
+        self.sniffer_kwargs = sniffer_kwargs
 
     def stop_sniffer(self):
         if self.sniffer and self.sniffer.running:
@@ -192,7 +216,9 @@ class Context:
         self.exit_stack = ExitStack()
         if self.should_sniff:
             self.sniffer = AsyncSniffer(
-                filter=f"tcp port {TCP_SERVER_PORT}", iface="lo"
+                filter=f"tcp port {TCP_SERVER_PORT}",
+                iface="lo",
+                **(self.sniffer_kwargs or {}),
             )
             scapy_sniffer_start_block(self.sniffer)
             self.exit_stack.callback(self.stop_sniffer)
@@ -233,14 +259,63 @@ def test_sniff_nothing():
     sniffer.stop()
 
 
+class CompleteTCPCaptureSniffSession(scapy.sessions.DefaultSession):
+    """Smart scapy sniff session
+
+    Allow waiting to capture FIN
+    """
+
+    found_syn = False
+    found_synack = False
+    found_fin = False
+    found_client_fin = False
+    found_server_fin = False
+
+    def __init__(self, server_port=None, **kw):
+        super().__init__(**kw)
+        self.server_port = server_port
+        self._close_event = SimpleWaitEvent()
+
+    def on_packet_received(self, p):
+        super().on_packet_received(p)
+        if not p or not TCP in p:
+            return
+        th = p[TCP]
+        # logger.debug("sport=%d dport=%d flags=%s", th.sport, th.dport, th.flags)
+        if th.flags.S and not th.flags.A:
+            if th.dport == self.server_port or self.server_port is None:
+                self.found_syn = True
+        if th.flags.S and th.flags.A:
+            if th.sport == self.server_port or self.server_port is None:
+                self.found_synack = True
+        if th.flags.F:
+            if self.server_port is None:
+                self.found_fin = True
+                self._close_event.set()
+            elif self.server_port == th.dport:
+                self.found_client_fin = True
+                self.found_fin = True
+                if self.found_server_fin and self.found_client_fin:
+                    self._close_event.set()
+            elif self.server_port == th.sport:
+                self.found_server_fin = True
+                self.found_fin = True
+                if self.found_server_fin and self.found_client_fin:
+                    self._close_event.set()
+
+    def wait_close(self, timeout=10):
+        self._close_event.wait(timeout=timeout)
+
+
 @skipif_cant_capture
 def test_complete_sniff(exit_stack: ExitStack):
     """Test that the whole TCP conversation is sniffed by scapy"""
-    context = exit_stack.enter_context(Context())
+    session = CompleteTCPCaptureSniffSession(server_port=TCP_SERVER_PORT)
+    context = exit_stack.enter_context(Context(sniffer_kwargs=dict(session=session)))
     context.client_socket.connect(("localhost", TCP_SERVER_PORT))
     check_socket_echo(context.client_socket)
     context.client_socket.close()
-    time.sleep(1)
+    session.wait_close()
     context.sniffer.stop()
 
     found_syn = False
