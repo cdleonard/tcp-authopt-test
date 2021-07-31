@@ -177,15 +177,6 @@ def scapy_sniffer_start_block(sniffer: AsyncSniffer, timeout=1):
         raise TimeoutError(f"sniffer did not start timeout={timeout!r}")
 
 
-def scapy_sniffer_start_spin(sniffer: AsyncSniffer):
-    sniffer.start()
-    for i in range(500):
-        if getattr(sniffer, "stop_cb", None) is not None:
-            return True
-        time.sleep(0.01)
-    return False
-
-
 class Context:
     sniffer: AsyncSniffer
 
