@@ -194,6 +194,12 @@ def scapy_sniffer_start_block(sniffer: AsyncSniffer, timeout=1):
     e.wait(timeout=timeout)
 
 
+def scapy_sniffer_stop(sniffer: AsyncSniffer):
+    """Like AsyncSniffer.stop except no error is raising if not running"""
+    if sniffer is not None and sniffer.running:
+        sniffer.stop()
+
+
 class Context:
     sniffer: AsyncSniffer
 
@@ -208,8 +214,7 @@ class Context:
         self.sniffer_kwargs = sniffer_kwargs
 
     def stop_sniffer(self):
-        if self.sniffer and self.sniffer.running:
-            self.sniffer.stop()
+        scapy_sniffer_stop(self.sniffer)
 
     def start(self):
         self.exit_stack = ExitStack()
