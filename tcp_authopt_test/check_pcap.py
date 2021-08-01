@@ -3,7 +3,6 @@
 """Check TCP Authentication Option signatures inside a packet capture"""
 import logging
 from dataclasses import dataclass
-from ipaddress import IPv4Address
 from scapy.packet import Packet
 from scapy.utils import rdpcap
 from scapy.layers.inet import TCP
