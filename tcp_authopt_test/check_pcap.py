@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from scapy.packet import Packet
 from scapy.utils import rdpcap
 from scapy.layers.inet import TCP
-from scapy.layers.inet import IP
 from . import tcp_authopt_alg
 from .tcp_authopt_alg import TCPAuthContext
 from .tcp_authopt_alg import get_scapy_ipvx_src
@@ -78,7 +77,7 @@ def main(argv=None):
         saddr = get_scapy_ipvx_src(p)
         daddr = get_scapy_ipvx_dst(p)
 
-        conn_key = p[IP].src, p[IP].dst, p[TCP].sport, p[TCP].dport
+        conn_key = saddr, daddr, p[TCP].sport, p[TCP].dport
         if p[TCP].flags.S:
             conn = conn_dict.get(conn_key, None)
             if conn is not None:
@@ -101,7 +100,7 @@ def main(argv=None):
                 conn.dst_isn = p[TCP].ack - 1
 
                 # Update opposite connection with dst_isn
-                rconn_key = p[IP].dst, p[IP].src, p[TCP].dport, p[TCP].sport
+                rconn_key = daddr, saddr, p[TCP].dport, p[TCP].sport
                 rconn = conn_dict.get(rconn_key, None)
                 if rconn is None:
                     logger.warning("missing reverse connection %s", rconn_key)
