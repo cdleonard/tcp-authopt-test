@@ -8,8 +8,8 @@ def get_capture_path(name) -> Path:
 
 
 def test_cisco():
-    main(["-k", "123", "-v", "-f", str(get_capture_path("cisco.pcap"))])
+    assert 2 == main(["-k", "123", "-v", "-f", str(get_capture_path("cisco.pcap"))])
 
 
 def test_cisco2():
-    main(["-k", "123", "-v", "-f", str(get_capture_path("cisco2.pcap"))])
+    assert 2 == main(["-k", "123", "-v", "-f", str(get_capture_path("cisco2.pcap"))])
