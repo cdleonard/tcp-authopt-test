@@ -191,7 +191,6 @@ def scapy_sniffer_start_block(sniffer: AsyncSniffer, timeout=1):
     e = SimpleWaitEvent()
     sniffer.kwargs["started_callback"] = e.set
     sniffer.start()
-    assert not e.is_set()
     e.wait(timeout=timeout)
 
 
