@@ -529,6 +529,19 @@ class TestMainV6(MainTestBase):
 def test_namespace_fixture(exit_stack: ExitStack):
     nsfixture = exit_stack.enter_context(NamespaceFixture())
 
+    # create sniffer socket
+    with Namespace("/var/run/netns/" + nsfixture.ns1_name, "net"):
+        from scapy.config import conf
+        from scapy.data import ETH_P_ALL
+        capture_socket = conf.L2listen(type=ETH_P_ALL, iface="veth0", filter=f"tcp port {TCP_SERVER_PORT}")
+    capture_socket = exit_stack.push(capture_socket)
+
+    # create sniffer thread
+    session = CompleteTCPCaptureSniffSession(server_port=TCP_SERVER_PORT)
+    sniffer = AsyncSniffer(opened_socket=capture_socket, session=session)
+    scapy_sniffer_start_block(sniffer)
+    exit_stack.callback(lambda: scapy_sniffer_stop(sniffer))
+
     # create listen socket:
     with Namespace("/var/run/netns/" + nsfixture.ns1_name, "net"):
         listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -572,3 +585,9 @@ def test_namespace_fixture(exit_stack: ExitStack):
     for _ in range(3):
         check_socket_echo(client_socket)
     client_socket.close()
+
+    session.wait_close()
+    scapy_sniffer_stop(sniffer)
+    plist = sniffer.results
+    logger.info("plist: %r", plist)
+    assert any((TCP in p and p[TCP].dport == TCP_SERVER_PORT) for p in plist)
