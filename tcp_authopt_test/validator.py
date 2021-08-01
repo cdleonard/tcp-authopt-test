@@ -29,6 +29,7 @@ class TCPSocketPair:
 class TcpAuthValidatorKey:
     key: bytes
     alg_name: str
+    include_options: bool = True
     keyid: typing.Optional[int] = None
     sport: typing.Optional[int] = None
     dport: typing.Optional[int] = None
@@ -139,7 +140,7 @@ class TcpAuthValidator:
         alg = key.get_alg_imp()
         traffic_key = alg.kdf(key.key, context_bytes)
         message_bytes = tcp_authopt_alg.build_message_from_scapy(
-            p, include_options=False
+            p, include_options=key.include_options
         )
         computed_mac = alg.mac(traffic_key, message_bytes)
         if computed_mac == captured_mac:

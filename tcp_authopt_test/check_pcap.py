@@ -50,7 +50,10 @@ def main(argv=None) -> int:
 
     from .validator import TcpAuthValidator
     from .validator import TcpAuthValidatorKey
-    key = TcpAuthValidatorKey(key=opts.master_key.encode(), alg_name=opts.alg_name)
+
+    key = TcpAuthValidatorKey(
+        key=opts.master_key.encode(), alg_name=opts.alg_name, include_options=False
+    )
     validator = TcpAuthValidator(keys=[key])
     cap = rdpcap(opts.file)
     logger.info("cap: %r", cap)
