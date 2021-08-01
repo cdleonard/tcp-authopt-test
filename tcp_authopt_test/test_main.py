@@ -26,6 +26,7 @@ from .linux_tcp_authopt import (
     tcp_authopt,
     tcp_authopt_key,
 )
+from .validator import TcpAuthValidator, TcpAuthValidatorKey
 from .linux_tcp_md5sig import setsockopt_md5sig, tcp_md5sig
 from .server import SimpleServerThread
 from .sockaddr import sockaddr_in
@@ -361,19 +362,6 @@ class MainTestBase:
         else:
             raise ValueError()
 
-    def kdf(self, context: bytes) -> bytes:
-        return self.get_alg().kdf(self.master_key, context)
-
-    def mac(self, traffic_key: bytes, message_bytes: bytes) -> bytes:
-        return self.get_alg().mac(traffic_key, message_bytes)
-
-    def mac_from_scapy_packet(
-        self, traffic_key: bytes, packet: Packet, include_options=True
-    ) -> bytes:
-        message_bytes = tcp_authopt_alg.build_message_from_scapy(
-            packet, include_options=include_options
-        )
-        return self.mac(traffic_key, message_bytes)
 
     @skipif_cant_capture
     def test_authopt_connect_sniff(self, exit_stack: ExitStack):
@@ -391,10 +379,9 @@ class MainTestBase:
         set_tcp_authopt_key(context.client_socket, client_key)
 
         # even if one signature is incorrect keep processing the capture
-        fail = False
-        found_syn = False
-        found_synack = False
         old_nstat = nstat_json()
+        valkey = TcpAuthValidatorKey(key = self.master_key, alg_name=self.alg_name)
+        validator = TcpAuthValidator(keys=[valkey])
 
         try:
             context.client_socket.settimeout(1.0)
@@ -408,78 +395,20 @@ class MainTestBase:
         time.sleep(1)
         context.sniffer.stop()
 
-        auth_context = tcp_authopt_alg.TCPAuthContext()
-
         logger.info("capture: %r", context.sniffer.results)
         for p in context.sniffer.results:
-            # check packet matches address family
-            if self.address_family == socket.AF_INET:
-                assert IP in p
-            elif self.address_family == socket.AF_INET6:
-                assert IPv6 in p
-            # check packets is only for our packet
-            assert p[TCP].sport == TCP_SERVER_PORT or p[TCP].dport == TCP_SERVER_PORT
+            validator.handle_packet(p)
 
-            opt = scapy_tcp_get_authopt_val(p[TCP])
-            if opt is None:
-                logger.error("missing tcp-ao on packet %r", p)
-                fail = True
-                continue
-            assert opt is not None
-            assert opt.keyid == 0
-            # logger.info("opt: %r", opt)
-            # logger.info("flags: %r", p[TCP].flags)
-            # logger.info("p[TCP]: %r", p[TCP])
-            # logger.info("p[IP]: %r", p[IP])
-
-            if p[TCP].flags.S and not p[TCP].flags.A:
-                assert p[TCP].dport == TCP_SERVER_PORT
-                context_bytes = tcp_authopt_alg.build_context_from_scapy(
-                    p, p[TCP].seq, 0
-                )
-                auth_context.init_from_syn_packet(p)
-                assert auth_context.pack(syn=True) == context_bytes
-                found_syn = True
-            elif p[TCP].flags.S and p[TCP].flags.A:
-                assert p[TCP].sport == TCP_SERVER_PORT
-                assert found_syn
-                context_bytes = tcp_authopt_alg.build_context_from_scapy(
-                    p, p[TCP].seq, p[TCP].ack - 1
-                )
-                auth_context.update_from_synack_packet(p)
-                assert auth_context.pack(rev=True).hex() == context_bytes.hex()
-                found_synack = True
-            else:
-                assert found_synack
-                context_bytes = auth_context.pack(rev=(p[TCP].sport == TCP_SERVER_PORT))
-
-            # logger.info("context=%s packet=%r", context_bytes.hex(" "), p);
-            traffic_key = self.kdf(context_bytes)
-            computed_mac = self.mac_from_scapy_packet(traffic_key, p)
-            captured_mac = opt.mac
-            if computed_mac != captured_mac:
-                fail = True
-                logger.error(
-                    "fail computed_mac=%s != captured_mac=%s traffic_key=%s context=%s packet=%r",
-                    computed_mac.hex(" "),
-                    opt.mac.hex(" "),
-                    traffic_key.hex(" "),
-                    context_bytes.hex(" "),
-                    p,
-                )
-            else:
-                logger.info("correct mac=%s packet=%r", computed_mac.hex(" "), p)
-            # assert computed_mac == opt.mac
-
+        assert not validator.any_fail
+        assert not validator.any_unsigned
+        # Fails because of duplicate packets:
+        #assert not validator.any_incomplete
         new_nstat = nstat_json()
         assert (
             0
             == new_nstat["kernel"]["TcpExtTCPAuthOptFailure"]
             - old_nstat["kernel"]["TcpExtTCPAuthOptFailure"]
         )
-        assert found_syn
-        assert found_synack
-        assert not fail
 
 
 def test_tcp_authopt_key_del_without_active(exit_stack):

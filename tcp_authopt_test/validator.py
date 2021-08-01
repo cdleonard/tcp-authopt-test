@@ -61,6 +61,7 @@ class TcpAuthValidator:
     keys: typing.List[TcpAuthValidatorKey]
     conn_dict: typing.Dict[TCPSocketPair, TCPAuthContext]
     any_incomplete: bool = False
+    any_unsigned: bool = False
     any_fail: bool = False
 
     def __init__(self, keys=None):
@@ -124,7 +125,7 @@ class TcpAuthValidator:
                     self.any_incomplete = True
                 else:
                     assert rconn.sisn == conn.disn
-                    assert rconn.disn == 0
+                    assert rconn.disn == 0 or rconn.disn == conn.sisn
                     rconn.disn = conn.sisn
                     rconn.update_from_synack_packet(p)
                     logger.info("Updated peer for SYNACK: %r", rconn)
