@@ -11,8 +11,7 @@ from ipaddress import IPv4Address
 from nsenter import Namespace
 
 import pytest
-from scapy.layers.inet import IP, TCP
-from scapy.layers.inet6 import IPv6
+from scapy.layers.inet import TCP
 from scapy.packet import Packet
 from scapy.sendrecv import AsyncSniffer
 import scapy.sessions
@@ -33,7 +32,6 @@ from .sockaddr import sockaddr_in
 from .utils import randbytes
 from .utils import recvall
 from .utils import nstat_json
-from .utils import scapy_tcp_get_authopt_val
 
 logger = logging.getLogger(__name__)
 
@@ -362,7 +360,6 @@ class MainTestBase:
         else:
             raise ValueError()
 
-
     @skipif_cant_capture
     def test_authopt_connect_sniff(self, exit_stack: ExitStack):
         context = exit_stack.enter_context(Context(address_family=self.address_family))
@@ -380,7 +377,7 @@ class MainTestBase:
 
         # even if one signature is incorrect keep processing the capture
         old_nstat = nstat_json()
-        valkey = TcpAuthValidatorKey(key = self.master_key, alg_name=self.alg_name)
+        valkey = TcpAuthValidatorKey(key=self.master_key, alg_name=self.alg_name)
         validator = TcpAuthValidator(keys=[valkey])
 
         try:
@@ -402,7 +399,7 @@ class MainTestBase:
         assert not validator.any_fail
         assert not validator.any_unsigned
         # Fails because of duplicate packets:
-        #assert not validator.any_incomplete
+        # assert not validator.any_incomplete
         new_nstat = nstat_json()
         assert (
             0
