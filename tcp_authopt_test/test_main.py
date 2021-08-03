@@ -61,7 +61,7 @@ class NamespaceFixture:
     ns1_name = "tcp_authopt_test_1"
     ns2_name = "tcp_authopt_test_2"
     ns1_addr_list = ["10.0.0.1/16"]
-    ns2_addr_list = ["10.0.1.1/16"]
+    ns2_addr_list = ["10.0.1.1/16", "10.0.1.2/16", "10.0.1.3/16"]
 
     def __init__(self, **kw):
         for k, v in kw.items():
@@ -557,3 +557,73 @@ def test_namespace_fixture(exit_stack: ExitStack):
     plist = sniffer.results
     logger.info("plist: %r", plist)
     assert any((TCP in p and p[TCP].dport == TCP_SERVER_PORT) for p in plist)
+
+
+def create_listen_socket(
+    ns: str = "",
+    family=socket.AF_INET,
+    reuseaddr=True,
+    listen_depth=10,
+    bind_addr="",
+    bind_port=TCP_SERVER_PORT,
+):
+    with netns_context(ns):
+        listen_socket = socket.socket(family, socket.SOCK_STREAM)
+    if reuseaddr:
+        listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listen_socket.bind((bind_addr, bind_port))
+    listen_socket.listen(listen_depth)
+    return listen_socket
+
+
+def test_ipv4_addr_bind(exit_stack: ExitStack):
+    nsfixture = exit_stack.enter_context(NamespaceFixture())
+    server_addr = "10.0.0.1"
+    client_addr = "10.0.1.1"
+    client_addr2 = "10.0.1.2"
+
+    # create server:
+    listen_socket = exit_stack.push(create_listen_socket(ns=nsfixture.ns1_name))
+    exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
+
+    # set keys:
+    server_key = tcp_authopt_key(
+        local_id=1,
+        alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+        key="hello",
+        flags=linux_tcp_authopt.TCP_AUTHOPT_KEY_BIND_ADDR,
+        addr=sockaddr_in(0, client_addr2).pack(),
+    )
+    set_tcp_authopt(
+        listen_socket,
+        tcp_authopt(
+            send_local_id=1, flags=linux_tcp_authopt.TCP_AUTHOPT_FLAG_REJECT_UNEXPECTED
+        ),
+    )
+    set_tcp_authopt_key(listen_socket, server_key)
+
+    # create client socket:
+    def create_client_socket():
+        with Namespace("/var/run/netns/" + nsfixture.ns2_name, "net"):
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_key = tcp_authopt_key(
+            local_id=1,
+            alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+            key="hello",
+        )
+        set_tcp_authopt(client_socket, tcp_authopt(send_local_id=1))
+        set_tcp_authopt_key(client_socket, client_key)
+        return client_socket
+
+    # addr match:
+    with create_client_socket() as client_socket2:
+        client_socket2.bind((client_addr2, 0))
+        client_socket2.settimeout(1.0)
+        client_socket2.connect((server_addr, TCP_SERVER_PORT))
+
+    # addr mismatch:
+    with create_client_socket() as client_socket1:
+        client_socket1.bind((client_addr, 0))
+        with pytest.raises(socket.timeout):
+            client_socket1.settimeout(1.0)
+            client_socket1.connect((server_addr, TCP_SERVER_PORT))
