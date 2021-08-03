@@ -9,6 +9,7 @@ import typing
 from contextlib import ExitStack, nullcontext
 from ipaddress import IPv4Address
 from nsenter import Namespace
+import struct
 
 import pytest
 from scapy.layers.inet import TCP
@@ -130,6 +131,18 @@ def test_md5sig_packunpack():
     s2 = tcp_md5sig.unpack(s1.pack())
     assert s1.key[0:2] == s2.key[0:2]
     assert len(s2.key) == 80
+
+
+def test_authopt_key_pack_noaddr():
+    b = bytes(tcp_authopt_key(key=b"a\x00b"))
+    assert b[11] == 3
+    assert b[12:17] == b"a\x00b\x00\x00"
+
+
+def test_authopt_key_pack_addr():
+    b = bytes(tcp_authopt_key(key=b"a\x00b", addr="10.0.0.1"))
+    assert struct.unpack("H", b[96:98])[0] == socket.AF_INET
+    assert sockaddr_in.unpack(b[96:96 + sockaddr_in.sizeof]).addr == IPv4Address("10.0.0.1")
 
 
 def test_md5_basic(exit_stack):

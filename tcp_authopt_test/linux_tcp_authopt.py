@@ -1,7 +1,9 @@
 """Python wrapper around linux TCP_AUTHOPT ABI"""
 
+from ipaddress import IPv4Address, ip_address
 import socket
 import logging
+from .sockaddr import sockaddr_in, sockaddr_storage, sockaddr_unpack
 import typing
 import ctypes
 from ctypes import c_uint32, c_uint8, c_byte
@@ -47,6 +49,8 @@ def set_tcp_authopt(sock, opt: tcp_authopt):
 
 
 _keybuf = c_byte * TCP_AUTHOPT_MAXKEYLEN
+SIZEOF_SOCKADDR_STORAGE = 128
+_addrbuf = c_byte * SIZEOF_SOCKADDR_STORAGE
 
 
 class tcp_authopt_key(ctypes.Structure):
@@ -60,6 +64,8 @@ class tcp_authopt_key(ctypes.Structure):
         ("alg", c_uint8),
         ("keylen", c_uint8),
         ("keybuf", _keybuf),
+        ("_pad", c_uint32),
+        ("addrbuf", _addrbuf),
     ]
 
     def __init__(
@@ -70,6 +76,7 @@ class tcp_authopt_key(ctypes.Structure):
         recv_id: int = 0,
         alg=TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
         key: bytes = b"",
+        addr: bytes = b"",
     ):
         self.local_id = local_id
         self.flags = flags
@@ -77,6 +84,8 @@ class tcp_authopt_key(ctypes.Structure):
         self.recv_id = recv_id
         self.alg = alg
         self.key = key
+        if addr:
+            self.addr = addr
 
     @property
     def key(self) -> bytes:
@@ -91,6 +100,28 @@ class tcp_authopt_key(ctypes.Structure):
         self.keylen = len(val)
         self.keybuf = _keybuf.from_buffer_copy(val.ljust(TCP_AUTHOPT_MAXKEYLEN, b"\0"))
         return val
+
+    @property
+    def addr(self):
+        return sockaddr_unpack(bytes(self.addrbuf))
+
+    @addr.setter
+    def addr(self, val):
+        if isinstance(val, bytes):
+            if len(val) > SIZEOF_SOCKADDR_STORAGE:
+                raise ValueError(f"Must be up to {SIZEOF_SOCKADDR_STORAGE}")
+            self.addrbuf = _addrbuf.from_buffer_copy(
+                val.ljust(SIZEOF_SOCKADDR_STORAGE, b"\0")
+            )
+        elif isinstance(val, str):
+            self.addr = ip_address(val)
+        elif isinstance(val, IPv4Address):
+            self.addr = sockaddr_in(addr=val)
+        elif isinstance(val, sockaddr_in) or isinstance(val, sockaddr_storage):
+            self.addr = bytes(val)
+        else:
+            raise TypeError(f"Can't handle addr {val}")
+        return self.addr
 
     @property
     def include_options(self) -> bool:

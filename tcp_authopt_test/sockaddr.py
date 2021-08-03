@@ -1,13 +1,15 @@
+"""pack/unpack wrappers for sockaddr"""
 import socket
 import struct
 from dataclasses import dataclass
-from ipaddress import IPv4Address, ip_address
+from ipaddress import IPv4Address
 
 
 @dataclass
 class sockaddr_in:
     port: int
     addr: IPv4Address
+    sizeof = 8
 
     def __init__(self, port=0, addr=None):
         self.port = port
