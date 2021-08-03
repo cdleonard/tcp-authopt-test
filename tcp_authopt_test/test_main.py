@@ -6,7 +6,7 @@ import time
 import errno
 import subprocess
 import typing
-from contextlib import ExitStack
+from contextlib import ExitStack, nullcontext
 from ipaddress import IPv4Address
 from nsenter import Namespace
 
@@ -452,21 +452,48 @@ class TestMainV6(MainTestBase):
     address_family = socket.AF_INET6
 
 
+def netns_context(ns: str = ""):
+    """Create context manager for a certain optional netns
+
+    If the ns argument is empty then just return a `nullcontext`
+    """
+    if ns:
+        return Namespace("/var/run/netns/" + ns, "net")
+    else:
+        return nullcontext()
+
+
+def create_capture_socket(ns: str = "", **kw):
+    from scapy.config import conf
+    from scapy.data import ETH_P_ALL
+
+    with netns_context(ns):
+        capture_socket = conf.L2listen(type=ETH_P_ALL, **kw)
+    return capture_socket
+
+
+class AsyncSnifferContext(AsyncSniffer):
+    def __enter__(self):
+        scapy_sniffer_start_block(self)
+        return self
+
+    def __exit__(self, *a):
+        scapy_sniffer_stop(self)
+
+
 def test_namespace_fixture(exit_stack: ExitStack):
     nsfixture = exit_stack.enter_context(NamespaceFixture())
 
     # create sniffer socket
-    with Namespace("/var/run/netns/" + nsfixture.ns1_name, "net"):
-        from scapy.config import conf
-        from scapy.data import ETH_P_ALL
-        capture_socket = conf.L2listen(type=ETH_P_ALL, iface="veth0", filter=f"tcp port {TCP_SERVER_PORT}")
-    capture_socket = exit_stack.push(capture_socket)
+    capture_socket = exit_stack.enter_context(
+        create_capture_socket(ns=nsfixture.ns1_name, iface="veth0")
+    )
 
     # create sniffer thread
     session = CompleteTCPCaptureSniffSession(server_port=TCP_SERVER_PORT)
-    sniffer = AsyncSniffer(opened_socket=capture_socket, session=session)
-    scapy_sniffer_start_block(sniffer)
-    exit_stack.callback(lambda: scapy_sniffer_stop(sniffer))
+    sniffer = exit_stack.enter_context(
+        AsyncSnifferContext(opened_socket=capture_socket, session=session)
+    )
 
     # create listen socket:
     with Namespace("/var/run/netns/" + nsfixture.ns1_name, "net"):
