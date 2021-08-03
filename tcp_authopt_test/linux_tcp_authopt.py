@@ -4,7 +4,7 @@ import socket
 import logging
 import typing
 import ctypes
-from ctypes import c_uint32, c_uint8, c_byte, c_uint16
+from ctypes import c_uint32, c_uint8, c_byte
 
 logger = logging.getLogger(__name__)
 
