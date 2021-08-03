@@ -505,8 +505,8 @@ def test_namespace_fixture(exit_stack: ExitStack):
     )
     set_tcp_authopt(listen_socket, tcp_authopt(send_local_id=1))
     set_tcp_authopt_key(listen_socket, server_key)
-    set_tcp_authopt(listen_socket, tcp_authopt(send_local_id=1))
-    set_tcp_authopt_key(listen_socket, client_key)
+    set_tcp_authopt(client_socket, tcp_authopt(send_local_id=1))
+    set_tcp_authopt_key(client_socket, client_key)
 
     # Run test test
     client_socket.settimeout(1.0)
