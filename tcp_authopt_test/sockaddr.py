@@ -25,6 +25,9 @@ class sockaddr_in:
             raise ValueError(f"Must be AF_INET not {family}")
         return cls(port, addr_packed)
 
+    def __bytes__(self):
+        return self.pack()
+
 
 @dataclass
 class sockaddr_storage:
@@ -34,6 +37,9 @@ class sockaddr_storage:
 
     def pack(self):
         return struct.pack("H126s", self.family, self.data)
+
+    def __bytes__(self):
+        return self.pack()
 
     @classmethod
     def unpack(cls, buffer):
