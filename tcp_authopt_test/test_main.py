@@ -109,13 +109,7 @@ def check_socket_echo(sock, size=1024):
 
 
 def test_nonauth_connect(exit_stack):
-    tcp_server_host = ""
-
-    listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    listen_socket = exit_stack.push(listen_socket)
-    listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listen_socket.bind((tcp_server_host, TCP_SERVER_PORT))
-    listen_socket.listen(1)
+    listen_socket = exit_stack.enter_context(create_listen_socket())
     exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
 
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -152,19 +146,14 @@ def test_authopt_key_pack_addr():
 
 
 def test_md5_basic(exit_stack):
-    tcp_server_host = ""
     tcp_md5_key = b"12345"
 
-    listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    listen_socket = exit_stack.push(listen_socket)
+    listen_socket = exit_stack.enter_context(create_listen_socket())
     setsockopt_md5sig(
         listen_socket,
         key=tcp_md5_key,
         addr=sockaddr_in(addr=IPv4Address("127.0.0.1")),
     )
-    listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listen_socket.bind((tcp_server_host, TCP_SERVER_PORT))
-    listen_socket.listen(1)
     exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
 
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -206,11 +195,8 @@ class Context:
             scapy_sniffer_start_block(self.sniffer)
             self.exit_stack.callback(self.stop_sniffer)
 
-        self.listen_socket = socket.socket(self.address_family, socket.SOCK_STREAM)
-        self.listen_socket = self.exit_stack.push(self.listen_socket)
-        self.listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.listen_socket.bind(("", TCP_SERVER_PORT))
-        self.listen_socket.listen(1)
+        self.listen_socket = create_listen_socket(family= self.address_family)
+        self.listen_socket = self.exit_stack.enter_context(self.listen_socket)
 
         self.client_socket = socket.socket(self.address_family, socket.SOCK_STREAM)
         self.client_socket = self.exit_stack.push(self.client_socket)
@@ -456,12 +442,7 @@ def test_namespace_fixture(exit_stack: ExitStack):
     )
 
     # create listen socket:
-    with Namespace("/var/run/netns/" + nsfixture.ns1_name, "net"):
-        listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    listen_socket = exit_stack.push(listen_socket)
-    listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listen_socket.bind(("10.0.0.1", TCP_SERVER_PORT))
-    listen_socket.listen(1)
+    listen_socket = exit_stack.enter_context(create_listen_socket(ns=nsfixture.ns1_name))
 
     # create client socket:
     with Namespace("/var/run/netns/" + nsfixture.ns2_name, "net"):
