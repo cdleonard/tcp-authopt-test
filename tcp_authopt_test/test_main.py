@@ -1,12 +1,11 @@
 import logging
 import os
 import socket
-import threading
 import time
 import errno
 import subprocess
 import typing
-from contextlib import ExitStack, nullcontext
+from contextlib import ExitStack
 from ipaddress import IPv4Address
 from nsenter import Namespace
 import struct
@@ -30,9 +29,16 @@ from .validator import TcpAuthValidator, TcpAuthValidatorKey
 from .linux_tcp_md5sig import setsockopt_md5sig, tcp_md5sig
 from .server import SimpleServerThread
 from .sockaddr import sockaddr_in
-from .utils import randbytes
-from .utils import recvall
-from .utils import nstat_json
+from .utils import (
+    AsyncSnifferContext,
+    SimpleWaitEvent,
+    netns_context,
+    nstat_json,
+    randbytes,
+    recvall,
+    scapy_sniffer_start_block,
+    scapy_sniffer_stop,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -171,45 +177,6 @@ def test_md5_basic(exit_stack):
 
     client_socket.connect(("localhost", TCP_SERVER_PORT))
     check_socket_echo(client_socket)
-
-
-class SimpleWaitEvent(threading.Event):
-    @property
-    def value(self) -> bool:
-        return self.is_set()
-
-    @value.setter
-    def value(self, value: bool):
-        if value:
-            self.set()
-        else:
-            self.clear()
-
-    def wait(self, timeout=None):
-        """Like Event.wait except raise on timeout"""
-        super().wait(timeout)
-        if not self.is_set():
-            raise TimeoutError(f"Timed out timeout={timeout!r}")
-
-
-def scapy_sniffer_start_block(sniffer: AsyncSniffer, timeout=1):
-    """Like AsyncSniffer.start except block until sniffing starts
-
-    This ensures no lost packets and no delays
-    """
-    if sniffer.kwargs.get("started_callback"):
-        raise ValueError("sniffer must not already have a started_callback")
-
-    e = SimpleWaitEvent()
-    sniffer.kwargs["started_callback"] = e.set
-    sniffer.start()
-    e.wait(timeout=timeout)
-
-
-def scapy_sniffer_stop(sniffer: AsyncSniffer):
-    """Like AsyncSniffer.stop except no error is raising if not running"""
-    if sniffer is not None and sniffer.running:
-        sniffer.stop()
 
 
 class Context:
@@ -465,17 +432,6 @@ class TestMainV6(MainTestBase):
     address_family = socket.AF_INET6
 
 
-def netns_context(ns: str = ""):
-    """Create context manager for a certain optional netns
-
-    If the ns argument is empty then just return a `nullcontext`
-    """
-    if ns:
-        return Namespace("/var/run/netns/" + ns, "net")
-    else:
-        return nullcontext()
-
-
 def create_capture_socket(ns: str = "", **kw):
     from scapy.config import conf
     from scapy.data import ETH_P_ALL
@@ -483,15 +439,6 @@ def create_capture_socket(ns: str = "", **kw):
     with netns_context(ns):
         capture_socket = conf.L2listen(type=ETH_P_ALL, **kw)
     return capture_socket
-
-
-class AsyncSnifferContext(AsyncSniffer):
-    def __enter__(self):
-        scapy_sniffer_start_block(self)
-        return self
-
-    def __exit__(self, *a):
-        scapy_sniffer_stop(self)
 
 
 def test_namespace_fixture(exit_stack: ExitStack):
