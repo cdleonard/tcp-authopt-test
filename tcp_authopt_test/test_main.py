@@ -469,7 +469,8 @@ def create_listen_socket(
     return listen_socket
 
 
-def test_ipv4_addr_bind(exit_stack: ExitStack):
+def test_ipv4_addr_server_bind(exit_stack: ExitStack):
+    """ "Server only accept client2, check client1 fails"""
     nsfixture = exit_stack.enter_context(NamespaceFixture())
     server_addr = "10.0.0.1"
     client_addr = "10.0.1.1"
@@ -520,3 +521,74 @@ def test_ipv4_addr_bind(exit_stack: ExitStack):
         with pytest.raises(socket.timeout):
             client_socket1.settimeout(1.0)
             client_socket1.connect((server_addr, TCP_SERVER_PORT))
+
+
+def test_ipv4_addr_client_bind(exit_stack: ExitStack):
+    """ "Client configures different keys with same id but different addresses"""
+    nsfixture = exit_stack.enter_context(NamespaceFixture())
+    server_addr1 = "10.0.0.1"
+    server_addr2 = "10.0.0.2"
+    client_addr = "10.0.1.1"
+
+    # create servers:
+    listen_socket1 = exit_stack.enter_context(
+        create_listen_socket(ns=nsfixture.ns1_name, bind_addr=server_addr1)
+    )
+    listen_socket2 = exit_stack.enter_context(
+        create_listen_socket(ns=nsfixture.ns1_name, bind_addr=server_addr2)
+    )
+    exit_stack.enter_context(SimpleServerThread(listen_socket1, mode="echo"))
+    exit_stack.enter_context(SimpleServerThread(listen_socket2, mode="echo"))
+
+    # set keys:
+    set_tcp_authopt_key(
+        listen_socket1,
+        tcp_authopt_key(
+            local_id=1,
+            alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+            key="11111",
+        ),
+    )
+    set_tcp_authopt_key(
+        listen_socket2,
+        tcp_authopt_key(
+            local_id=1,
+            alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+            key="22222",
+        ),
+    )
+
+    # create client socket:
+    def create_client_socket():
+        with netns_context(nsfixture.ns2_name):
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        set_tcp_authopt_key(
+            client_socket,
+            tcp_authopt_key(
+                local_id=1,
+                alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+                key="11111",
+                flags=linux_tcp_authopt.TCP_AUTHOPT_KEY_BIND_ADDR,
+                addr=server_addr1,
+            ),
+        )
+        set_tcp_authopt_key(
+            client_socket,
+            tcp_authopt_key(
+                local_id=2,
+                alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+                key="22222",
+                flags=linux_tcp_authopt.TCP_AUTHOPT_KEY_BIND_ADDR,
+                addr=server_addr2,
+            ),
+        )
+        client_socket.settimeout(1.0)
+        client_socket.bind((client_addr, 0))
+        return client_socket
+
+    with create_client_socket() as client_socket1:
+        client_socket1.connect((server_addr1, TCP_SERVER_PORT))
+        check_socket_echo(client_socket1)
+    with create_client_socket() as client_socket2:
+        client_socket2.connect((server_addr2, TCP_SERVER_PORT))
+        check_socket_echo(client_socket2)
