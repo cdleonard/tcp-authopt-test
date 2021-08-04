@@ -13,7 +13,6 @@ import struct
 import pytest
 from scapy.layers.inet import TCP
 from scapy.packet import Packet
-from scapy.sendrecv import AsyncSniffer
 import scapy.sessions
 
 from . import tcp_authopt_alg
@@ -168,66 +167,6 @@ def test_md5_basic(exit_stack):
     check_socket_echo(client_socket)
 
 
-class Context:
-    sniffer: AsyncSniffer
-
-    def __init__(
-        self,
-        should_sniff: bool = True,
-        address_family=socket.AF_INET,
-        sniffer_kwargs=None,
-    ):
-        self.should_sniff = should_sniff
-        self.address_family = address_family
-        self.sniffer_kwargs = sniffer_kwargs
-
-    def stop_sniffer(self):
-        scapy_sniffer_stop(self.sniffer)
-
-    def start(self):
-        self.exit_stack = ExitStack()
-        if self.should_sniff:
-            self.sniffer = AsyncSniffer(
-                filter=f"tcp port {TCP_SERVER_PORT}",
-                iface="lo",
-                **(self.sniffer_kwargs or {}),
-            )
-            scapy_sniffer_start_block(self.sniffer)
-            self.exit_stack.callback(self.stop_sniffer)
-
-        self.listen_socket = create_listen_socket(family= self.address_family)
-        self.listen_socket = self.exit_stack.enter_context(self.listen_socket)
-
-        self.client_socket = socket.socket(self.address_family, socket.SOCK_STREAM)
-        self.client_socket = self.exit_stack.push(self.client_socket)
-
-        self.server_thread = SimpleServerThread(self.listen_socket, mode="echo")
-        self.exit_stack.enter_context(self.server_thread)
-
-    def stop(self):
-        self.exit_stack.close()
-
-    def __enter__(self):
-        self.start()
-        return self
-
-    def __exit__(self, *args):
-        self.stop()
-
-
-def test_connect_nosniff():
-    with Context(should_sniff=False) as context:
-        context.client_socket.connect(("localhost", TCP_SERVER_PORT))
-
-
-@skipif_cant_capture
-def test_sniff_nothing():
-    """Test the scapy sniffer can start and stop."""
-    sniffer = AsyncSniffer(filter=f"tcp port {TCP_SERVER_PORT}", iface="lo")
-    scapy_sniffer_start_block(sniffer)
-    sniffer.stop()
-
-
 class CompleteTCPCaptureSniffSession(scapy.sessions.DefaultSession):
     """Smart scapy sniff session
 
@@ -280,18 +219,28 @@ class CompleteTCPCaptureSniffSession(scapy.sessions.DefaultSession):
 def test_complete_sniff(exit_stack: ExitStack):
     """Test that the whole TCP conversation is sniffed by scapy"""
     session = CompleteTCPCaptureSniffSession(server_port=TCP_SERVER_PORT)
-    context = exit_stack.enter_context(Context(sniffer_kwargs=dict(session=session)))
-    context.client_socket.connect(("localhost", TCP_SERVER_PORT))
-    check_socket_echo(context.client_socket)
-    context.client_socket.close()
+    sniffer = exit_stack.enter_context(AsyncSnifferContext(
+        filter=f"tcp port {TCP_SERVER_PORT}",
+        iface="lo",
+        session=session
+    ))
+
+    listen_socket = create_listen_socket()
+    listen_socket = exit_stack.enter_context(listen_socket)
+    exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket = exit_stack.push(client_socket)
+    client_socket.connect(("localhost", TCP_SERVER_PORT))
+    check_socket_echo(client_socket)
+    client_socket.close()
     session.wait_close()
-    context.sniffer.stop()
+    sniffer.stop()
 
     found_syn = False
     found_synack = False
     found_client_fin = False
     found_server_fin = False
-    for p in context.sniffer.results:
+    for p in sniffer.results:
         th = p[TCP]
         logger.info("sport=%d dport=%d flags=%s", th.sport, th.dport, th.flags)
         if p[TCP].flags.S and not p[TCP].flags.A:
@@ -328,18 +277,28 @@ class MainTestBase:
 
     @skipif_cant_capture
     def test_authopt_connect_sniff(self, exit_stack: ExitStack):
-        context = exit_stack.enter_context(Context(address_family=self.address_family))
+        sniffer = exit_stack.enter_context(AsyncSnifferContext(
+            filter=f"tcp port {TCP_SERVER_PORT}",
+            iface="lo",
+        ))
 
-        set_tcp_authopt(context.listen_socket, tcp_authopt(send_local_id=1))
+        listen_socket = create_listen_socket(family=self.address_family)
+        listen_socket = exit_stack.enter_context(listen_socket)
+        exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
+
+        client_socket = socket.socket(self.address_family, socket.SOCK_STREAM)
+        client_socket = exit_stack.push(client_socket)
+
+        set_tcp_authopt(listen_socket, tcp_authopt(send_local_id=1))
         server_key = tcp_authopt_key(
             local_id=1, alg=self.get_alg_id(), key=self.master_key
         )
-        set_tcp_authopt_key(context.listen_socket, server_key)
-        set_tcp_authopt(context.client_socket, tcp_authopt(send_local_id=1))
+        set_tcp_authopt_key(listen_socket, server_key)
+        set_tcp_authopt(client_socket, tcp_authopt(send_local_id=1))
         client_key = tcp_authopt_key(
             local_id=1, alg=self.get_alg_id(), key=self.master_key
         )
-        set_tcp_authopt_key(context.client_socket, client_key)
+        set_tcp_authopt_key(client_socket, client_key)
 
         # even if one signature is incorrect keep processing the capture
         old_nstat = nstat_json()
@@ -347,19 +306,19 @@ class MainTestBase:
         validator = TcpAuthValidator(keys=[valkey])
 
         try:
-            context.client_socket.settimeout(1.0)
-            context.client_socket.connect(("localhost", TCP_SERVER_PORT))
+            client_socket.settimeout(1.0)
+            client_socket.connect(("localhost", TCP_SERVER_PORT))
             for _ in range(5):
-                check_socket_echo(context.client_socket)
+                check_socket_echo(client_socket)
         except socket.timeout:
             logger.warning("socket timeout", exc_info=True)
             pass
-        context.client_socket.close()
+        client_socket.close()
         time.sleep(1)
-        context.sniffer.stop()
+        sniffer.stop()
 
-        logger.info("capture: %r", context.sniffer.results)
-        for p in context.sniffer.results:
+        logger.info("capture: %r", sniffer.results)
+        for p in sniffer.results:
             validator.handle_packet(p)
 
         assert not validator.any_fail
