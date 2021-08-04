@@ -342,7 +342,7 @@ def test_tcp_authopt_key_del_without_active(exit_stack):
     # nothing happens:
     with pytest.raises(OSError) as e:
         del_tcp_authopt_key_by_id(sock, 1)
-    assert e.value.errno == errno.EINVAL
+    assert e.value.errno in [errno.EINVAL, errno.ENOENT]
 
 
 def test_tcp_authopt_key_setdel(exit_stack):
