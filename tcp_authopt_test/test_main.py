@@ -65,7 +65,7 @@ class NamespaceFixture:
 
     ns1_name = "tcp_authopt_test_1"
     ns2_name = "tcp_authopt_test_2"
-    ns1_addr_list = ["10.0.0.1/16"]
+    ns1_addr_list = ["10.0.0.1/16", "10.0.0.2/16", "10.0.0.3/16"]
     ns2_addr_list = ["10.0.1.1/16", "10.0.1.2/16", "10.0.1.3/16"]
 
     def __init__(self, **kw):
