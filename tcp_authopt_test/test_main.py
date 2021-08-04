@@ -277,9 +277,11 @@ class MainTestBase:
 
     @skipif_cant_capture
     def test_authopt_connect_sniff(self, exit_stack: ExitStack):
+        session = CompleteTCPCaptureSniffSession(server_port=TCP_SERVER_PORT)
         sniffer = exit_stack.enter_context(AsyncSnifferContext(
             filter=f"tcp port {TCP_SERVER_PORT}",
             iface="lo",
+            session=session
         ))
 
         listen_socket = create_listen_socket(family=self.address_family)
@@ -314,7 +316,7 @@ class MainTestBase:
             logger.warning("socket timeout", exc_info=True)
             pass
         client_socket.close()
-        time.sleep(1)
+        session.wait_close()
         sniffer.stop()
 
         logger.info("capture: %r", sniffer.results)
