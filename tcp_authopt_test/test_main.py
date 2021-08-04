@@ -293,16 +293,12 @@ class MainTestBase:
         client_socket = socket.socket(self.address_family, socket.SOCK_STREAM)
         client_socket = exit_stack.push(client_socket)
 
-        set_tcp_authopt(listen_socket, tcp_authopt(send_local_id=1))
-        server_key = tcp_authopt_key(
+        set_tcp_authopt_key(listen_socket, tcp_authopt_key(
             local_id=1, alg=self.get_alg_id(), key=self.master_key
-        )
-        set_tcp_authopt_key(listen_socket, server_key)
-        set_tcp_authopt(client_socket, tcp_authopt(send_local_id=1))
-        client_key = tcp_authopt_key(
+        ))
+        set_tcp_authopt_key(client_socket, tcp_authopt_key(
             local_id=1, alg=self.get_alg_id(), key=self.master_key
-        )
-        set_tcp_authopt_key(client_socket, client_key)
+        ))
 
         # even if one signature is incorrect keep processing the capture
         old_nstat = nstat_json()
@@ -433,9 +429,7 @@ def test_namespace_fixture(exit_stack: ExitStack):
         send_id=5,
         recv_id=5,
     )
-    set_tcp_authopt(listen_socket, tcp_authopt(send_local_id=1))
     set_tcp_authopt_key(listen_socket, server_key)
-    set_tcp_authopt(client_socket, tcp_authopt(send_local_id=1))
     set_tcp_authopt_key(client_socket, client_key)
 
     # Run test test
