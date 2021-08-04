@@ -141,7 +141,9 @@ def test_authopt_key_pack_noaddr():
 def test_authopt_key_pack_addr():
     b = bytes(tcp_authopt_key(key=b"a\x00b", addr="10.0.0.1"))
     assert struct.unpack("H", b[96:98])[0] == socket.AF_INET
-    assert sockaddr_in.unpack(b[96:96 + sockaddr_in.sizeof]).addr == IPv4Address("10.0.0.1")
+    assert sockaddr_in.unpack(b[96 : 96 + sockaddr_in.sizeof]).addr == IPv4Address(
+        "10.0.0.1"
+    )
 
 
 def test_md5_basic(exit_stack):
@@ -219,11 +221,11 @@ class CompleteTCPCaptureSniffSession(scapy.sessions.DefaultSession):
 def test_complete_sniff(exit_stack: ExitStack):
     """Test that the whole TCP conversation is sniffed by scapy"""
     session = CompleteTCPCaptureSniffSession(server_port=TCP_SERVER_PORT)
-    sniffer = exit_stack.enter_context(AsyncSnifferContext(
-        filter=f"tcp port {TCP_SERVER_PORT}",
-        iface="lo",
-        session=session
-    ))
+    sniffer = exit_stack.enter_context(
+        AsyncSnifferContext(
+            filter=f"tcp port {TCP_SERVER_PORT}", iface="lo", session=session
+        )
+    )
 
     listen_socket = create_listen_socket()
     listen_socket = exit_stack.enter_context(listen_socket)
@@ -278,11 +280,11 @@ class MainTestBase:
     @skipif_cant_capture
     def test_authopt_connect_sniff(self, exit_stack: ExitStack):
         session = CompleteTCPCaptureSniffSession(server_port=TCP_SERVER_PORT)
-        sniffer = exit_stack.enter_context(AsyncSnifferContext(
-            filter=f"tcp port {TCP_SERVER_PORT}",
-            iface="lo",
-            session=session
-        ))
+        sniffer = exit_stack.enter_context(
+            AsyncSnifferContext(
+                filter=f"tcp port {TCP_SERVER_PORT}", iface="lo", session=session
+            )
+        )
 
         listen_socket = create_listen_socket(family=self.address_family)
         listen_socket = exit_stack.enter_context(listen_socket)
@@ -403,7 +405,9 @@ def test_namespace_fixture(exit_stack: ExitStack):
     )
 
     # create listen socket:
-    listen_socket = exit_stack.enter_context(create_listen_socket(ns=nsfixture.ns1_name))
+    listen_socket = exit_stack.enter_context(
+        create_listen_socket(ns=nsfixture.ns1_name)
+    )
 
     # create client socket:
     with Namespace("/var/run/netns/" + nsfixture.ns2_name, "net"):
