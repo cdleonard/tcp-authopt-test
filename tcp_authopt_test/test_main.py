@@ -484,9 +484,7 @@ def test_ipv4_addr_server_bind(exit_stack: ExitStack):
     )
     set_tcp_authopt(
         listen_socket,
-        tcp_authopt(
-            send_local_id=1, flags=linux_tcp_authopt.TCP_AUTHOPT_FLAG_REJECT_UNEXPECTED
-        ),
+        tcp_authopt(flags=linux_tcp_authopt.TCP_AUTHOPT_FLAG_REJECT_UNEXPECTED),
     )
     set_tcp_authopt_key(listen_socket, server_key)
 
@@ -499,7 +497,6 @@ def test_ipv4_addr_server_bind(exit_stack: ExitStack):
             alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
             key="hello",
         )
-        set_tcp_authopt(client_socket, tcp_authopt(send_local_id=1))
         set_tcp_authopt_key(client_socket, client_key)
         return client_socket
 
