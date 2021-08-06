@@ -1,9 +1,9 @@
 """Python wrapper around linux TCP_AUTHOPT ABI"""
 
-from ipaddress import IPv4Address, ip_address
+from ipaddress import IPv4Address, IPv6Address, ip_address
 import socket
 import logging
-from .sockaddr import sockaddr_in, sockaddr_storage, sockaddr_unpack
+from .sockaddr import sockaddr_in, sockaddr_in6, sockaddr_storage, sockaddr_unpack
 import typing
 import ctypes
 from ctypes import c_uint32, c_uint8, c_byte
@@ -117,7 +117,9 @@ class tcp_authopt_key(ctypes.Structure):
             self.addr = ip_address(val)
         elif isinstance(val, IPv4Address):
             self.addr = sockaddr_in(addr=val)
-        elif isinstance(val, sockaddr_in) or isinstance(val, sockaddr_storage):
+        elif isinstance(val, IPv6Address):
+            self.addr = sockaddr_in6(addr=val)
+        elif isinstance(val, sockaddr_in) or isinstance(val, sockaddr_in6) or isinstance(val, sockaddr_storage):
             self.addr = bytes(val)
         else:
             raise TypeError(f"Can't handle addr {val}")

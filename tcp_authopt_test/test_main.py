@@ -6,7 +6,7 @@ import errno
 import subprocess
 import typing
 from contextlib import ExitStack
-from ipaddress import IPv4Address
+from ipaddress import IPv4Address, IPv6Address
 from nsenter import Namespace
 import struct
 
@@ -27,7 +27,7 @@ from .linux_tcp_authopt import (
 from .validator import TcpAuthValidator, TcpAuthValidatorKey
 from .linux_tcp_md5sig import setsockopt_md5sig, tcp_md5sig
 from .server import SimpleServerThread
-from .sockaddr import sockaddr_in
+from .sockaddr import sockaddr_in, sockaddr_unpack
 from .utils import (
     AsyncSnifferContext,
     SimpleWaitEvent,
@@ -141,8 +141,16 @@ def test_authopt_key_pack_noaddr():
 def test_authopt_key_pack_addr():
     b = bytes(tcp_authopt_key(key=b"a\x00b", addr="10.0.0.1"))
     assert struct.unpack("H", b[96:98])[0] == socket.AF_INET
-    assert sockaddr_in.unpack(b[96 : 96 + sockaddr_in.sizeof]).addr == IPv4Address(
+    assert sockaddr_unpack(b[96 : 96 + sockaddr_in.sizeof]).addr == IPv4Address(
         "10.0.0.1"
+    )
+
+
+def test_authopt_key_pack_addr6():
+    b = bytes(tcp_authopt_key(key=b"abc", addr="fd00::1"))
+    assert struct.unpack("H", b[96:98])[0] == socket.AF_INET6
+    assert sockaddr_unpack(b[96 : 96 + 128]).addr == IPv6Address(
+        "fd00::1"
     )
 
 
