@@ -1,10 +1,12 @@
 """Python wrapper around linux TCP_AUTHOPT ABI"""
 
+from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address, ip_address
 import socket
 import logging
 from .sockaddr import sockaddr_in, sockaddr_in6, sockaddr_storage, sockaddr_unpack
 import typing
+import struct
 import ctypes
 from ctypes import c_uint32, c_uint8, c_byte
 
@@ -32,20 +34,35 @@ TCP_AUTHOPT_ALG_HMAC_SHA_1_96 = 1
 TCP_AUTHOPT_ALG_AES_128_CMAC_96 = 2
 
 
-class tcp_authopt(ctypes.Structure):
+@dataclass
+class tcp_authopt:
     """Like linux struct tcp_authopt"""
 
-    _fields_ = [
-        ("flags", c_uint32),
-        ("send_local_id", c_uint32),
-    ]
+    flags: int = 0
+    send_local_id: int = 0
+    send_rnextkeyid: int = 0
+    recv_keyid: int = 0
+    recv_rnextkeyid: int = 0
 
     def pack(self) -> bytes:
-        return bytes(self)
+        return struct.pack("IIBBB", self.flags, self.send_local_id, self.send_rnextkeyid, self.recv_keyid, self.recv_rnextkeyid)
+
+    def __bytes__(self):
+        return self.pack()
+
+    @classmethod
+    def unpack(cls, b: bytes):
+        tup = struct.unpack("IIBBB", b)
+        return cls(*tup)
 
 
 def set_tcp_authopt(sock, opt: tcp_authopt):
     return sock.setsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT, bytes(opt))
+
+
+def get_tcp_authopt(sock: socket.socket) -> tcp_authopt:
+    b = sock.getsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT, 11)
+    return tcp_authopt.unpack(b)
 
 
 _keybuf = c_byte * TCP_AUTHOPT_MAXKEYLEN

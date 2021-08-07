@@ -15,6 +15,7 @@ class SimpleServerThread(Thread):
 
     def __init__(self, socket, mode="recv"):
         self.listen_socket = socket
+        self.server_socket = []
         self.mode = mode
         super().__init__()
 
@@ -50,6 +51,7 @@ class SimpleServerThread(Thread):
         conn = self.exit_stack.enter_context(conn)
         conn.setblocking(False)
         self.sel.register(conn, selectors.EVENT_READ, self.read_echo)
+        self.server_socket.append(conn)
 
     def run(self):
         self.should_loop = True
