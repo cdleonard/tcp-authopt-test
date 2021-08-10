@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address, ip_address
 import socket
+import errno
 import logging
 from .sockaddr import sockaddr_in, sockaddr_in6, sockaddr_storage, sockaddr_unpack
 import typing
@@ -172,3 +173,17 @@ def set_tcp_authopt_key(sock, key: tcp_authopt_key):
 def del_tcp_authopt_key_by_id(sock, local_id: int):
     opt = tcp_authopt_key(local_id=local_id, flags=TCP_AUTHOPT_KEY_DEL)
     return sock.setsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT_KEY, bytes(opt))
+
+
+def has_tcp_authopt() -> bool:
+    """Check is TCP_AUTHOPT is implemented by the OS"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            optbuf = bytes(4)
+            sock.setsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT, optbuf)
+            return True
+        except OSError as e:
+            if e.value.errno == errno.ENOPROTOOPT:
+                return False
+            else:
+                raise

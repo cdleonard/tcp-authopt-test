@@ -363,6 +363,12 @@ class MainTestBase:
         )
 
 
+def test_has_tcp_authopt():
+    from .linux_tcp_authopt import has_tcp_authopt
+
+    assert has_tcp_authopt()
+
+
 def test_tcp_authopt_key_del_without_active(exit_stack):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     exit_stack.push(sock)
