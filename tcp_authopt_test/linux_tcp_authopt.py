@@ -183,7 +183,7 @@ def has_tcp_authopt() -> bool:
             sock.setsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT, optbuf)
             return True
         except OSError as e:
-            if e.value.errno == errno.ENOPROTOOPT:
+            if e.errno == errno.ENOPROTOOPT:
                 return False
             else:
                 raise
