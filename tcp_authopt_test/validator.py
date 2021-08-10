@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class TCPSocketPair:
     """TCP connection identifier"""
+
     saddr: IPvXAddress = None
     daddr: IPvXAddress = None
     sport: int = 0
@@ -58,6 +59,7 @@ def is_init_syn(p: Packet) -> bool:
 
 class TcpAuthValidator:
     """Validate TCP auth sessions inside a capture"""
+
     keys: typing.List[TcpAuthValidatorKey]
     conn_dict: typing.Dict[TCPSocketPair, TCPAuthContext]
     any_incomplete: bool = False

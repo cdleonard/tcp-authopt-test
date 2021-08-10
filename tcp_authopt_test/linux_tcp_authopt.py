@@ -45,7 +45,14 @@ class tcp_authopt:
     recv_rnextkeyid: int = 0
 
     def pack(self) -> bytes:
-        return struct.pack("IIBBB", self.flags, self.send_local_id, self.send_rnextkeyid, self.recv_keyid, self.recv_rnextkeyid)
+        return struct.pack(
+            "IIBBB",
+            self.flags,
+            self.send_local_id,
+            self.send_rnextkeyid,
+            self.recv_keyid,
+            self.recv_rnextkeyid,
+        )
 
     def __bytes__(self):
         return self.pack()
@@ -136,7 +143,11 @@ class tcp_authopt_key(ctypes.Structure):
             self.addr = sockaddr_in(addr=val)
         elif isinstance(val, IPv6Address):
             self.addr = sockaddr_in6(addr=val)
-        elif isinstance(val, sockaddr_in) or isinstance(val, sockaddr_in6) or isinstance(val, sockaddr_storage):
+        elif (
+            isinstance(val, sockaddr_in)
+            or isinstance(val, sockaddr_in6)
+            or isinstance(val, sockaddr_storage)
+        ):
             self.addr = bytes(val)
         else:
             raise TypeError(f"Can't handle addr {val}")

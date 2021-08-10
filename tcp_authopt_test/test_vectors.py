@@ -412,7 +412,8 @@ class TestIETFVectors:
             self.server_isn_71x,
             self.client_isn_71x,
             alg_name="AES-128-CMAC-96",
-            include_options=True)
+            include_options=True,
+        )
 
     def test_7_1_4(self):
         self.check(
@@ -433,4 +434,5 @@ class TestIETFVectors:
             self.server_isn_71x,
             self.client_isn_71x,
             alg_name="AES-128-CMAC-96",
-            include_options=True)
+            include_options=True,
+        )

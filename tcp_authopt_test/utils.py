@@ -74,6 +74,7 @@ def netns_context(ns: str = ""):
 @dataclass
 class tcphdr_authopt:
     """Representation of a TCP auth option as it appears in a TCP packet"""
+
     keyid: int
     rnextkeyid: int
     mac: bytes

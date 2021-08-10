@@ -27,7 +27,9 @@ class tcp_md5sig:
     TCP_MD5SIG_FLAG_PREFIX = 0x2
     sizeof = 128 + 88
 
-    def __init__(self, addr=None, flags=0, prefixlen=0, keylen=None, ifindex=0, key=bytes()):
+    def __init__(
+        self, addr=None, flags=0, prefixlen=0, keylen=None, ifindex=0, key=bytes()
+    ):
         self.addr = addr
         self.flags = flags
         self.prefixlen = prefixlen
@@ -40,9 +42,9 @@ class tcp_md5sig:
 
     def get_addr_bytes(self) -> bytes:
         if self.addr is None:
-            return b'\0' * 128
+            return b"\0" * 128
         if self.addr is bytes:
-            assert(len(self.addr) == 128)
+            assert len(self.addr) == 128
             return self.addr
         return self.addr.pack()
 

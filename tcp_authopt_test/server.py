@@ -20,11 +20,11 @@ class SimpleServerThread(Thread):
         super().__init__()
 
     def read_echo(self, conn, events):
-        #logger.debug("events=%r", events)
+        # logger.debug("events=%r", events)
         data = conn.recv(1000)
-        #logger.debug("len(data)=%r", len(data))
+        # logger.debug("len(data)=%r", len(data))
         if len(data) == 0:
-            #logger.info("closing %r", conn)
+            # logger.info("closing %r", conn)
             conn.close()
             self.sel.unregister(conn)
         else:
@@ -46,7 +46,7 @@ class SimpleServerThread(Thread):
         return super().start()
 
     def _accept(self, conn, events):
-        assert(conn == self.listen_socket)
+        assert conn == self.listen_socket
         conn, _addr = self.listen_socket.accept()
         conn = self.exit_stack.enter_context(conn)
         conn.setblocking(False)
@@ -60,12 +60,12 @@ class SimpleServerThread(Thread):
             self._stop_pipe_rfd, selectors.EVENT_READ, self._stop_pipe_read
         )
         self.sel.register(self.listen_socket, selectors.EVENT_READ, self._accept)
-        #logger.debug("loop init")
+        # logger.debug("loop init")
         while self.should_loop:
             for key, events in self.sel.select(timeout=1):
                 callback = key.data
                 callback(key.fileobj, events)
-        #logger.debug("loop done")
+        # logger.debug("loop done")
 
     def stop(self):
         """Try to stop nicely"""

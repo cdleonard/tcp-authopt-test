@@ -171,9 +171,7 @@ def test_authopt_key_pack_addr():
 def test_authopt_key_pack_addr6():
     b = bytes(tcp_authopt_key(key=b"abc", addr="fd00::1"))
     assert struct.unpack("H", b[96:98])[0] == socket.AF_INET6
-    assert sockaddr_unpack(b[96 : 96 + 128]).addr == IPv6Address(
-        "fd00::1"
-    )
+    assert sockaddr_unpack(b[96 : 96 + 128]).addr == IPv6Address("fd00::1")
 
 
 def test_md5_basic(exit_stack):
@@ -323,12 +321,14 @@ class MainTestBase:
         client_socket = socket.socket(self.address_family, socket.SOCK_STREAM)
         client_socket = exit_stack.push(client_socket)
 
-        set_tcp_authopt_key(listen_socket, tcp_authopt_key(
-            local_id=1, alg=self.get_alg_id(), key=self.master_key
-        ))
-        set_tcp_authopt_key(client_socket, tcp_authopt_key(
-            local_id=1, alg=self.get_alg_id(), key=self.master_key
-        ))
+        set_tcp_authopt_key(
+            listen_socket,
+            tcp_authopt_key(local_id=1, alg=self.get_alg_id(), key=self.master_key),
+        )
+        set_tcp_authopt_key(
+            client_socket,
+            tcp_authopt_key(local_id=1, alg=self.get_alg_id(), key=self.master_key),
+        )
 
         # even if one signature is incorrect keep processing the capture
         old_nstat = nstat_json()
@@ -502,7 +502,9 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
     client_addr2 = str(nsfixture.get_addr(address_family, 2, 2))
 
     # create server:
-    listen_socket = exit_stack.push(create_listen_socket(family=address_family, ns=nsfixture.ns1_name))
+    listen_socket = exit_stack.push(
+        create_listen_socket(family=address_family, ns=nsfixture.ns1_name)
+    )
     exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
 
     # set keys:
@@ -532,7 +534,7 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
         return client_socket
 
     # addr match:
-    #with create_client_socket() as client_socket2:
+    # with create_client_socket() as client_socket2:
     #    client_socket2.bind((client_addr2, 0))
     #    client_socket2.settimeout(1.0)
     #    client_socket2.connect((server_addr, TCP_SERVER_PORT))
@@ -555,10 +557,14 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
 
     # create servers:
     listen_socket1 = exit_stack.enter_context(
-        create_listen_socket(family=address_family, ns=nsfixture.ns1_name, bind_addr=server_addr1)
+        create_listen_socket(
+            family=address_family, ns=nsfixture.ns1_name, bind_addr=server_addr1
+        )
     )
     listen_socket2 = exit_stack.enter_context(
-        create_listen_socket(family=address_family, ns=nsfixture.ns1_name, bind_addr=server_addr2)
+        create_listen_socket(
+            family=address_family, ns=nsfixture.ns1_name, bind_addr=server_addr2
+        )
     )
     exit_stack.enter_context(SimpleServerThread(listen_socket1, mode="echo"))
     exit_stack.enter_context(SimpleServerThread(listen_socket2, mode="echo"))
@@ -687,7 +693,9 @@ def test_rollover_send_keyid(exit_stack: ExitStack):
         make_tcp_authopt_socket_pair(
             server_key_list=[sk1, sk2],
             client_key_list=[ck1, ck2],
-            client_authopt=tcp_authopt(send_local_id=1, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID),
+            client_authopt=tcp_authopt(
+                send_local_id=1, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID
+            ),
         )
     )
 
@@ -714,7 +722,9 @@ def test_rollover_rnextkeyid(exit_stack: ExitStack):
         make_tcp_authopt_socket_pair(
             server_key_list=[sk1],
             client_key_list=[ck1, ck2],
-            client_authopt=tcp_authopt(send_local_id=1, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID),
+            client_authopt=tcp_authopt(
+                send_local_id=1, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID
+            ),
         )
     )
 
@@ -722,7 +732,10 @@ def test_rollover_rnextkeyid(exit_stack: ExitStack):
     assert get_tcp_authopt(server_socket).recv_rnextkeyid == 11
 
     # request rnextkeyd=22 but server does not have it
-    set_tcp_authopt(client_socket, tcp_authopt(send_rnextkeyid=21, flags=TCP_AUTHOPT_FLAG_LOCK_RNEXTKEYID))
+    set_tcp_authopt(
+        client_socket,
+        tcp_authopt(send_rnextkeyid=21, flags=TCP_AUTHOPT_FLAG_LOCK_RNEXTKEYID),
+    )
     check_socket_echo(client_socket)
     check_socket_echo(client_socket)
     assert get_tcp_authopt(server_socket).recv_rnextkeyid == 21
@@ -744,7 +757,9 @@ def test_rollover_delkey(exit_stack: ExitStack):
         make_tcp_authopt_socket_pair(
             server_key_list=[sk1, sk2],
             client_key_list=[ck1, ck2],
-            client_authopt=tcp_authopt(send_local_id=1, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID),
+            client_authopt=tcp_authopt(
+                send_local_id=1, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID
+            ),
         )
     )
 
