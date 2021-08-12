@@ -20,7 +20,6 @@ from . import linux_tcp_authopt
 from .linux_tcp_authopt import (
     TCP_AUTHOPT_FLAG_LOCK_KEYID,
     TCP_AUTHOPT_FLAG_LOCK_RNEXTKEYID,
-    del_tcp_authopt_key_by_id,
     set_tcp_authopt,
     get_tcp_authopt,
     set_tcp_authopt_key,
@@ -38,7 +37,6 @@ from .utils import (
     nstat_json,
     randbytes,
     recvall,
-    scapy_sniffer_start_block,
     scapy_sniffer_stop,
 )
 
@@ -156,22 +154,20 @@ def test_md5sig_packunpack():
 
 def test_authopt_key_pack_noaddr():
     b = bytes(tcp_authopt_key(key=b"a\x00b"))
-    assert b[11] == 3
-    assert b[12:17] == b"a\x00b\x00\x00"
+    assert b[7] == 3
+    assert b[8:13] == b"a\x00b\x00\x00"
 
 
 def test_authopt_key_pack_addr():
     b = bytes(tcp_authopt_key(key=b"a\x00b", addr="10.0.0.1"))
-    assert struct.unpack("H", b[96:98])[0] == socket.AF_INET
-    assert sockaddr_unpack(b[96 : 96 + sockaddr_in.sizeof]).addr == IPv4Address(
-        "10.0.0.1"
-    )
+    assert struct.unpack("H", b[88:90])[0] == socket.AF_INET
+    assert sockaddr_unpack(b[88:]).addr == IPv4Address("10.0.0.1")
 
 
 def test_authopt_key_pack_addr6():
     b = bytes(tcp_authopt_key(key=b"abc", addr="fd00::1"))
-    assert struct.unpack("H", b[96:98])[0] == socket.AF_INET6
-    assert sockaddr_unpack(b[96 : 96 + 128]).addr == IPv6Address("fd00::1")
+    assert struct.unpack("H", b[88:90])[0] == socket.AF_INET6
+    assert sockaddr_unpack(b[88:]).addr == IPv6Address("fd00::1")
 
 
 def test_md5_basic(exit_stack):
@@ -323,11 +319,11 @@ class MainTestBase:
 
         set_tcp_authopt_key(
             listen_socket,
-            tcp_authopt_key(local_id=1, alg=self.get_alg_id(), key=self.master_key),
+            tcp_authopt_key(alg=self.get_alg_id(), key=self.master_key),
         )
         set_tcp_authopt_key(
             client_socket,
-            tcp_authopt_key(local_id=1, alg=self.get_alg_id(), key=self.master_key),
+            tcp_authopt_key(alg=self.get_alg_id(), key=self.master_key),
         )
 
         # even if one signature is incorrect keep processing the capture
@@ -374,8 +370,10 @@ def test_tcp_authopt_key_del_without_active(exit_stack):
     exit_stack.push(sock)
 
     # nothing happens:
+    key = tcp_authopt_key()
+    key.delete_flag = True
     with pytest.raises(OSError) as e:
-        del_tcp_authopt_key_by_id(sock, 1)
+        set_tcp_authopt_key(sock, key)
     assert e.value.errno in [errno.EINVAL, errno.ENOENT]
 
 
@@ -385,18 +383,20 @@ def test_tcp_authopt_key_setdel(exit_stack):
     set_tcp_authopt(sock, tcp_authopt())
 
     # delete returns ENOENT
+    key = tcp_authopt_key()
+    key.delete_flag = True
     with pytest.raises(OSError) as e:
-        del_tcp_authopt_key_by_id(sock, 1)
+        set_tcp_authopt_key(sock, key)
     assert e.value.errno == errno.ENOENT
-    key = tcp_authopt_key(local_id=1, key=b"123")
 
-    # add and del
+    key = tcp_authopt_key(send_id=1, recv_id=2)
     set_tcp_authopt_key(sock, key)
-    del_tcp_authopt_key_by_id(sock, key.local_id)
-
-    # duplicate delete returns ENOENT
+    # First delete works fine:
+    key.delete_flag = True
+    set_tcp_authopt_key(sock, key)
+    # Duplicate delete returns ENOENT
     with pytest.raises(OSError) as e:
-        del_tcp_authopt_key_by_id(sock, 1)
+        set_tcp_authopt_key(sock, key)
     assert e.value.errno == errno.ENOENT
 
 
@@ -452,14 +452,12 @@ def test_namespace_fixture(exit_stack: ExitStack):
 
     # set keys:
     server_key = tcp_authopt_key(
-        local_id=1,
         alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
         key="hello",
         send_id=5,
         recv_id=5,
     )
     client_key = tcp_authopt_key(
-        local_id=1,
         alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
         key="hello",
         send_id=5,
@@ -515,7 +513,6 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
 
     # set keys:
     server_key = tcp_authopt_key(
-        local_id=1,
         alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
         key="hello",
         flags=linux_tcp_authopt.TCP_AUTHOPT_KEY_BIND_ADDR,
@@ -532,7 +529,6 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
         with Namespace("/var/run/netns/" + nsfixture.ns2_name, "net"):
             client_socket = socket.socket(address_family, socket.SOCK_STREAM)
         client_key = tcp_authopt_key(
-            local_id=1,
             alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
             key="hello",
         )
@@ -579,7 +575,6 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
     set_tcp_authopt_key(
         listen_socket1,
         tcp_authopt_key(
-            local_id=1,
             alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
             key="11111",
         ),
@@ -587,7 +582,6 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
     set_tcp_authopt_key(
         listen_socket2,
         tcp_authopt_key(
-            local_id=1,
             alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
             key="22222",
         ),
@@ -600,7 +594,6 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
         set_tcp_authopt_key(
             client_socket,
             tcp_authopt_key(
-                local_id=1,
                 alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
                 key="11111",
                 flags=linux_tcp_authopt.TCP_AUTHOPT_KEY_BIND_ADDR,
@@ -610,7 +603,6 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
         set_tcp_authopt_key(
             client_socket,
             tcp_authopt_key(
-                local_id=2,
                 alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
                 key="22222",
                 flags=linux_tcp_authopt.TCP_AUTHOPT_KEY_BIND_ADDR,
@@ -666,9 +658,9 @@ def make_tcp_authopt_socket_pair(
 
 def test_get_keyids(exit_stack: ExitStack):
     """Check reading key ids"""
-    sk1 = tcp_authopt_key(local_id=1, send_id=11, recv_id=12, key="111")
-    sk2 = tcp_authopt_key(local_id=2, send_id=21, recv_id=22, key="222")
-    ck1 = tcp_authopt_key(local_id=1, send_id=12, recv_id=11, key="111")
+    sk1 = tcp_authopt_key(send_id=11, recv_id=12, key="111")
+    sk2 = tcp_authopt_key(send_id=21, recv_id=22, key="222")
+    ck1 = tcp_authopt_key(send_id=12, recv_id=11, key="111")
     client_socket, server_socket = exit_stack.enter_context(
         make_tcp_authopt_socket_pair(
             server_key_list=[sk1, sk2],
@@ -691,10 +683,10 @@ def test_get_keyids(exit_stack: ExitStack):
 
 def test_rollover_send_keyid(exit_stack: ExitStack):
     """Check reading key ids"""
-    sk1 = tcp_authopt_key(local_id=1, send_id=11, recv_id=12, key="111")
-    sk2 = tcp_authopt_key(local_id=2, send_id=21, recv_id=22, key="222")
-    ck1 = tcp_authopt_key(local_id=1, send_id=12, recv_id=11, key="111")
-    ck2 = tcp_authopt_key(local_id=2, send_id=22, recv_id=21, key="222")
+    sk1 = tcp_authopt_key(send_id=11, recv_id=12, key="111")
+    sk2 = tcp_authopt_key(send_id=21, recv_id=22, key="222")
+    ck1 = tcp_authopt_key(send_id=12, recv_id=11, key="111")
+    ck2 = tcp_authopt_key(send_id=22, recv_id=21, key="222")
     client_socket, server_socket = exit_stack.enter_context(
         make_tcp_authopt_socket_pair(
             server_key_list=[sk1, sk2],
@@ -720,10 +712,10 @@ def test_rollover_send_keyid(exit_stack: ExitStack):
 
 def test_rollover_rnextkeyid(exit_stack: ExitStack):
     """Check reading key ids"""
-    sk1 = tcp_authopt_key(local_id=1, send_id=11, recv_id=12, key="111")
-    sk2 = tcp_authopt_key(local_id=2, send_id=21, recv_id=22, key="222")
-    ck1 = tcp_authopt_key(local_id=1, send_id=12, recv_id=11, key="111")
-    ck2 = tcp_authopt_key(local_id=2, send_id=22, recv_id=21, key="222")
+    sk1 = tcp_authopt_key(send_id=11, recv_id=12, key="111")
+    sk2 = tcp_authopt_key(send_id=21, recv_id=22, key="222")
+    ck1 = tcp_authopt_key(send_id=12, recv_id=11, key="111")
+    ck2 = tcp_authopt_key(send_id=22, recv_id=21, key="222")
     client_socket, server_socket = exit_stack.enter_context(
         make_tcp_authopt_socket_pair(
             server_key_list=[sk1],
@@ -755,10 +747,10 @@ def test_rollover_rnextkeyid(exit_stack: ExitStack):
 
 
 def test_rollover_delkey(exit_stack: ExitStack):
-    sk1 = tcp_authopt_key(local_id=1, send_id=11, recv_id=12, key="111")
-    sk2 = tcp_authopt_key(local_id=2, send_id=21, recv_id=22, key="222")
-    ck1 = tcp_authopt_key(local_id=1, send_id=12, recv_id=11, key="111")
-    ck2 = tcp_authopt_key(local_id=2, send_id=22, recv_id=21, key="222")
+    sk1 = tcp_authopt_key(send_id=11, recv_id=12, key="111")
+    sk2 = tcp_authopt_key(send_id=21, recv_id=22, key="222")
+    ck1 = tcp_authopt_key(send_id=12, recv_id=11, key="111")
+    ck2 = tcp_authopt_key(send_id=22, recv_id=21, key="222")
     client_socket, server_socket = exit_stack.enter_context(
         make_tcp_authopt_socket_pair(
             server_key_list=[sk1, sk2],
@@ -780,7 +772,8 @@ def test_rollover_delkey(exit_stack: ExitStack):
     assert get_tcp_authopt(client_socket).recv_keyid == 11
 
     # If a key is removed it is replaced by anything that matches
-    del_tcp_authopt_key_by_id(client_socket, 1)
+    ck1.delete_flag = True
+    set_tcp_authopt_key(client_socket, ck1)
     check_socket_echo(client_socket)
     check_socket_echo(client_socket)
     assert get_tcp_authopt(client_socket).send_keyid == 22

@@ -83,27 +83,23 @@ class tcp_authopt_key(ctypes.Structure):
 
     _fields_ = [
         ("flags", c_uint32),
-        ("local_id", c_uint32),
         ("send_id", c_uint8),
         ("recv_id", c_uint8),
         ("alg", c_uint8),
         ("keylen", c_uint8),
         ("keybuf", _keybuf),
-        ("_pad", c_uint32),
         ("addrbuf", _addrbuf),
     ]
 
     def __init__(
         self,
         flags: int = 0,
-        local_id: int = 0,
         send_id: int = 0,
         recv_id: int = 0,
         alg=TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
         key: bytes = b"",
         addr: bytes = b"",
     ):
-        self.local_id = local_id
         self.flags = flags
         self.send_id = send_id
         self.recv_id = recv_id
@@ -165,14 +161,20 @@ class tcp_authopt_key(ctypes.Structure):
         else:
             self.flags |= TCP_AUTHOPT_KEY_EXCLUDE_OPTS
 
+    @property
+    def delete_flag(self) -> bool:
+        return (self.flags & TCP_AUTHOPT_KEY_DEL) == 0
+
+    @delete_flag.setter
+    def delete_flag(self, value) -> bool:
+        if value:
+            self.flags |= TCP_AUTHOPT_KEY_DEL
+        else:
+            self.flags &= ~TCP_AUTHOPT_KEY_DEL
+
 
 def set_tcp_authopt_key(sock, key: tcp_authopt_key):
     return sock.setsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT_KEY, bytes(key))
-
-
-def del_tcp_authopt_key_by_id(sock, local_id: int):
-    opt = tcp_authopt_key(local_id=local_id, flags=TCP_AUTHOPT_KEY_DEL)
-    return sock.setsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT_KEY, bytes(opt))
 
 
 def has_tcp_authopt() -> bool:
