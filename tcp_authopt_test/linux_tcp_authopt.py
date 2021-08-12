@@ -8,8 +8,6 @@ import logging
 from .sockaddr import sockaddr_in, sockaddr_in6, sockaddr_storage, sockaddr_unpack
 import typing
 import struct
-import ctypes
-from ctypes import c_uint32, c_uint8, c_byte
 
 logger = logging.getLogger(__name__)
 
@@ -73,23 +71,11 @@ def get_tcp_authopt(sock: socket.socket) -> tcp_authopt:
     return tcp_authopt.unpack(b)
 
 
-_keybuf = c_byte * TCP_AUTHOPT_MAXKEYLEN
 SIZEOF_SOCKADDR_STORAGE = 128
-_addrbuf = c_byte * SIZEOF_SOCKADDR_STORAGE
 
 
-class tcp_authopt_key(ctypes.Structure):
+class tcp_authopt_key:
     """Like linux struct tcp_authopt_key"""
-
-    _fields_ = [
-        ("flags", c_uint32),
-        ("send_id", c_uint8),
-        ("recv_id", c_uint8),
-        ("alg", c_uint8),
-        ("keylen", c_uint8),
-        ("keybuf", _keybuf),
-        ("addrbuf", _addrbuf),
-    ]
 
     def __init__(
         self,
@@ -105,35 +91,54 @@ class tcp_authopt_key(ctypes.Structure):
         self.recv_id = recv_id
         self.alg = alg
         self.key = key
-        if addr:
-            self.addr = addr
+        self.addr = addr
+
+    def pack(self):
+        if len(self.key) > TCP_AUTHOPT_MAXKEYLEN:
+            raise ValueError(f"Max key length is {TCP_AUTHOPT_MAXKEYLEN}")
+        data = struct.pack(
+            "IBBBB80s",
+            self.flags,
+            self.send_id,
+            self.recv_id,
+            self.alg,
+            len(self.key),
+            self.key,
+        )
+        data += bytes(self.addrbuf.ljust(SIZEOF_SOCKADDR_STORAGE, b"\x00"))
+        return data
+
+    def __bytes__(self):
+        return self.pack()
 
     @property
     def key(self) -> bytes:
-        return bytes(self.keybuf[: self.keylen])
+        return self._key
 
     @key.setter
     def key(self, val: typing.Union[bytes, str]) -> bytes:
-        if len(val) > TCP_AUTHOPT_MAXKEYLEN:
-            raise ValueError(f"Max key length is {TCP_AUTHOPT_MAXKEYLEN}")
         if isinstance(val, str):
             val = val.encode("utf-8")
-        self.keylen = len(val)
-        self.keybuf = _keybuf.from_buffer_copy(val.ljust(TCP_AUTHOPT_MAXKEYLEN, b"\0"))
+        if len(val) > TCP_AUTHOPT_MAXKEYLEN:
+            raise ValueError(f"Max key length is {TCP_AUTHOPT_MAXKEYLEN}")
+        self._key = val
         return val
 
     @property
     def addr(self):
-        return sockaddr_unpack(bytes(self.addrbuf))
+        if not self.addrbuf:
+            return None
+        else:
+            return sockaddr_unpack(bytes(self.addrbuf))
 
     @addr.setter
     def addr(self, val):
         if isinstance(val, bytes):
             if len(val) > SIZEOF_SOCKADDR_STORAGE:
                 raise ValueError(f"Must be up to {SIZEOF_SOCKADDR_STORAGE}")
-            self.addrbuf = _addrbuf.from_buffer_copy(
-                val.ljust(SIZEOF_SOCKADDR_STORAGE, b"\0")
-            )
+            self.addrbuf = val
+        elif val is None:
+            self.addrbuf = b""
         elif isinstance(val, str):
             self.addr = ip_address(val)
         elif isinstance(val, IPv4Address):
