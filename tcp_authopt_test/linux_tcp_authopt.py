@@ -40,16 +40,16 @@ class tcp_authopt:
     """Like linux struct tcp_authopt"""
 
     flags: int = 0
-    send_local_id: int = 0
+    send_keyid: int = 0
     send_rnextkeyid: int = 0
     recv_keyid: int = 0
     recv_rnextkeyid: int = 0
 
     def pack(self) -> bytes:
         return struct.pack(
-            "IIBBB",
+            "IBBBB",
             self.flags,
-            self.send_local_id,
+            self.send_keyid,
             self.send_rnextkeyid,
             self.recv_keyid,
             self.recv_rnextkeyid,
@@ -60,7 +60,7 @@ class tcp_authopt:
 
     @classmethod
     def unpack(cls, b: bytes):
-        tup = struct.unpack("IIBBB", b)
+        tup = struct.unpack("IBBBB", b)
         return cls(*tup)
 
 

@@ -382,7 +382,7 @@ def test_tcp_authopt_key_del_without_active(exit_stack):
 def test_tcp_authopt_key_setdel(exit_stack):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     exit_stack.push(sock)
-    set_tcp_authopt(sock, tcp_authopt(send_local_id=0))
+    set_tcp_authopt(sock, tcp_authopt())
 
     # delete returns ENOENT
     with pytest.raises(OSError) as e:
@@ -679,11 +679,11 @@ def test_get_keyids(exit_stack: ExitStack):
     check_socket_echo(client_socket)
     client_tcp_authopt = get_tcp_authopt(client_socket)
     server_tcp_authopt = get_tcp_authopt(server_socket)
-    assert server_tcp_authopt.send_local_id == 1
+    assert server_tcp_authopt.send_keyid == 11
     assert server_tcp_authopt.send_rnextkeyid == 12
     assert server_tcp_authopt.recv_keyid == 12
     assert server_tcp_authopt.recv_rnextkeyid == 11
-    assert client_tcp_authopt.send_local_id == 1
+    assert client_tcp_authopt.send_keyid == 12
     assert client_tcp_authopt.send_rnextkeyid == 11
     assert client_tcp_authopt.recv_keyid == 11
     assert client_tcp_authopt.recv_rnextkeyid == 12
@@ -700,7 +700,7 @@ def test_rollover_send_keyid(exit_stack: ExitStack):
             server_key_list=[sk1, sk2],
             client_key_list=[ck1, ck2],
             client_authopt=tcp_authopt(
-                send_local_id=1, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID
+                send_keyid=12, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID
             ),
         )
     )
@@ -711,7 +711,7 @@ def test_rollover_send_keyid(exit_stack: ExitStack):
 
     # Explicit request for key2
     set_tcp_authopt(
-        client_socket, tcp_authopt(send_local_id=2, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID)
+        client_socket, tcp_authopt(send_keyid=22, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID)
     )
     check_socket_echo(client_socket)
     assert get_tcp_authopt(client_socket).recv_keyid == 21
@@ -729,7 +729,7 @@ def test_rollover_rnextkeyid(exit_stack: ExitStack):
             server_key_list=[sk1],
             client_key_list=[ck1, ck2],
             client_authopt=tcp_authopt(
-                send_local_id=1, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID
+                send_keyid=12, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID
             ),
         )
     )
@@ -745,13 +745,13 @@ def test_rollover_rnextkeyid(exit_stack: ExitStack):
     check_socket_echo(client_socket)
     check_socket_echo(client_socket)
     assert get_tcp_authopt(server_socket).recv_rnextkeyid == 21
-    assert get_tcp_authopt(server_socket).send_local_id == 1
+    assert get_tcp_authopt(server_socket).send_keyid == 11
 
     # after adding k2 on server the key is switched
     set_tcp_authopt_key(server_socket, sk2)
     check_socket_echo(client_socket)
     check_socket_echo(client_socket)
-    assert get_tcp_authopt(server_socket).send_local_id == 2
+    assert get_tcp_authopt(server_socket).send_keyid == 21
 
 
 def test_rollover_delkey(exit_stack: ExitStack):
@@ -764,7 +764,7 @@ def test_rollover_delkey(exit_stack: ExitStack):
             server_key_list=[sk1, sk2],
             client_key_list=[ck1, ck2],
             client_authopt=tcp_authopt(
-                send_local_id=1, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID
+                send_keyid=12, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID
             ),
         )
     )
@@ -772,10 +772,10 @@ def test_rollover_delkey(exit_stack: ExitStack):
     check_socket_echo(client_socket)
     assert get_tcp_authopt(server_socket).recv_keyid == 12
 
-    # invalid send_local_id is just ignore
-    set_tcp_authopt(client_socket, tcp_authopt(send_local_id=7))
+    # invalid send_keyid is just ignored
+    set_tcp_authopt(client_socket, tcp_authopt(send_keyid=7))
     check_socket_echo(client_socket)
-    assert get_tcp_authopt(client_socket).send_local_id == 1
+    assert get_tcp_authopt(client_socket).send_keyid == 12
     assert get_tcp_authopt(server_socket).recv_keyid == 12
     assert get_tcp_authopt(client_socket).recv_keyid == 11
 
@@ -783,7 +783,7 @@ def test_rollover_delkey(exit_stack: ExitStack):
     del_tcp_authopt_key_by_id(client_socket, 1)
     check_socket_echo(client_socket)
     check_socket_echo(client_socket)
-    assert get_tcp_authopt(client_socket).send_local_id == 2
-    assert get_tcp_authopt(server_socket).send_local_id == 2
+    assert get_tcp_authopt(client_socket).send_keyid == 22
+    assert get_tcp_authopt(server_socket).send_keyid == 21
     assert get_tcp_authopt(server_socket).recv_keyid == 22
     assert get_tcp_authopt(client_socket).recv_keyid == 21
