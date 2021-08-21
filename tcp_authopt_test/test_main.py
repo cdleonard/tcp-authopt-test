@@ -18,10 +18,7 @@ import scapy.sessions
 from . import tcp_authopt_alg
 from . import linux_tcp_authopt
 from .linux_tcp_authopt import (
-    TCP_AUTHOPT_FLAG_LOCK_KEYID,
-    TCP_AUTHOPT_FLAG_LOCK_RNEXTKEYID,
     set_tcp_authopt,
-    get_tcp_authopt,
     set_tcp_authopt_key,
     tcp_authopt,
     tcp_authopt_key,
@@ -31,12 +28,13 @@ from .linux_tcp_md5sig import setsockopt_md5sig, tcp_md5sig
 from .server import SimpleServerThread
 from .sockaddr import sockaddr_in, sockaddr_unpack
 from .utils import (
+    DEFAULT_TCP_SERVER_PORT,
     AsyncSnifferContext,
     SimpleWaitEvent,
+    check_socket_echo,
+    create_listen_socket,
     netns_context,
     nstat_json,
-    randbytes,
-    recvall,
     scapy_sniffer_stop,
 )
 
@@ -51,14 +49,6 @@ def can_capture():
 skipif_cant_capture = pytest.mark.skipif(
     not can_capture(), reason="run as root to capture packets"
 )
-
-TCP_SERVER_PORT = 17971
-
-
-@pytest.fixture
-def exit_stack():
-    with ExitStack() as exit_stack:
-        yield exit_stack
 
 
 class NamespaceFixture:
@@ -119,21 +109,13 @@ ip netns del {self.ns2_name} || true
         subprocess.run(script, shell=True, check=True)
 
 
-def check_socket_echo(sock, size=1024):
-    """Send random bytes and check they are received"""
-    send_buf = randbytes(size)
-    sock.sendall(send_buf)
-    recv_buf = recvall(sock, size)
-    assert send_buf == recv_buf
-
-
 def test_nonauth_connect(exit_stack):
     listen_socket = exit_stack.enter_context(create_listen_socket())
     exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
 
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket = exit_stack.push(client_socket)
-    client_socket.connect(("localhost", TCP_SERVER_PORT))
+    client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
     check_socket_echo(client_socket)
 
 
@@ -189,7 +171,7 @@ def test_md5_basic(exit_stack):
         addr=sockaddr_in(addr=IPv4Address("127.0.0.1")),
     )
 
-    client_socket.connect(("localhost", TCP_SERVER_PORT))
+    client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
     check_socket_echo(client_socket)
 
 
@@ -244,10 +226,10 @@ class CompleteTCPCaptureSniffSession(scapy.sessions.DefaultSession):
 @skipif_cant_capture
 def test_complete_sniff(exit_stack: ExitStack):
     """Test that the whole TCP conversation is sniffed by scapy"""
-    session = CompleteTCPCaptureSniffSession(server_port=TCP_SERVER_PORT)
+    session = CompleteTCPCaptureSniffSession(server_port=DEFAULT_TCP_SERVER_PORT)
     sniffer = exit_stack.enter_context(
         AsyncSnifferContext(
-            filter=f"tcp port {TCP_SERVER_PORT}", iface="lo", session=session
+            filter=f"tcp port {DEFAULT_TCP_SERVER_PORT}", iface="lo", session=session
         )
     )
 
@@ -256,7 +238,7 @@ def test_complete_sniff(exit_stack: ExitStack):
     exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket = exit_stack.push(client_socket)
-    client_socket.connect(("localhost", TCP_SERVER_PORT))
+    client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
     check_socket_echo(client_socket)
     client_socket.close()
     session.wait_close()
@@ -270,13 +252,13 @@ def test_complete_sniff(exit_stack: ExitStack):
         th = p[TCP]
         logger.info("sport=%d dport=%d flags=%s", th.sport, th.dport, th.flags)
         if p[TCP].flags.S and not p[TCP].flags.A:
-            assert p[TCP].dport == TCP_SERVER_PORT
+            assert p[TCP].dport == DEFAULT_TCP_SERVER_PORT
             found_syn = True
         if p[TCP].flags.S and p[TCP].flags.A:
-            assert p[TCP].sport == TCP_SERVER_PORT
+            assert p[TCP].sport == DEFAULT_TCP_SERVER_PORT
             found_synack = True
         if p[TCP].flags.F:
-            if p[TCP].dport == TCP_SERVER_PORT:
+            if p[TCP].dport == DEFAULT_TCP_SERVER_PORT:
                 found_client_fin = True
             else:
                 found_server_fin = True
@@ -303,10 +285,12 @@ class MainTestBase:
 
     @skipif_cant_capture
     def test_authopt_connect_sniff(self, exit_stack: ExitStack):
-        session = CompleteTCPCaptureSniffSession(server_port=TCP_SERVER_PORT)
+        session = CompleteTCPCaptureSniffSession(server_port=DEFAULT_TCP_SERVER_PORT)
         sniffer = exit_stack.enter_context(
             AsyncSnifferContext(
-                filter=f"tcp port {TCP_SERVER_PORT}", iface="lo", session=session
+                filter=f"tcp port {DEFAULT_TCP_SERVER_PORT}",
+                iface="lo",
+                session=session,
             )
         )
 
@@ -333,7 +317,7 @@ class MainTestBase:
 
         try:
             client_socket.settimeout(1.0)
-            client_socket.connect(("localhost", TCP_SERVER_PORT))
+            client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
             for _ in range(5):
                 check_socket_echo(client_socket)
         except socket.timeout:
@@ -431,7 +415,7 @@ def test_namespace_fixture(exit_stack: ExitStack):
     )
 
     # create sniffer thread
-    session = CompleteTCPCaptureSniffSession(server_port=TCP_SERVER_PORT)
+    session = CompleteTCPCaptureSniffSession(server_port=DEFAULT_TCP_SERVER_PORT)
     sniffer = exit_stack.enter_context(
         AsyncSnifferContext(opened_socket=capture_socket, session=session)
     )
@@ -468,7 +452,7 @@ def test_namespace_fixture(exit_stack: ExitStack):
 
     # Run test test
     client_socket.settimeout(1.0)
-    client_socket.connect(("10.10.1.1", TCP_SERVER_PORT))
+    client_socket.connect(("10.10.1.1", DEFAULT_TCP_SERVER_PORT))
     for _ in range(3):
         check_socket_echo(client_socket)
     client_socket.close()
@@ -477,24 +461,7 @@ def test_namespace_fixture(exit_stack: ExitStack):
     scapy_sniffer_stop(sniffer)
     plist = sniffer.results
     logger.info("plist: %r", plist)
-    assert any((TCP in p and p[TCP].dport == TCP_SERVER_PORT) for p in plist)
-
-
-def create_listen_socket(
-    ns: str = "",
-    family=socket.AF_INET,
-    reuseaddr=True,
-    listen_depth=10,
-    bind_addr="",
-    bind_port=TCP_SERVER_PORT,
-):
-    with netns_context(ns):
-        listen_socket = socket.socket(family, socket.SOCK_STREAM)
-    if reuseaddr:
-        listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listen_socket.bind((str(bind_addr), bind_port))
-    listen_socket.listen(listen_depth)
-    return listen_socket
+    assert any((TCP in p and p[TCP].dport == DEFAULT_TCP_SERVER_PORT) for p in plist)
 
 
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
@@ -546,7 +513,7 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
         client_socket1.bind((client_addr, 0))
         with pytest.raises(socket.timeout):
             client_socket1.settimeout(1.0)
-            client_socket1.connect((server_addr, TCP_SERVER_PORT))
+            client_socket1.connect((server_addr, DEFAULT_TCP_SERVER_PORT))
 
 
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
@@ -614,169 +581,8 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
         return client_socket
 
     with create_client_socket() as client_socket1:
-        client_socket1.connect((server_addr1, TCP_SERVER_PORT))
+        client_socket1.connect((server_addr1, DEFAULT_TCP_SERVER_PORT))
         check_socket_echo(client_socket1)
     with create_client_socket() as client_socket2:
-        client_socket2.connect((server_addr2, TCP_SERVER_PORT))
+        client_socket2.connect((server_addr2, DEFAULT_TCP_SERVER_PORT))
         check_socket_echo(client_socket2)
-
-
-@contextmanager
-def make_tcp_authopt_socket_pair(
-    server_addr="127.0.0.1",
-    server_authopt: tcp_authopt = None,
-    server_key_list: typing.Iterable[tcp_authopt_key] = [],
-    client_authopt: tcp_authopt = None,
-    client_key_list: typing.Iterable[tcp_authopt_key] = [],
-) -> typing.Tuple[socket.socket, socket.socket]:
-    """Make a pair for connected sockets for key switching tests."""
-    with ExitStack() as exit_stack:
-        listen_socket = exit_stack.enter_context(
-            create_listen_socket(bind_addr=server_addr)
-        )
-        server_thread = exit_stack.enter_context(
-            SimpleServerThread(listen_socket, mode="echo")
-        )
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.settimeout(1.0)
-
-        if server_authopt:
-            set_tcp_authopt(listen_socket, server_authopt)
-        for k in server_key_list:
-            set_tcp_authopt_key(listen_socket, k)
-        if client_authopt:
-            set_tcp_authopt(client_socket, client_authopt)
-        for k in client_key_list:
-            set_tcp_authopt_key(client_socket, k)
-
-        client_socket.connect((server_addr, TCP_SERVER_PORT))
-        check_socket_echo(client_socket)
-        server_socket = server_thread.server_socket[0]
-
-        yield client_socket, server_socket
-
-
-def test_get_keyids(exit_stack: ExitStack):
-    """Check reading key ids"""
-    sk1 = tcp_authopt_key(send_id=11, recv_id=12, key="111")
-    sk2 = tcp_authopt_key(send_id=21, recv_id=22, key="222")
-    ck1 = tcp_authopt_key(send_id=12, recv_id=11, key="111")
-    client_socket, server_socket = exit_stack.enter_context(
-        make_tcp_authopt_socket_pair(
-            server_key_list=[sk1, sk2],
-            client_key_list=[ck1],
-        )
-    )
-
-    check_socket_echo(client_socket)
-    client_tcp_authopt = get_tcp_authopt(client_socket)
-    server_tcp_authopt = get_tcp_authopt(server_socket)
-    assert server_tcp_authopt.send_keyid == 11
-    assert server_tcp_authopt.send_rnextkeyid == 12
-    assert server_tcp_authopt.recv_keyid == 12
-    assert server_tcp_authopt.recv_rnextkeyid == 11
-    assert client_tcp_authopt.send_keyid == 12
-    assert client_tcp_authopt.send_rnextkeyid == 11
-    assert client_tcp_authopt.recv_keyid == 11
-    assert client_tcp_authopt.recv_rnextkeyid == 12
-
-
-def test_rollover_send_keyid(exit_stack: ExitStack):
-    """Check reading key ids"""
-    sk1 = tcp_authopt_key(send_id=11, recv_id=12, key="111")
-    sk2 = tcp_authopt_key(send_id=21, recv_id=22, key="222")
-    ck1 = tcp_authopt_key(send_id=12, recv_id=11, key="111")
-    ck2 = tcp_authopt_key(send_id=22, recv_id=21, key="222")
-    client_socket, server_socket = exit_stack.enter_context(
-        make_tcp_authopt_socket_pair(
-            server_key_list=[sk1, sk2],
-            client_key_list=[ck1, ck2],
-            client_authopt=tcp_authopt(
-                send_keyid=12, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID
-            ),
-        )
-    )
-
-    check_socket_echo(client_socket)
-    assert get_tcp_authopt(client_socket).recv_keyid == 11
-    assert get_tcp_authopt(server_socket).recv_keyid == 12
-
-    # Explicit request for key2
-    set_tcp_authopt(
-        client_socket, tcp_authopt(send_keyid=22, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID)
-    )
-    check_socket_echo(client_socket)
-    assert get_tcp_authopt(client_socket).recv_keyid == 21
-    assert get_tcp_authopt(server_socket).recv_keyid == 22
-
-
-def test_rollover_rnextkeyid(exit_stack: ExitStack):
-    """Check reading key ids"""
-    sk1 = tcp_authopt_key(send_id=11, recv_id=12, key="111")
-    sk2 = tcp_authopt_key(send_id=21, recv_id=22, key="222")
-    ck1 = tcp_authopt_key(send_id=12, recv_id=11, key="111")
-    ck2 = tcp_authopt_key(send_id=22, recv_id=21, key="222")
-    client_socket, server_socket = exit_stack.enter_context(
-        make_tcp_authopt_socket_pair(
-            server_key_list=[sk1],
-            client_key_list=[ck1, ck2],
-            client_authopt=tcp_authopt(
-                send_keyid=12, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID
-            ),
-        )
-    )
-
-    check_socket_echo(client_socket)
-    assert get_tcp_authopt(server_socket).recv_rnextkeyid == 11
-
-    # request rnextkeyd=22 but server does not have it
-    set_tcp_authopt(
-        client_socket,
-        tcp_authopt(send_rnextkeyid=21, flags=TCP_AUTHOPT_FLAG_LOCK_RNEXTKEYID),
-    )
-    check_socket_echo(client_socket)
-    check_socket_echo(client_socket)
-    assert get_tcp_authopt(server_socket).recv_rnextkeyid == 21
-    assert get_tcp_authopt(server_socket).send_keyid == 11
-
-    # after adding k2 on server the key is switched
-    set_tcp_authopt_key(server_socket, sk2)
-    check_socket_echo(client_socket)
-    check_socket_echo(client_socket)
-    assert get_tcp_authopt(server_socket).send_keyid == 21
-
-
-def test_rollover_delkey(exit_stack: ExitStack):
-    sk1 = tcp_authopt_key(send_id=11, recv_id=12, key="111")
-    sk2 = tcp_authopt_key(send_id=21, recv_id=22, key="222")
-    ck1 = tcp_authopt_key(send_id=12, recv_id=11, key="111")
-    ck2 = tcp_authopt_key(send_id=22, recv_id=21, key="222")
-    client_socket, server_socket = exit_stack.enter_context(
-        make_tcp_authopt_socket_pair(
-            server_key_list=[sk1, sk2],
-            client_key_list=[ck1, ck2],
-            client_authopt=tcp_authopt(
-                send_keyid=12, flags=TCP_AUTHOPT_FLAG_LOCK_KEYID
-            ),
-        )
-    )
-
-    check_socket_echo(client_socket)
-    assert get_tcp_authopt(server_socket).recv_keyid == 12
-
-    # invalid send_keyid is just ignored
-    set_tcp_authopt(client_socket, tcp_authopt(send_keyid=7))
-    check_socket_echo(client_socket)
-    assert get_tcp_authopt(client_socket).send_keyid == 12
-    assert get_tcp_authopt(server_socket).recv_keyid == 12
-    assert get_tcp_authopt(client_socket).recv_keyid == 11
-
-    # If a key is removed it is replaced by anything that matches
-    ck1.delete_flag = True
-    set_tcp_authopt_key(client_socket, ck1)
-    check_socket_echo(client_socket)
-    check_socket_echo(client_socket)
-    assert get_tcp_authopt(client_socket).send_keyid == 22
-    assert get_tcp_authopt(server_socket).send_keyid == 21
-    assert get_tcp_authopt(server_socket).recv_keyid == 22
-    assert get_tcp_authopt(client_socket).recv_keyid == 21

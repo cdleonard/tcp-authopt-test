@@ -3,11 +3,16 @@ import random
 import subprocess
 import threading
 import typing
+import socket
 from dataclasses import dataclass
 from contextlib import nullcontext
 
 from nsenter import Namespace
 from scapy.sendrecv import AsyncSniffer
+
+
+# TCP port does not impact Authentication Option so define a single default
+DEFAULT_TCP_SERVER_PORT = 17971
 
 
 class SimpleWaitEvent(threading.Event):
@@ -48,6 +53,14 @@ def randbytes(count) -> bytes:
     return bytes([random.randint(0, 255) for index in range(count)])
 
 
+def check_socket_echo(sock, size=1024):
+    """Send random bytes and check they are received"""
+    send_buf = randbytes(size)
+    sock.sendall(send_buf)
+    recv_buf = recvall(sock, size)
+    assert send_buf == recv_buf
+
+
 def nstat_json(command_prefix: str = ""):
     """Parse nstat output into a python dict"""
     runres = subprocess.run(
@@ -69,6 +82,23 @@ def netns_context(ns: str = ""):
         return Namespace("/var/run/netns/" + ns, "net")
     else:
         return nullcontext()
+
+
+def create_listen_socket(
+    ns: str = "",
+    family=socket.AF_INET,
+    reuseaddr=True,
+    listen_depth=10,
+    bind_addr="",
+    bind_port=DEFAULT_TCP_SERVER_PORT,
+):
+    with netns_context(ns):
+        listen_socket = socket.socket(family, socket.SOCK_STREAM)
+    if reuseaddr:
+        listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listen_socket.bind((str(bind_addr), bind_port))
+    listen_socket.listen(listen_depth)
+    return listen_socket
 
 
 @dataclass
