@@ -19,7 +19,7 @@ class SimpleServerThread(Thread):
         self.mode = mode
         super().__init__()
 
-    def read_echo(self, conn, events):
+    def _read(self, conn, events):
         # logger.debug("events=%r", events)
         data = conn.recv(1000)
         # logger.debug("len(data)=%r", len(data))
@@ -50,7 +50,7 @@ class SimpleServerThread(Thread):
         conn, _addr = self.listen_socket.accept()
         conn = self.exit_stack.enter_context(conn)
         conn.setblocking(False)
-        self.sel.register(conn, selectors.EVENT_READ, self.read_echo)
+        self.sel.register(conn, selectors.EVENT_READ, self._read)
         self.server_socket.append(conn)
 
     def run(self):
