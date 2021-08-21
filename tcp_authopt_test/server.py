@@ -8,9 +8,9 @@ logger = logging.getLogger(__name__)
 
 
 class SimpleServerThread(Thread):
-    """Simple server thread.
+    """Simple server thread for testing TCP sockets
 
-    Listen and accept one connection, then read everything.
+    All data is read in 1000 bytes chunks and either echoed back or discarded.
     """
 
     def __init__(self, socket, mode="recv"):
