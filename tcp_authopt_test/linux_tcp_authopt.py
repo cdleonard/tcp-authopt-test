@@ -43,6 +43,7 @@ class tcp_authopt:
     send_rnextkeyid: int = 0
     recv_keyid: int = 0
     recv_rnextkeyid: int = 0
+    sizeof = 8
 
     def pack(self) -> bytes:
         return struct.pack(
@@ -68,7 +69,7 @@ def set_tcp_authopt(sock, opt: tcp_authopt):
 
 
 def get_tcp_authopt(sock: socket.socket) -> tcp_authopt:
-    b = sock.getsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT, 11)
+    b = sock.getsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT, tcp_authopt.sizeof)
     return tcp_authopt.unpack(b)
 
 
