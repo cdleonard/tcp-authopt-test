@@ -73,9 +73,6 @@ def get_tcp_authopt(sock: socket.socket) -> tcp_authopt:
     return tcp_authopt.unpack(b)
 
 
-SIZEOF_SOCKADDR_STORAGE = 128
-
-
 class tcp_authopt_key:
     """Like linux struct tcp_authopt_key"""
 
@@ -107,7 +104,7 @@ class tcp_authopt_key:
             len(self.key),
             self.key,
         )
-        data += bytes(self.addrbuf.ljust(SIZEOF_SOCKADDR_STORAGE, b"\x00"))
+        data += bytes(self.addrbuf.ljust(sockaddr_storage.sizeof, b"\x00"))
         return data
 
     def __bytes__(self):
@@ -136,8 +133,8 @@ class tcp_authopt_key:
     @addr.setter
     def addr(self, val):
         if isinstance(val, bytes):
-            if len(val) > SIZEOF_SOCKADDR_STORAGE:
-                raise ValueError(f"Must be up to {SIZEOF_SOCKADDR_STORAGE}")
+            if len(val) > sockaddr_storage.sizeof:
+                raise ValueError(f"Must be up to {sockaddr_storage.sizeof}")
             self.addrbuf = val
         elif val is None:
             self.addrbuf = b""
