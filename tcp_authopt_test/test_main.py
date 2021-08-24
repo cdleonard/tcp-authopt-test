@@ -8,9 +8,7 @@ from nsenter import Namespace
 
 import pytest
 from scapy.layers.inet import TCP
-import scapy.sessions
 
-from . import tcp_authopt_alg
 from . import linux_tcp_authopt
 from .linux_tcp_authopt import (
     set_tcp_authopt,
@@ -18,31 +16,19 @@ from .linux_tcp_authopt import (
     tcp_authopt,
     tcp_authopt_key,
 )
-from .validator import TcpAuthValidator, TcpAuthValidatorKey
+from .full_tcp_sniff_session import FullTCPSniffSession
 from .netns_fixture import NamespaceFixture
 from .server import SimpleServerThread
 from .utils import (
     DEFAULT_TCP_SERVER_PORT,
     AsyncSnifferContext,
-    SimpleWaitEvent,
     check_socket_echo,
     create_listen_socket,
     netns_context,
-    nstat_json,
     scapy_sniffer_stop,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def can_capture():
-    # This is too restrictive:
-    return os.geteuid() == 0
-
-
-skipif_cant_capture = pytest.mark.skipif(
-    not can_capture(), reason="run as root to capture packets"
-)
 
 
 def test_nonauth_connect(exit_stack):
@@ -63,191 +49,10 @@ def test_multi_nonauth_connect():
             test_nonauth_connect(exit_stack)
 
 
-class CompleteTCPCaptureSniffSession(scapy.sessions.DefaultSession):
-    """Smart scapy sniff session
-
-    Allow waiting to capture FIN
-    """
-
-    found_syn = False
-    found_synack = False
-    found_fin = False
-    found_client_fin = False
-    found_server_fin = False
-
-    def __init__(self, server_port=None, **kw):
-        super().__init__(**kw)
-        self.server_port = server_port
-        self._close_event = SimpleWaitEvent()
-
-    def on_packet_received(self, p):
-        super().on_packet_received(p)
-        if not p or not TCP in p:
-            return
-        th = p[TCP]
-        # logger.debug("sport=%d dport=%d flags=%s", th.sport, th.dport, th.flags)
-        if th.flags.S and not th.flags.A:
-            if th.dport == self.server_port or self.server_port is None:
-                self.found_syn = True
-        if th.flags.S and th.flags.A:
-            if th.sport == self.server_port or self.server_port is None:
-                self.found_synack = True
-        if th.flags.F:
-            if self.server_port is None:
-                self.found_fin = True
-                self._close_event.set()
-            elif self.server_port == th.dport:
-                self.found_client_fin = True
-                self.found_fin = True
-                if self.found_server_fin and self.found_client_fin:
-                    self._close_event.set()
-            elif self.server_port == th.sport:
-                self.found_server_fin = True
-                self.found_fin = True
-                if self.found_server_fin and self.found_client_fin:
-                    self._close_event.set()
-
-    def wait_close(self, timeout=10):
-        self._close_event.wait(timeout=timeout)
-
-
-@skipif_cant_capture
-def test_complete_sniff(exit_stack: ExitStack):
-    """Test that the whole TCP conversation is sniffed by scapy"""
-    session = CompleteTCPCaptureSniffSession(server_port=DEFAULT_TCP_SERVER_PORT)
-    sniffer = exit_stack.enter_context(
-        AsyncSnifferContext(
-            filter=f"tcp port {DEFAULT_TCP_SERVER_PORT}", iface="lo", session=session
-        )
-    )
-
-    listen_socket = create_listen_socket()
-    listen_socket = exit_stack.enter_context(listen_socket)
-    exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket = exit_stack.push(client_socket)
-    client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
-    check_socket_echo(client_socket)
-    client_socket.close()
-    session.wait_close()
-    sniffer.stop()
-
-    found_syn = False
-    found_synack = False
-    found_client_fin = False
-    found_server_fin = False
-    for p in sniffer.results:
-        th = p[TCP]
-        logger.info("sport=%d dport=%d flags=%s", th.sport, th.dport, th.flags)
-        if p[TCP].flags.S and not p[TCP].flags.A:
-            assert p[TCP].dport == DEFAULT_TCP_SERVER_PORT
-            found_syn = True
-        if p[TCP].flags.S and p[TCP].flags.A:
-            assert p[TCP].sport == DEFAULT_TCP_SERVER_PORT
-            found_synack = True
-        if p[TCP].flags.F:
-            if p[TCP].dport == DEFAULT_TCP_SERVER_PORT:
-                found_client_fin = True
-            else:
-                found_server_fin = True
-    assert found_syn and found_synack and found_client_fin and found_server_fin
-
-
-class MainTestBase:
-    """Can be parametrized by inheritance"""
-
-    master_key = b"testvector"
-    address_family = None
-    alg_name = "HMAC-SHA-1-96"
-
-    def get_alg(self):
-        return tcp_authopt_alg.get_alg(self.alg_name)
-
-    def get_alg_id(self) -> int:
-        if self.alg_name == "HMAC-SHA-1-96":
-            return linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96
-        elif self.alg_name == "AES-128-CMAC-96":
-            return linux_tcp_authopt.TCP_AUTHOPT_ALG_AES_128_CMAC_96
-        else:
-            raise ValueError()
-
-    @skipif_cant_capture
-    def test_authopt_connect_sniff(self, exit_stack: ExitStack):
-        session = CompleteTCPCaptureSniffSession(server_port=DEFAULT_TCP_SERVER_PORT)
-        sniffer = exit_stack.enter_context(
-            AsyncSnifferContext(
-                filter=f"tcp port {DEFAULT_TCP_SERVER_PORT}",
-                iface="lo",
-                session=session,
-            )
-        )
-
-        listen_socket = create_listen_socket(family=self.address_family)
-        listen_socket = exit_stack.enter_context(listen_socket)
-        exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
-
-        client_socket = socket.socket(self.address_family, socket.SOCK_STREAM)
-        client_socket = exit_stack.push(client_socket)
-
-        set_tcp_authopt_key(
-            listen_socket,
-            tcp_authopt_key(alg=self.get_alg_id(), key=self.master_key),
-        )
-        set_tcp_authopt_key(
-            client_socket,
-            tcp_authopt_key(alg=self.get_alg_id(), key=self.master_key),
-        )
-
-        # even if one signature is incorrect keep processing the capture
-        old_nstat = nstat_json()
-        valkey = TcpAuthValidatorKey(key=self.master_key, alg_name=self.alg_name)
-        validator = TcpAuthValidator(keys=[valkey])
-
-        try:
-            client_socket.settimeout(1.0)
-            client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
-            for _ in range(5):
-                check_socket_echo(client_socket)
-        except socket.timeout:
-            logger.warning("socket timeout", exc_info=True)
-            pass
-        client_socket.close()
-        session.wait_close()
-        sniffer.stop()
-
-        logger.info("capture: %r", sniffer.results)
-        for p in sniffer.results:
-            validator.handle_packet(p)
-
-        assert not validator.any_fail
-        assert not validator.any_unsigned
-        # Fails because of duplicate packets:
-        # assert not validator.any_incomplete
-        new_nstat = nstat_json()
-        assert (
-            0
-            == new_nstat["kernel"]["TcpExtTCPAuthOptFailure"]
-            - old_nstat["kernel"]["TcpExtTCPAuthOptFailure"]
-        )
-
-
 def test_has_tcp_authopt():
     from .linux_tcp_authopt import has_tcp_authopt
 
     assert has_tcp_authopt()
-
-
-class TestMainV4(MainTestBase):
-    address_family = socket.AF_INET
-
-
-class TestMainV4AES(MainTestBase):
-    address_family = socket.AF_INET
-    alg_name = "AES-128-CMAC-96"
-
-
-class TestMainV6(MainTestBase):
-    address_family = socket.AF_INET6
 
 
 def create_capture_socket(ns: str = "", **kw):
@@ -268,7 +73,7 @@ def test_namespace_fixture(exit_stack: ExitStack):
     )
 
     # create sniffer thread
-    session = CompleteTCPCaptureSniffSession(server_port=DEFAULT_TCP_SERVER_PORT)
+    session = FullTCPSniffSession(server_port=DEFAULT_TCP_SERVER_PORT)
     sniffer = exit_stack.enter_context(
         AsyncSnifferContext(opened_socket=capture_socket, session=session)
     )
