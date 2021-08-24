@@ -49,15 +49,17 @@ def get_alg_id(alg_name) -> int:
 
 @skipif_cant_capture
 @pytest.mark.parametrize(
-    "address_family,alg_name",
+    "address_family,alg_name,include_options",
     [
-        (socket.AF_INET, "HMAC-SHA-1-96"),
-        (socket.AF_INET, "AES-128-CMAC-96"),
-        (socket.AF_INET6, "HMAC-SHA-1-96"),
-        (socket.AF_INET6, "AES-128-CMAC-96"),
+        (socket.AF_INET, "HMAC-SHA-1-96", True),
+        (socket.AF_INET, "AES-128-CMAC-96", True),
+        (socket.AF_INET, "AES-128-CMAC-96", False),
+        (socket.AF_INET6, "HMAC-SHA-1-96", True),
+        (socket.AF_INET6, "HMAC-SHA-1-96", False),
+        (socket.AF_INET6, "AES-128-CMAC-96", True),
     ],
 )
-def test_verify_capture(exit_stack, address_family, alg_name):
+def test_verify_capture(exit_stack, address_family, alg_name, include_options):
     master_key = b"testvector"
     alg_id = get_alg_id(alg_name)
 
@@ -79,16 +81,18 @@ def test_verify_capture(exit_stack, address_family, alg_name):
 
     set_tcp_authopt_key(
         listen_socket,
-        tcp_authopt_key(alg=alg_id, key=master_key),
+        tcp_authopt_key(alg=alg_id, key=master_key, include_options=include_options),
     )
     set_tcp_authopt_key(
         client_socket,
-        tcp_authopt_key(alg=alg_id, key=master_key),
+        tcp_authopt_key(alg=alg_id, key=master_key, include_options=include_options),
     )
 
     # even if one signature is incorrect keep processing the capture
     old_nstat = nstat_json()
-    valkey = TcpAuthValidatorKey(key=master_key, alg_name=alg_name)
+    valkey = TcpAuthValidatorKey(
+        key=master_key, alg_name=alg_name, include_options=include_options
+    )
     validator = TcpAuthValidator(keys=[valkey])
 
     try:

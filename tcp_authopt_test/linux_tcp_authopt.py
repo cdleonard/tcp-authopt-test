@@ -84,6 +84,7 @@ class tcp_authopt_key:
         alg=TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
         key: bytes = b"",
         addr: bytes = b"",
+        include_options=None,
     ):
         self.flags = flags
         self.send_id = send_id
@@ -91,6 +92,8 @@ class tcp_authopt_key:
         self.alg = alg
         self.key = key
         self.addr = addr
+        if include_options is not None:
+            self.include_options = include_options
 
     def pack(self):
         if len(self.key) > TCP_AUTHOPT_MAXKEYLEN:
