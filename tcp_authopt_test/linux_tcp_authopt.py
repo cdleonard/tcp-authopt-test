@@ -167,7 +167,7 @@ class tcp_authopt_key:
 
     @property
     def delete_flag(self) -> bool:
-        return (self.flags & TCP_AUTHOPT_KEY_DEL) == 0
+        return bool(self.flags & TCP_AUTHOPT_KEY_DEL)
 
     @delete_flag.setter
     def delete_flag(self, value) -> bool:

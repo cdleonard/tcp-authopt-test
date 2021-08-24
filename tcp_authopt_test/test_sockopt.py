@@ -43,7 +43,9 @@ def test_tcp_authopt_key_del_without_active(exit_stack):
 
     # nothing happens:
     key = tcp_authopt_key()
+    assert key.delete_flag is False
     key.delete_flag = True
+    assert key.delete_flag is True
     with pytest.raises(OSError) as e:
         set_tcp_authopt_key(sock, key)
     assert e.value.errno in [errno.EINVAL, errno.ENOENT]
