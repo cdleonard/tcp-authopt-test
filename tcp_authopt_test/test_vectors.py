@@ -10,7 +10,12 @@ logger = logging.getLogger(__name__)
 
 
 class TestIETFVectors:
-    # https://datatracker.ietf.org/doc/html/draft-touch-tcpm-ao-test-vectors-02
+    """Test python implementation of TCP-AO algorithms
+
+    Data is a subset of IETF test vectors:
+    https://datatracker.ietf.org/doc/html/draft-touch-tcpm-ao-test-vectors-02
+    """
+
     master_key = b"testvector"
     client_keyid = 61
     server_keyid = 84
