@@ -13,6 +13,9 @@ from .linux_tcp_authopt import (
     tcp_authopt_key,
 )
 from .utils import netns_context, DEFAULT_TCP_SERVER_PORT, check_socket_echo
+from .conftest import skipif_missing_tcp_authopt
+
+pytestmark = skipif_missing_tcp_authopt
 
 
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])

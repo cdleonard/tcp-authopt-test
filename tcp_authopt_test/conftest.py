@@ -1,5 +1,13 @@
+from tcp_authopt_test.linux_tcp_authopt import has_tcp_authopt
 import pytest
+import logging
 from contextlib import ExitStack
+
+logger = logging.getLogger(__name__)
+
+skipif_missing_tcp_authopt = pytest.mark.skipif(
+    not has_tcp_authopt(), reason="Need CONFIG_TCP_AUTHOPT"
+)
 
 
 @pytest.fixture

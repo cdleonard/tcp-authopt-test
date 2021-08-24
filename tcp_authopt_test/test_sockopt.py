@@ -13,6 +13,9 @@ from .linux_tcp_authopt import (
     tcp_authopt_key,
 )
 from .sockaddr import sockaddr_unpack
+from .conftest import skipif_missing_tcp_authopt
+
+pytestmark = skipif_missing_tcp_authopt
 
 
 def test_authopt_key_pack_noaddr():

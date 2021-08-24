@@ -12,6 +12,9 @@ from .linux_tcp_authopt import (
 )
 from .utils import DEFAULT_TCP_SERVER_PORT, create_listen_socket, check_socket_echo
 from contextlib import ExitStack, contextmanager
+from .conftest import skipif_missing_tcp_authopt
+
+pytestmark = skipif_missing_tcp_authopt
 
 
 @contextmanager

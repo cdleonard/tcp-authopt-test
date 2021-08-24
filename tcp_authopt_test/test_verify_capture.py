@@ -21,8 +21,10 @@ from .utils import (
     nstat_json,
 )
 from .validator import TcpAuthValidator, TcpAuthValidatorKey
+from .conftest import skipif_missing_tcp_authopt
 
 logger = logging.getLogger(__name__)
+pytestmark = skipif_missing_tcp_authopt
 
 
 def can_capture():
