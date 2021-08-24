@@ -2,8 +2,8 @@ import logging
 from ipaddress import IPv4Address, IPv6Address
 from scapy.layers.inet import IP, TCP
 from scapy.layers.inet6 import IPv6
-from .tcp_authopt_alg import *
-from .tcp_authopt_alg import get_alg
+from .tcp_authopt_alg import get_alg, build_context_from_scapy, build_message_from_scapy
+from .utils import scapy_tcp_get_authopt_val, tcphdr_authopt
 import socket
 
 logger = logging.getLogger(__name__)
@@ -40,6 +40,8 @@ class TestIETFVectors:
         sne=0,
     ):
         packet_bytes = bytes.fromhex(packet_hex)
+
+        # sanity check for ip version
         ipv = packet_bytes[0] >> 4
         if ipv == 4:
             p = IP(bytes.fromhex(packet_hex))
@@ -49,6 +51,8 @@ class TestIETFVectors:
             assert p[IPv6].nh == socket.IPPROTO_TCP
         else:
             raise ValueError(f"bad ipv={ipv}")
+
+        # sanity check for seq/ack in SYN/ACK packets
         if p[TCP].flags.S and p[TCP].flags.A is False:
             assert p[TCP].seq == src_isn
             assert p[TCP].ack == 0
@@ -56,15 +60,25 @@ class TestIETFVectors:
             assert p[TCP].seq == src_isn
             assert p[TCP].ack == dst_isn + 1
 
+        # check traffic key
         alg = get_alg(alg_name)
         context_bytes = build_context_from_scapy(p, src_isn, dst_isn)
         traffic_key = alg.kdf(self.master_key, context_bytes)
         assert traffic_key.hex(" ") == traffic_key_hex
+
+        # check mac
         message_bytes = build_message_from_scapy(
             p, include_options=include_options, sne=sne
         )
         mac = alg.mac(traffic_key, message_bytes)
         assert mac.hex(" ") == mac_hex
+
+        # check option bytes in header
+        opt = scapy_tcp_get_authopt_val(p[TCP])
+        assert opt is not None
+        assert opt.keyid in [self.client_keyid, self.server_keyid]
+        assert opt.rnextkeyid in [self.client_keyid, self.server_keyid]
+        assert opt.mac.hex(" ") == mac_hex
 
     def test_4_1_1(self):
         self.check(
