@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 """Capture packets with TCP-AO and verify signatures"""
 
 import logging

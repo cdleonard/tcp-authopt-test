@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 """Test TCP-AO keys can be bound to specific remote addresses"""
 from contextlib import ExitStack
 import socket

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 import json
 import random
 import subprocess

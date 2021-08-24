@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 import typing
 import socket
 from .server import SimpleServerThread

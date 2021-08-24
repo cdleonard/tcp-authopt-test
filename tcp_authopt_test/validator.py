@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 from tcp_authopt_test.utils import scapy_tcp_get_authopt_val
 import typing
 import logging

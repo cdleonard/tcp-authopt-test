@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 """Test TCP_AUTHOPT sockopt API"""
 import errno
 import socket

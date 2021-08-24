@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 import subprocess
 import socket
 from ipaddress import IPv4Address

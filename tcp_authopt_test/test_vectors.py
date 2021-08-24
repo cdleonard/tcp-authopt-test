@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 import logging
 from ipaddress import IPv4Address, IPv6Address
 from scapy.layers.inet import IP, TCP

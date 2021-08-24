@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 """Packet-processing utilities implementing RFC5925 and RFC2926"""
 
 import logging

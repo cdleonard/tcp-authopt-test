@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 #! /usr/bin/env python
 
 """Check TCP Authentication Option signatures inside a packet capture"""

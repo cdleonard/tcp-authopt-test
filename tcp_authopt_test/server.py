@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 import logging
 import os
 import selectors

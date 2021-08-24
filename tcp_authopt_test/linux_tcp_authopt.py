@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 """Python wrapper around linux TCP_AUTHOPT ABI"""
 
 from dataclasses import dataclass

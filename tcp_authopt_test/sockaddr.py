@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 """pack/unpack wrappers for sockaddr"""
 import socket
 import struct
