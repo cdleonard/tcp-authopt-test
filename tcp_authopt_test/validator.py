@@ -137,7 +137,7 @@ class TcpAuthValidator:
                 logger.warning("missing TCP syn for %r", conn_key)
                 self.any_incomplete = True
                 return
-        logger.debug("conn %r", conn)
+        # logger.debug("conn %r found for packet %r", conn, p)
 
         context_bytes = conn.pack(syn=is_init_syn(p))
         alg = key.get_alg_imp()
@@ -150,7 +150,7 @@ class TcpAuthValidator:
             logger.debug("ok - mac %s", computed_mac.hex())
         else:
             self.any_fail = True
-            logger.debug(
+            logger.error(
                 "not ok - captured %s computed %s",
                 captured_mac.hex(),
                 computed_mac.hex(),
