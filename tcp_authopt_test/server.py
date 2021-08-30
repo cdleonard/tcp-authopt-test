@@ -22,7 +22,13 @@ class SimpleServerThread(Thread):
 
     def _read(self, conn, events):
         # logger.debug("events=%r", events)
-        data = conn.recv(1000)
+        try:
+            data = conn.recv(1000)
+        except ConnectionResetError:
+            # logger.info("reset %r", conn)
+            conn.close()
+            self.sel.unregister(conn)
+            return
         # logger.debug("len(data)=%r", len(data))
         if len(data) == 0:
             # logger.info("closing %r", conn)
