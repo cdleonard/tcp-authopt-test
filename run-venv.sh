@@ -7,7 +7,7 @@ set -e
 
 maybe_sudo=
 if [[ $(id -u) -ne 0 ]]; then
-	echo >&2 "warning: running as non-root user is unlikely to work"
+	echo >&2 "warning: running as non-root user, attempting sudo"
 	maybe_sudo=sudo
 fi
 cd "$(dirname "${BASH_SOURCE[0]}")"
