@@ -53,6 +53,14 @@ def create_capture_socket(ns: str = "", **kw):
         return scapy_conf.L2listen(**kw)
 
 
+def socket_set_linger(sock, onoff, value):
+    import struct
+
+    sock.setsockopt(
+        socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", int(onoff), int(value))
+    )
+
+
 def show_tcp_authopt_packet(
     p: Packet, include_ethernet=False, include_seq=False
 ) -> str:
@@ -220,6 +228,42 @@ def test_rst(exit_stack: ExitStack, address_family, signed: bool):
                 check_socket_echo(context.client_socket)
     finally:
         scapy_sniffer_stop(context.sniffer)
+
+        def fmt(p):
+            return show_tcp_authopt_packet(p, include_seq=True)
+
+        logger.info("sniffed:\n%s", "\n".join(map(fmt, context.sniffer.results)))
+
+
+def test_rst_linger(exit_stack: ExitStack):
+    """Test RST sent deliberately via SO_LINGER is valid"""
+    context = Context()
+    exit_stack.enter_context(context)
+
+    key = tcp_authopt_key(
+        alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+        key=f"hello",
+    )
+    set_tcp_authopt_key(context.listen_socket, key)
+    set_tcp_authopt_key(context.client_socket, key)
+
+    try:
+        context.client_socket.connect((str(context.server_addr), context.server_port))
+        socket_set_linger(context.client_socket, 1, 0)
+        context.client_socket.close()
+    finally:
+        scapy_sniffer_stop(context.sniffer)
+
+        from .validator import TcpAuthValidator
+        from .validator import TcpAuthValidatorKey
+
+        val = TcpAuthValidator()
+        val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
+        for p in context.sniffer.results:
+            val.handle_packet(p)
+        assert not val.any_incomplete
+        assert not val.any_unsigned
+        assert not val.any_fail
 
         def fmt(p):
             return show_tcp_authopt_packet(p, include_seq=True)
