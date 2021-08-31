@@ -105,6 +105,76 @@ class TCPSeqSniffSession(SniffSession):
             raise TimeoutError(f"Timed out timeout={timeout!r}")
 
 
+class Context:
+    """Test context to avoid repetition
+
+    Includes:
+    * pair of network namespaces
+    * one listen socket
+    * server thread with echo protocol
+    * one client socket
+    * one async sniffer on the server interface
+    * l2socket allowing packet injection from client
+    """
+
+    def __init__(self, address_family=socket.AF_INET, sniffer_session=None):
+        self.address_family = address_family
+        self.server_port = DEFAULT_TCP_SERVER_PORT
+        self.client_port = 27972
+        self.sniffer_session = sniffer_session
+
+    def __enter__(self):
+        self.exit_stack = ExitStack()
+        self.exit_stack.__enter__()
+
+        self.nsfixture = self.exit_stack.enter_context(NamespaceFixture())
+        self.server_addr = self.nsfixture.get_addr(self.address_family, 1)
+        self.client_addr = self.nsfixture.get_addr(self.address_family, 2)
+
+        self.listen_socket = create_listen_socket(
+            ns=self.nsfixture.ns1_name,
+            family=self.address_family,
+            bind_addr=self.server_addr,
+            bind_port=self.server_port,
+        )
+        self.exit_stack.enter_context(self.listen_socket)
+        self.client_socket = create_client_socket(
+            ns=self.nsfixture.ns2_name,
+            family=self.address_family,
+            bind_addr=self.client_addr,
+            bind_port=self.client_port,
+        )
+        self.exit_stack.enter_context(self.client_socket)
+        self.server_thread = SimpleServerThread(self.listen_socket, mode="echo")
+        self.exit_stack.enter_context(self.server_thread)
+
+        capture_filter = f"tcp port {self.server_port}"
+        self.capture_socket = create_capture_socket(
+            ns=self.nsfixture.ns1_name, iface="veth0", filter=capture_filter
+        )
+        self.exit_stack.enter_context(self.capture_socket)
+
+        self.sniffer = AsyncSnifferContext(
+            opened_socket=self.capture_socket, session=self.sniffer_session
+        )
+        self.exit_stack.enter_context(self.sniffer)
+
+        self.client_l2socket = create_l2socket(
+            ns=self.nsfixture.ns2_name, iface="veth0"
+        )
+        self.exit_stack.enter_context(self.client_l2socket)
+
+    def __exit__(self, *args):
+        self.exit_stack.__exit__(*args)
+
+    def create_client2server_packet(self) -> Packet:
+        return (
+            Ether(type=ETH_P_IP, src=self.nsfixture.mac2, dst=self.nsfixture.mac1)
+            / IP(src=str(self.client_addr), dst=str(self.server_addr))
+            / TCP(sport=self.client_port, dport=self.server_port)
+        )
+
+
 @pytest.mark.parametrize(
     "address_family,signed",
     [(socket.AF_INET, True), (socket.AF_INET, False)],
@@ -115,72 +185,43 @@ def test_rst(exit_stack: ExitStack, address_family, signed: bool):
     if signed and not linux_tcp_authopt.has_tcp_authopt():
         pytest.skip("need TCP_AUTHOPT")
 
-    nsfixture = exit_stack.enter_context(NamespaceFixture())
-    server_addr = nsfixture.get_addr(address_family, 1)
-    client_addr = nsfixture.get_addr(address_family, 2)
-    server_port = DEFAULT_TCP_SERVER_PORT
-
-    listen_socket = create_listen_socket(
-        ns=nsfixture.ns1_name,
-        family=address_family,
-        bind_addr=server_addr,
-    )
-    exit_stack.enter_context(listen_socket)
-    client_socket = create_client_socket(
-        ns=nsfixture.ns2_name,
-        family=address_family,
-        bind_addr=client_addr,
-    )
-    exit_stack.enter_context(client_socket)
-    server_thread = SimpleServerThread(listen_socket, mode="echo")
-    exit_stack.enter_context(server_thread)
+    sniffer_session = TCPSeqSniffSession(server_port=DEFAULT_TCP_SERVER_PORT)
+    context = Context(sniffer_session=sniffer_session)
+    exit_stack.enter_context(context)
 
     if signed:
         key = tcp_authopt_key(
             alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
             key="hello",
         )
-        set_tcp_authopt_key(listen_socket, key)
-        set_tcp_authopt_key(client_socket, key)
-
-    capture_filter = f"tcp port {server_port}"
-    capture_socket = create_capture_socket(
-        ns=nsfixture.ns1_name, iface="veth0", filter=capture_filter
-    )
-    exit_stack.enter_context(capture_socket)
-
-    sniffer_session = TCPSeqSniffSession(server_port=server_port)
-    sniffer = AsyncSnifferContext(opened_socket=capture_socket, session=sniffer_session)
-    exit_stack.enter_context(sniffer)
-
-    client_l2socket = create_l2socket(ns=nsfixture.ns2_name, iface="veth0")
-    exit_stack.enter_context(client_l2socket)
+        set_tcp_authopt_key(context.listen_socket, key)
+        set_tcp_authopt_key(context.client_socket, key)
 
     # connect
-    client_socket.connect((str(server_addr), server_port))
-    check_socket_echo(client_socket, 1000)
-    (_, client_port) = client_socket.getsockname()
+    context.client_socket.connect((str(context.server_addr), context.server_port))
+    check_socket_echo(context.client_socket, 1000)
 
     try:
-        ethhdr = Ether(type=ETH_P_IP, src=nsfixture.mac2, dst=nsfixture.mac1)
-        iphdr = IP(src=str(client_addr), dst=str(server_addr))
-        tcphdr = TCP(sport=client_port, dport=server_port)
-        tcphdr.flags.R = True
-        tcphdr.flags.S = False
-        tcphdr.seq = sniffer_session.ack
-        tcphdr.ack = sniffer_session.seq
-        sniffer_session.wait_match_count(timeout=3.0)
-        client_l2socket.send(ethhdr / iphdr / tcphdr)
+        sniffer_session.wait_match_count(timeout=1.0)
+
+        p = context.create_client2server_packet()
+        p[TCP].flags.R = True
+        p[TCP].flags.S = False
+        p[TCP].seq = sniffer_session.ack
+        p[TCP].ack = sniffer_session.seq
+        context.client_l2socket.send(p)
 
         if signed:
-            check_socket_echo(client_socket)
+            # When protected by TCP-AO unsigned RSTs are ignored.
+            check_socket_echo(context.client_socket)
         else:
+            # By default an RST that guesses seq can kill the connection.
             with pytest.raises(ConnectionResetError):
-                check_socket_echo(client_socket)
+                check_socket_echo(context.client_socket)
     finally:
-        scapy_sniffer_stop(sniffer)
+        scapy_sniffer_stop(context.sniffer)
 
         def fmt(p):
-            return show_tcp_authopt_packet(p, include_ethernet=True, include_seq=True)
+            return show_tcp_authopt_packet(p, include_seq=True)
 
-        logger.info("sniffed:\n%s", "\n".join(map(fmt, sniffer.results)))
+        logger.info("sniffed:\n%s", "\n".join(map(fmt, context.sniffer.results)))
