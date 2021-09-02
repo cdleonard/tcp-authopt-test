@@ -16,25 +16,6 @@ from scapy.sendrecv import AsyncSniffer
 DEFAULT_TCP_SERVER_PORT = 17971
 
 
-class SimpleWaitEvent(threading.Event):
-    @property
-    def value(self) -> bool:
-        return self.is_set()
-
-    @value.setter
-    def value(self, value: bool):
-        if value:
-            self.set()
-        else:
-            self.clear()
-
-    def wait(self, timeout=None):
-        """Like Event.wait except raise on timeout"""
-        super().wait(timeout)
-        if not self.is_set():
-            raise TimeoutError(f"Timed out timeout={timeout!r}")
-
-
 def recvall(sock, todo):
     """Receive exactly todo bytes unless EOF"""
     data = bytes()
