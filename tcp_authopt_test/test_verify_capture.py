@@ -66,7 +66,7 @@ def test_verify_capture(exit_stack, address_family, alg_name, include_options):
     session = FullTCPSniffSession(server_port=DEFAULT_TCP_SERVER_PORT)
     sniffer = exit_stack.enter_context(
         AsyncSnifferContext(
-            filter=f"tcp port {DEFAULT_TCP_SERVER_PORT}",
+            filter=f"inbound and tcp port {DEFAULT_TCP_SERVER_PORT}",
             iface="lo",
             session=session,
         )
@@ -113,8 +113,8 @@ def test_verify_capture(exit_stack, address_family, alg_name, include_options):
 
     assert not validator.any_fail
     assert not validator.any_unsigned
-    # Fails because of duplicate packets:
-    # assert not validator.any_incomplete
+    assert not validator.any_incomplete
+
     new_nstat = nstat_json()
     assert (
         0
