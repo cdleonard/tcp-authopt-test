@@ -13,8 +13,14 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
     found_syn = False
     found_synack = False
     found_fin = False
+    # fin sent by client
     found_client_fin = False
+    # fin sent by server
     found_server_fin = False
+    # fin sent by server acked by client
+    found_server_finack = False
+    # fin sent by server acked by client
+    found_client_finack = False
 
     def __init__(self, server_port, **kw):
         super().__init__(**kw)
@@ -37,13 +43,16 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
             if self.server_port == th.dport:
                 self.found_client_fin = True
                 self.found_fin = True
-                if self.found_server_fin and self.found_client_fin:
-                    self._close_event.set()
             elif self.server_port == th.sport:
                 self.found_server_fin = True
                 self.found_fin = True
-                if self.found_server_fin and self.found_client_fin:
-                    self._close_event.set()
+        if th.flags.A:
+            if self.server_port == th.dport and self.found_server_fin:
+                self.found_server_finack = True
+            if self.server_port == th.sport and self.found_client_fin:
+                self.found_client_finack = True
+        if self.found_server_finack and self.found_client_finack:
+            self._close_event.set()
 
     def wait_close(self, timeout=10):
         self._close_event.wait(timeout=timeout)
