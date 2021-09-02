@@ -35,8 +35,12 @@ def randbytes(count) -> bytes:
     return bytes([random.randint(0, 255) for index in range(count)])
 
 
-def check_socket_echo(sock, size=1024):
-    """Send random bytes and check they are received"""
+def check_socket_echo(sock: socket.socket, size=1000):
+    """Send random bytes and check they are received
+
+    The default size is equal to `SimpleServerThread.DEFAULT_BUFSIZE` which
+    means that a single pair of packets will be sent at the TCP level.
+    """
     send_buf = randbytes(size)
     sock.sendall(send_buf)
     recv_buf = recvall(sock, size)

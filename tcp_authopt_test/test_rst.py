@@ -227,7 +227,7 @@ def test_rst(exit_stack: ExitStack, address_family, signed: bool):
 
     # connect
     context.client_socket.connect((str(context.server_addr), context.server_port))
-    check_socket_echo(context.client_socket, 1000)
+    check_socket_echo(context.client_socket)
     sniffer_session.wait_match_count(timeout=1.0)
 
     p = context.create_client2server_packet()
