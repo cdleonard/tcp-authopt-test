@@ -133,10 +133,12 @@ def scapy_sniffer_start_block(sniffer: AsyncSniffer, timeout=1):
     if sniffer.kwargs.get("started_callback"):
         raise ValueError("sniffer must not already have a started_callback")
 
-    e = SimpleWaitEvent()
+    e = threading.Event()
     sniffer.kwargs["started_callback"] = e.set
     sniffer.start()
     e.wait(timeout=timeout)
+    if not e.is_set():
+        raise TimeoutError("Timed out waiting for sniffer to start")
 
 
 def scapy_sniffer_stop(sniffer: AsyncSniffer):
