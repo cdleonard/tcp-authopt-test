@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
+import threading
 import scapy.sessions
 from scapy.layers.inet import TCP
-
-from .utils import SimpleWaitEvent
 
 
 class FullTCPSniffSession(scapy.sessions.DefaultSession):
@@ -20,7 +19,7 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
     def __init__(self, server_port, **kw):
         super().__init__(**kw)
         self.server_port = server_port
-        self._close_event = SimpleWaitEvent()
+        self._close_event = threading.Event()
 
     def on_packet_received(self, p):
         super().on_packet_received(p)
@@ -48,3 +47,5 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
 
     def wait_close(self, timeout=10):
         self._close_event.wait(timeout=timeout)
+        if not self._close_event.is_set():
+            raise TimeoutError("Timed out waiting for graceful close")
