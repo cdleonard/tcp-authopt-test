@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0
 from contextlib import ExitStack
 import threading
+import time
+import subprocess
 
 from scapy.data import ETH_P_IP
 from .netns_fixture import NamespaceFixture
@@ -61,25 +63,30 @@ def socket_set_linger(sock, onoff, value):
     )
 
 
-def show_tcp_authopt_packet(
+def format_tcp_authopt_packet(
     p: Packet, include_ethernet=False, include_seq=False
 ) -> str:
     """Format a TCP packet in a way that is useful for TCP-AO testing"""
     if not TCP in p:
         return p.summary()
-    result = p.sprintf(r"%IP.src%:%TCP.sport% > %IP.dst%:%TCP.dport% Flags %TCP.flags%")
+    result = p.sprintf(r"%IP.src%:%TCP.sport% > %IP.dst%:%TCP.dport%")
+    result += p.sprintf(r" Flags %-2s,TCP.flags%")
     if include_ethernet:
-        result = (
-            p.sprintf(r"%Ether.src% > %Ether.dst% ethertype %Ether.type% ") + result
-        )
+        result = p.sprintf(r"ethertype %Ether.type% ") + result
+        result = p.sprintf(r"%Ether.src% > %Ether.dst% ") + result
     if include_seq:
         result += p.sprintf(r" seq %TCP.seq% ack %TCP.ack%")
+        result += f" len {len(p[TCP].payload)}"
     authopt = scapy_tcp_get_authopt_val(p[TCP])
     if authopt:
         result += f" AO keyid={authopt.keyid} rnextkeyid={authopt.rnextkeyid} mac={authopt.mac.hex()}"
     else:
         result += " AO missing"
     return result
+
+
+def log_tcp_authopt_packet(p):
+    logger.info("sniff %s", format_tcp_authopt_packet(p, include_seq=True))
 
 
 class TCPSeqSniffSession(SniffSession):
@@ -163,7 +170,9 @@ class Context:
         self.exit_stack.enter_context(self.capture_socket)
 
         self.sniffer = AsyncSnifferContext(
-            opened_socket=self.capture_socket, session=self.sniffer_session
+            opened_socket=self.capture_socket,
+            session=self.sniffer_session,
+            prn=log_tcp_authopt_packet,
         )
         self.exit_stack.enter_context(self.sniffer)
 
@@ -171,6 +180,10 @@ class Context:
             ns=self.nsfixture.ns2_name, iface="veth0"
         )
         self.exit_stack.enter_context(self.client_l2socket)
+        self.server_l2socket = create_l2socket(
+            ns=self.nsfixture.ns1_name, iface="veth0"
+        )
+        self.exit_stack.enter_context(self.server_l2socket)
 
     def __exit__(self, *args):
         self.exit_stack.__exit__(*args)
@@ -180,6 +193,13 @@ class Context:
             Ether(type=ETH_P_IP, src=self.nsfixture.mac2, dst=self.nsfixture.mac1)
             / IP(src=str(self.client_addr), dst=str(self.server_addr))
             / TCP(sport=self.client_port, dport=self.server_port)
+        )
+
+    def create_server2client_packet(self) -> Packet:
+        return (
+            Ether(type=ETH_P_IP, src=self.nsfixture.mac1, dst=self.nsfixture.mac2)
+            / IP(src=str(self.server_addr), dst=str(self.client_addr))
+            / TCP(sport=self.server_port, dport=self.client_port)
         )
 
 
@@ -208,31 +228,22 @@ def test_rst(exit_stack: ExitStack, address_family, signed: bool):
     # connect
     context.client_socket.connect((str(context.server_addr), context.server_port))
     check_socket_echo(context.client_socket, 1000)
+    sniffer_session.wait_match_count(timeout=1.0)
 
-    try:
-        sniffer_session.wait_match_count(timeout=1.0)
+    p = context.create_client2server_packet()
+    p[TCP].flags.R = True
+    p[TCP].flags.S = False
+    p[TCP].seq = sniffer_session.ack
+    p[TCP].ack = sniffer_session.seq
+    context.client_l2socket.send(p)
 
-        p = context.create_client2server_packet()
-        p[TCP].flags.R = True
-        p[TCP].flags.S = False
-        p[TCP].seq = sniffer_session.ack
-        p[TCP].ack = sniffer_session.seq
-        context.client_l2socket.send(p)
-
-        if signed:
-            # When protected by TCP-AO unsigned RSTs are ignored.
+    if signed:
+        # When protected by TCP-AO unsigned RSTs are ignored.
+        check_socket_echo(context.client_socket)
+    else:
+        # By default an RST that guesses seq can kill the connection.
+        with pytest.raises(ConnectionResetError):
             check_socket_echo(context.client_socket)
-        else:
-            # By default an RST that guesses seq can kill the connection.
-            with pytest.raises(ConnectionResetError):
-                check_socket_echo(context.client_socket)
-    finally:
-        scapy_sniffer_stop(context.sniffer)
-
-        def fmt(p):
-            return show_tcp_authopt_packet(p, include_seq=True)
-
-        logger.info("sniffed:\n%s", "\n".join(map(fmt, context.sniffer.results)))
 
 
 def test_rst_linger(exit_stack: ExitStack):
@@ -247,25 +258,19 @@ def test_rst_linger(exit_stack: ExitStack):
     set_tcp_authopt_key(context.listen_socket, key)
     set_tcp_authopt_key(context.client_socket, key)
 
-    try:
-        context.client_socket.connect((str(context.server_addr), context.server_port))
-        socket_set_linger(context.client_socket, 1, 0)
-        context.client_socket.close()
-    finally:
-        scapy_sniffer_stop(context.sniffer)
+    context.client_socket.connect((str(context.server_addr), context.server_port))
+    check_socket_echo(context.client_socket)
+    context.client_socket.close()
 
-        from .validator import TcpAuthValidator
-        from .validator import TcpAuthValidatorKey
+    scapy_sniffer_stop(context.sniffer)
 
-        val = TcpAuthValidator()
-        val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
-        for p in context.sniffer.results:
-            val.handle_packet(p)
-        assert not val.any_incomplete
-        assert not val.any_unsigned
-        assert not val.any_fail
+    from .validator import TcpAuthValidator
+    from .validator import TcpAuthValidatorKey
 
-        def fmt(p):
-            return show_tcp_authopt_packet(p, include_seq=True)
-
-        logger.info("sniffed:\n%s", "\n".join(map(fmt, context.sniffer.results)))
+    val = TcpAuthValidator()
+    val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
+    for p in context.sniffer.results:
+        val.handle_packet(p)
+    assert not val.any_incomplete
+    assert not val.any_unsigned
+    assert not val.any_fail
