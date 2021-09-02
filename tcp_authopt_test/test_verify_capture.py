@@ -79,14 +79,9 @@ def test_verify_capture(exit_stack, address_family, alg_name, include_options):
     client_socket = socket.socket(address_family, socket.SOCK_STREAM)
     client_socket = exit_stack.push(client_socket)
 
-    set_tcp_authopt_key(
-        listen_socket,
-        tcp_authopt_key(alg=alg_id, key=master_key, include_options=include_options),
-    )
-    set_tcp_authopt_key(
-        client_socket,
-        tcp_authopt_key(alg=alg_id, key=master_key, include_options=include_options),
-    )
+    key = tcp_authopt_key(alg=alg_id, key=master_key, include_options=include_options)
+    set_tcp_authopt_key(listen_socket, key)
+    set_tcp_authopt_key(client_socket, key)
 
     # even if one signature is incorrect keep processing the capture
     old_nstat = nstat_json()
