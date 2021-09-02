@@ -95,11 +95,13 @@ def test_verify_capture(exit_stack, address_family, alg_name, include_options):
         client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
         for _ in range(5):
             check_socket_echo(client_socket)
+        client_socket.close()
+        session.wait_close()
     except socket.timeout:
+        # If invalid packets are sent let the validator run
         logger.warning("socket timeout", exc_info=True)
         pass
-    client_socket.close()
-    session.wait_close()
+
     sniffer.stop()
 
     logger.info("capture: %r", sniffer.results)
