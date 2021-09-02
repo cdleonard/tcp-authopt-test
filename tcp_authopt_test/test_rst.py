@@ -329,3 +329,49 @@ def test_twsk_rst(exit_stack: ExitStack):
     assert not val.any_incomplete
     assert not val.any_unsigned
     assert not val.any_fail
+
+
+@pytest.mark.parametrize("index", range(10))
+def test_short_conn(exit_stack: ExitStack, index):
+    """Test TWSK sends signed RST"""
+
+    context = Context()
+    exit_stack.enter_context(context)
+
+    key = tcp_authopt_key(
+        alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+        key=f"hello",
+    )
+    set_tcp_authopt_key(context.listen_socket, key)
+    set_tcp_authopt_key(context.client_socket, key)
+
+    # Connect and close nicely
+    context.client_socket.connect((str(context.server_addr), context.server_port))
+    check_socket_echo(context.client_socket)
+    context.client_socket.close()
+
+    # Assert TIMEWAIT on client side only
+    def runss(netns):
+        cmd = f"ip netns exec {netns} ss -ntaH"
+        return subprocess.check_output(cmd, text=True, shell=True)
+
+    server_ss_output = runss(context.nsfixture.ns1_name)
+    client_ss_output = runss(context.nsfixture.ns2_name)
+    assert "WAIT" not in server_ss_output
+    assert "WAIT" in client_ss_output
+    logger.info("server ss:\n%s", server_ss_output)
+    logger.info("client ss:\n%s", client_ss_output)
+
+    scapy_sniffer_stop(context.sniffer)
+
+    from .validator import TcpAuthValidator
+    from .validator import TcpAuthValidatorKey
+
+    val = TcpAuthValidator()
+    val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
+    for p in context.sniffer.results:
+        val.handle_packet(p)
+    assert not val.any_incomplete
+    assert not val.any_fail
+
+    assert val.any_unsigned == ("LAST-ACK" in server_ss_output)
