@@ -17,7 +17,7 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
     found_client_fin = False
     found_server_fin = False
 
-    def __init__(self, server_port=None, **kw):
+    def __init__(self, server_port, **kw):
         super().__init__(**kw)
         self.server_port = server_port
         self._close_event = SimpleWaitEvent()
@@ -29,16 +29,13 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
         th = p[TCP]
         # logger.debug("sport=%d dport=%d flags=%s", th.sport, th.dport, th.flags)
         if th.flags.S and not th.flags.A:
-            if th.dport == self.server_port or self.server_port is None:
+            if th.dport == self.server_port:
                 self.found_syn = True
         if th.flags.S and th.flags.A:
-            if th.sport == self.server_port or self.server_port is None:
+            if th.sport == self.server_port:
                 self.found_synack = True
         if th.flags.F:
-            if self.server_port is None:
-                self.found_fin = True
-                self._close_event.set()
-            elif self.server_port == th.dport:
+            if self.server_port == th.dport:
                 self.found_client_fin = True
                 self.found_fin = True
                 if self.found_server_fin and self.found_client_fin:
