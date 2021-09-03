@@ -359,20 +359,7 @@ def test_short_conn(exit_stack: ExitStack, index):
 
     # Connect and close nicely
     context.client_socket.connect((str(context.server_addr), context.server_port))
-    check_socket_echo(context.client_socket)
     context.client_socket.close()
-
-    # Assert TIMEWAIT on client side only
-    def runss(netns):
-        cmd = f"ip netns exec {netns} ss -ntaH"
-        return subprocess.check_output(cmd, text=True, shell=True)
-
-    server_ss_output = runss(context.nsfixture.ns1_name)
-    client_ss_output = runss(context.nsfixture.ns2_name)
-    assert "WAIT" not in server_ss_output
-    assert "WAIT" in client_ss_output
-    logger.info("server ss:\n%s", server_ss_output)
-    logger.info("client ss:\n%s", client_ss_output)
 
     scapy_sniffer_stop(context.sniffer)
 
@@ -385,5 +372,4 @@ def test_short_conn(exit_stack: ExitStack, index):
         val.handle_packet(p)
     assert not val.any_incomplete
     assert not val.any_fail
-
-    assert val.any_unsigned == ("LAST-ACK" in server_ss_output)
+    assert not val.any_unsigned
