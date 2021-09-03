@@ -40,10 +40,9 @@ class NamespaceFixture:
             setattr(self, k, v)
 
     def __enter__(self):
+        self._del_netns()
         script = f"""
-set -e -x
-ip netns del {self.ns1_name} || true
-ip netns del {self.ns2_name} || true
+set -e
 ip netns add {self.ns1_name}
 ip netns add {self.ns2_name}
 ip link add veth0 netns {self.ns1_name} type veth peer name veth0 netns {self.ns2_name}
@@ -58,10 +57,17 @@ ip netns exec {self.ns2_name} ip link set veth0 up addr {self.mac2}
         subprocess.run(script, shell=True, check=True)
         return self
 
-    def __exit__(self, *a):
-        script = f"""
-set -e -x
-ip netns del {self.ns1_name} || true
-ip netns del {self.ns2_name} || true
+    def _del_netns(self):
+        script = f"""\
+set -e
+if ip netns list | grep -q {self.ns1_name}; then
+    ip netns del {self.ns1_name}
+fi
+if ip netns list | grep -q {self.ns2_name}; then
+    ip netns del {self.ns2_name}
+fi
 """
         subprocess.run(script, shell=True, check=True)
+
+    def __exit__(self, *a):
+        self._del_netns()
