@@ -254,7 +254,7 @@ def test_rst(exit_stack: ExitStack, address_family, signed: bool):
 
 def test_rst_linger(exit_stack: ExitStack):
     """Test RST sent deliberately via SO_LINGER is valid"""
-    context = Context()
+    context = Context(sniffer_kwargs=dict(count=8))
     exit_stack.enter_context(context)
 
     key = tcp_authopt_key(
@@ -266,9 +266,10 @@ def test_rst_linger(exit_stack: ExitStack):
 
     context.client_socket.connect((str(context.server_addr), context.server_port))
     check_socket_echo(context.client_socket)
+    socket_set_linger(context.client_socket, 1, 0)
     context.client_socket.close()
 
-    scapy_sniffer_stop(context.sniffer)
+    context.sniffer.join(timeout=3)
 
     from .validator import TcpAuthValidator
     from .validator import TcpAuthValidatorKey
@@ -280,6 +281,11 @@ def test_rst_linger(exit_stack: ExitStack):
     assert not val.any_incomplete
     assert not val.any_unsigned
     assert not val.any_fail
+
+    def is_tcp_rst(p):
+        return TCP in p and p[TCP].flags.R
+
+    assert any(is_tcp_rst(p) for p in context.sniffer.results)
 
 
 @pytest.mark.xfail(reason="timewait broken")
