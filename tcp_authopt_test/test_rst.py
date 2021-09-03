@@ -343,11 +343,12 @@ def test_twsk_rst(exit_stack: ExitStack):
     assert not val.any_fail
 
 
+@pytest.mark.parametrize("address_family", (socket.AF_INET, socket.AF_INET6))
 @pytest.mark.parametrize("index", range(10))
-def test_short_conn(exit_stack: ExitStack, index):
+def test_short_conn(exit_stack: ExitStack, address_family, index):
     """Test TWSK sends signed RST"""
 
-    context = Context()
+    context = Context(address_family=address_family)
     exit_stack.enter_context(context)
 
     key = tcp_authopt_key(
