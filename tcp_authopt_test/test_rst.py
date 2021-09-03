@@ -278,9 +278,7 @@ def test_rst_linger(exit_stack: ExitStack):
     val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
     for p in context.sniffer.results:
         val.handle_packet(p)
-    assert not val.any_incomplete
-    assert not val.any_unsigned
-    assert not val.any_fail
+    val.raise_errors()
 
     def is_tcp_rst(p):
         return TCP in p and p[TCP].flags.R
@@ -338,9 +336,7 @@ def test_twsk_rst(exit_stack: ExitStack):
     val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
     for p in context.sniffer.results:
         val.handle_packet(p)
-    assert not val.any_incomplete
-    assert not val.any_unsigned
-    assert not val.any_fail
+    val.raise_errors()
 
 
 @pytest.mark.parametrize("address_family", (socket.AF_INET, socket.AF_INET6))
@@ -371,6 +367,4 @@ def test_short_conn(exit_stack: ExitStack, address_family, index):
     val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
     for p in context.sniffer.results:
         val.handle_packet(p)
-    assert not val.any_incomplete
-    assert not val.any_fail
-    assert not val.any_unsigned
+    val.raise_errors()

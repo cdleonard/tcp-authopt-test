@@ -112,10 +112,7 @@ def test_verify_capture(
     logger.info("capture: %r", sniffer.results)
     for p in sniffer.results:
         validator.handle_packet(p)
-
-    assert not validator.any_fail
-    assert not validator.any_unsigned
-    assert not validator.any_incomplete
+    validator.raise_errors()
 
     new_nstat = nstat_json()
     assert (

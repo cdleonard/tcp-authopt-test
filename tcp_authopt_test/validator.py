@@ -156,3 +156,11 @@ class TcpAuthValidator:
                 captured_mac.hex(),
                 computed_mac.hex(),
             )
+
+    def raise_errors(self, allow_unsigned=False, allow_incomplete=False):
+        if self.any_fail:
+            raise Exception("Found failed signatures")
+        if self.any_incomplete and not allow_incomplete:
+            raise Exception("Incomplete capture missing SYN/ACK")
+        if self.any_unsigned and not allow_unsigned:
+            raise Exception("Found unsigned packets")
