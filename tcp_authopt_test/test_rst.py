@@ -132,11 +132,16 @@ class Context:
     * l2socket allowing packet injection from client
     """
 
-    def __init__(self, address_family=socket.AF_INET, sniffer_session=None):
+    def __init__(
+        self, address_family=socket.AF_INET, sniffer_session=None, sniffer_kwargs=None
+    ):
         self.address_family = address_family
         self.server_port = DEFAULT_TCP_SERVER_PORT
         self.client_port = 27972
         self.sniffer_session = sniffer_session
+        if sniffer_kwargs is None:
+            sniffer_kwargs = {}
+        self.sniffer_kwargs = sniffer_kwargs
 
     def __enter__(self):
         self.exit_stack = ExitStack()
@@ -173,6 +178,7 @@ class Context:
             opened_socket=self.capture_socket,
             session=self.sniffer_session,
             prn=log_tcp_authopt_packet,
+            **self.sniffer_kwargs,
         )
         self.exit_stack.enter_context(self.sniffer)
 
