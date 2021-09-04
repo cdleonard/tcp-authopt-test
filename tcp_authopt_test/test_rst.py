@@ -5,6 +5,7 @@ import time
 import subprocess
 
 from scapy.data import ETH_P_IP
+from .full_tcp_sniff_session import FullTCPSniffSession
 from .netns_fixture import NamespaceFixture
 from .utils import (
     DEFAULT_TCP_SERVER_PORT,
@@ -87,37 +88,6 @@ def format_tcp_authopt_packet(
 
 def log_tcp_authopt_packet(p):
     logger.info("sniff %s", format_tcp_authopt_packet(p, include_seq=True))
-
-
-class TCPSeqSniffSession(SniffSession):
-    """Sniff seq/ack numbers so that we can inject an RST"""
-
-    seq: int = None
-    ack: int = None
-
-    def __init__(self, server_port=None, match_count_limit=2, **kw):
-        super().__init__(**kw)
-        self.server_port = server_port
-        self.match_count = 0
-        self.match_count_limit = match_count_limit
-        self.match_count_event = threading.Event()
-
-    def on_packet_received(self, p):
-        super().on_packet_received(p)
-        if not p or not TCP in p:
-            return
-        th = p[TCP]
-        if self.server_port is None or th.sport == self.server_port:
-            self.seq = th.seq
-            self.ack = th.ack
-            self.match_count += 1
-            if self.match_count >= self.match_count_limit:
-                self.match_count_event.set()
-
-    def wait_match_count(self, timeout=None):
-        self.match_count_event.wait(timeout)
-        if not self.match_count_event.is_set():
-            raise TimeoutError(f"Timed out timeout={timeout!r}")
 
 
 class Context:
@@ -219,7 +189,7 @@ def test_rst(exit_stack: ExitStack, address_family, signed: bool):
     if signed and not linux_tcp_authopt.has_tcp_authopt():
         pytest.skip("need TCP_AUTHOPT")
 
-    sniffer_session = TCPSeqSniffSession(server_port=DEFAULT_TCP_SERVER_PORT)
+    sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
     context = Context(sniffer_session=sniffer_session)
     exit_stack.enter_context(context)
 
@@ -234,13 +204,11 @@ def test_rst(exit_stack: ExitStack, address_family, signed: bool):
     # connect
     context.client_socket.connect((str(context.server_addr), context.server_port))
     check_socket_echo(context.client_socket)
-    sniffer_session.wait_match_count(timeout=1.0)
 
     p = context.create_client2server_packet()
-    p[TCP].flags.R = True
-    p[TCP].flags.S = False
-    p[TCP].seq = sniffer_session.ack
-    p[TCP].ack = sniffer_session.seq
+    p[TCP].flags = "R"
+    p[TCP].seq = sniffer_session.client_isn + 1001
+    p[TCP].ack = sniffer_session.server_isn + 1001
     context.client_l2socket.send(p)
 
     if signed:
