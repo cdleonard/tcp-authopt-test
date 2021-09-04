@@ -253,7 +253,8 @@ def test_rst_linger(exit_stack: ExitStack):
 def test_short_conn(exit_stack: ExitStack, address_family, index):
     """Test TWSK sends signed RST"""
 
-    context = Context(address_family=address_family)
+    sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
+    context = Context(address_family=address_family, sniffer_session=sniffer_session)
     exit_stack.enter_context(context)
 
     key = tcp_authopt_key(
@@ -267,6 +268,7 @@ def test_short_conn(exit_stack: ExitStack, address_family, index):
     context.client_socket.connect((str(context.server_addr), context.server_port))
     context.client_socket.close()
 
+    sniffer_session.wait_close()
     scapy_sniffer_stop(context.sniffer)
 
     val = TcpAuthValidator()
