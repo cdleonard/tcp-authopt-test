@@ -1,33 +1,30 @@
 # SPDX-License-Identifier: GPL-2.0
+import logging
+import socket
 from contextlib import ExitStack
-import threading
-import time
-import subprocess
 
+import pytest
+from scapy.config import conf as scapy_conf
 from scapy.data import ETH_P_IP
+from scapy.layers.inet import IP, TCP
+from scapy.layers.l2 import Ether
+from scapy.packet import Packet
+
+from . import linux_tcp_authopt
 from .full_tcp_sniff_session import FullTCPSniffSession
+from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
 from .netns_fixture import NamespaceFixture
+from .server import SimpleServerThread
 from .utils import (
     DEFAULT_TCP_SERVER_PORT,
     AsyncSnifferContext,
-    scapy_sniffer_stop,
     check_socket_echo,
     create_listen_socket,
-    scapy_tcp_get_authopt_val,
     netns_context,
+    scapy_sniffer_stop,
+    scapy_tcp_get_authopt_val,
 )
-from .server import SimpleServerThread
-from scapy.sessions import DefaultSession as SniffSession
-from scapy.packet import Packet
-from scapy.layers.inet import IP, TCP
-from scapy.layers.l2 import Ether
-from scapy.config import conf as scapy_conf
-from . import linux_tcp_authopt
-from .linux_tcp_authopt import tcp_authopt_key, set_tcp_authopt_key
-import socket
-import logging
-import pytest
-
+from .validator import TcpAuthValidator, TcpAuthValidatorKey
 
 logger = logging.getLogger(__name__)
 
@@ -239,9 +236,6 @@ def test_rst_linger(exit_stack: ExitStack):
 
     context.sniffer.join(timeout=3)
 
-    from .validator import TcpAuthValidator
-    from .validator import TcpAuthValidatorKey
-
     val = TcpAuthValidator()
     val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
     for p in context.sniffer.results:
@@ -274,9 +268,6 @@ def test_short_conn(exit_stack: ExitStack, address_family, index):
     context.client_socket.close()
 
     scapy_sniffer_stop(context.sniffer)
-
-    from .validator import TcpAuthValidator
-    from .validator import TcpAuthValidatorKey
 
     val = TcpAuthValidator()
     val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
