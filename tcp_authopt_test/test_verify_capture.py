@@ -49,17 +49,21 @@ def get_alg_id(alg_name) -> int:
 
 @skipif_cant_capture
 @pytest.mark.parametrize(
-    "address_family,alg_name,include_options",
+    "address_family,alg_name,include_options,transfer_data",
     [
-        (socket.AF_INET, "HMAC-SHA-1-96", True),
-        (socket.AF_INET, "AES-128-CMAC-96", True),
-        (socket.AF_INET, "AES-128-CMAC-96", False),
-        (socket.AF_INET6, "HMAC-SHA-1-96", True),
-        (socket.AF_INET6, "HMAC-SHA-1-96", False),
-        (socket.AF_INET6, "AES-128-CMAC-96", True),
+        (socket.AF_INET, "HMAC-SHA-1-96", True, True),
+        (socket.AF_INET, "AES-128-CMAC-96", True, True),
+        (socket.AF_INET, "AES-128-CMAC-96", False, True),
+        (socket.AF_INET6, "HMAC-SHA-1-96", True, True),
+        (socket.AF_INET6, "HMAC-SHA-1-96", False, True),
+        (socket.AF_INET6, "AES-128-CMAC-96", True, True),
+        (socket.AF_INET, "HMAC-SHA-1-96", True, False),
+        (socket.AF_INET6, "AES-128-CMAC-96", False, False),
     ],
 )
-def test_verify_capture(exit_stack, address_family, alg_name, include_options):
+def test_verify_capture(
+    exit_stack, address_family, alg_name, include_options, transfer_data
+):
     master_key = b"testvector"
     alg_id = get_alg_id(alg_name)
 
@@ -93,8 +97,9 @@ def test_verify_capture(exit_stack, address_family, alg_name, include_options):
     try:
         client_socket.settimeout(1.0)
         client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
-        for _ in range(5):
-            check_socket_echo(client_socket)
+        if transfer_data:
+            for _ in range(5):
+                check_socket_echo(client_socket)
         client_socket.close()
         session.wait_close()
     except socket.timeout:
@@ -107,10 +112,7 @@ def test_verify_capture(exit_stack, address_family, alg_name, include_options):
     logger.info("capture: %r", sniffer.results)
     for p in sniffer.results:
         validator.handle_packet(p)
-
-    assert not validator.any_fail
-    assert not validator.any_unsigned
-    assert not validator.any_incomplete
+    validator.raise_errors()
 
     new_nstat = nstat_json()
     assert (

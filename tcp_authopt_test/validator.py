@@ -81,17 +81,16 @@ class TcpAuthValidator:
         if TCP not in p:
             logger.debug("skip non-TCP packet")
             return
-        key = self.get_key_for_packet(p)
-        if not key:
-            self.any_unsigned = True
-            logger.debug("skip packet not matching any known keys: %r", p)
-            return
         authopt = scapy_tcp_get_authopt_val(p[TCP])
         if not authopt:
             self.any_unsigned = True
             logger.debug("skip packet without tcp authopt: %r", p)
             return
-        captured_mac = authopt.mac
+        key = self.get_key_for_packet(p)
+        if not key:
+            self.any_unsigned = True
+            logger.debug("skip packet not matching any known keys: %r", p)
+            return
 
         saddr = get_scapy_ipvx_src(p)
         daddr = get_scapy_ipvx_dst(p)
@@ -147,6 +146,7 @@ class TcpAuthValidator:
             p, include_options=key.include_options
         )
         computed_mac = alg.mac(traffic_key, message_bytes)
+        captured_mac = authopt.mac
         if computed_mac == captured_mac:
             logger.debug("ok - mac %s", computed_mac.hex())
         else:
@@ -156,3 +156,11 @@ class TcpAuthValidator:
                 captured_mac.hex(),
                 computed_mac.hex(),
             )
+
+    def raise_errors(self, allow_unsigned=False, allow_incomplete=False):
+        if self.any_fail:
+            raise Exception("Found failed signatures")
+        if self.any_incomplete and not allow_incomplete:
+            raise Exception("Incomplete capture missing SYN/ACK")
+        if self.any_unsigned and not allow_unsigned:
+            raise Exception("Found unsigned packets")
