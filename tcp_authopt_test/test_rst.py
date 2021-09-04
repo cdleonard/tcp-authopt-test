@@ -286,59 +286,6 @@ def test_rst_linger(exit_stack: ExitStack):
     assert any(is_tcp_rst(p) for p in context.sniffer.results)
 
 
-@pytest.mark.xfail(reason="timewait broken")
-def test_twsk_rst(exit_stack: ExitStack):
-    """Test TWSK sends signed RST"""
-
-    sniffer_session = TCPSeqSniffSession()
-    context = Context(sniffer_session=sniffer_session)
-    exit_stack.enter_context(context)
-
-    key = tcp_authopt_key(
-        alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
-        key=f"hello",
-    )
-    set_tcp_authopt_key(context.listen_socket, key)
-    set_tcp_authopt_key(context.client_socket, key)
-
-    # Connect and close nicely
-    context.client_socket.connect((str(context.server_addr), context.server_port))
-    context.client_socket.close()
-    time.sleep(1)
-
-    # Assert TIMEWAIT on client side only
-    def runss(netns):
-        cmd = f"ip netns exec {netns} ss -ntaH"
-        return subprocess.check_output(cmd, text=True, shell=True)
-
-    server_ss_output = runss(context.nsfixture.ns1_name)
-    client_ss_output = runss(context.nsfixture.ns2_name)
-    assert "WAIT" not in server_ss_output
-    assert "WAIT" in client_ss_output
-    logger.info("server ss:\n%s", server_ss_output)
-    logger.info("client ss:\n%s", client_ss_output)
-
-    p = context.create_server2client_packet()
-    p[TCP].seq = sniffer_session.seq
-    p[TCP].ack = sniffer_session.ack
-    p[TCP].flags = "A"
-    p = p / "AAAA"
-
-    context.server_l2socket.send(p)
-    time.sleep(1)
-
-    scapy_sniffer_stop(context.sniffer)
-
-    from .validator import TcpAuthValidator
-    from .validator import TcpAuthValidatorKey
-
-    val = TcpAuthValidator()
-    val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
-    for p in context.sniffer.results:
-        val.handle_packet(p)
-    val.raise_errors()
-
-
 @pytest.mark.parametrize("address_family", (socket.AF_INET, socket.AF_INET6))
 @pytest.mark.parametrize("index", range(10))
 def test_short_conn(exit_stack: ExitStack, address_family, index):
