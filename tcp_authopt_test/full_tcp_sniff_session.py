@@ -1,7 +1,12 @@
 # SPDX-License-Identifier: GPL-2.0
 import threading
 import scapy.sessions
+from scapy.packet import Packet
 from scapy.layers.inet import TCP
+import typing
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class FullTCPSniffSession(scapy.sessions.DefaultSession):
@@ -10,6 +15,10 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
     Allows another thread to wait for a complete FIN handshake without polling or sleep.
     """
 
+    #: Initial Sequence Number for client
+    client_isn: typing.Optional[int] = None
+    #: Initial Sequence Number for server
+    server_isn: typing.Optional[int] = None
     found_syn = False
     found_synack = False
     found_fin = False
@@ -27,7 +36,7 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
         self.server_port = server_port
         self._close_event = threading.Event()
 
-    def on_packet_received(self, p):
+    def on_packet_received(self, p: Packet):
         super().on_packet_received(p)
         if not p or not TCP in p:
             return
@@ -36,9 +45,14 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
         if th.flags.S and not th.flags.A:
             if th.dport == self.server_port:
                 self.found_syn = True
+                self.client_isn = th.seq
+                self.server_isn = 0
+                assert th.ack == 0
         if th.flags.S and th.flags.A:
             if th.sport == self.server_port:
                 self.found_synack = True
+                self.server_isn = th.seq
+                assert th.ack == self.client_isn + 1
         if th.flags.F:
             if self.server_port == th.dport:
                 self.found_client_fin = True
