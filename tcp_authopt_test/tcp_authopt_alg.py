@@ -171,11 +171,14 @@ def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearra
             doff * 4 + len(p[TCP].payload),
         )
     elif IPv6 in p:
+        ipv6_plen = p[IPv6].plen
+        if ipv6_plen is None:
+            ipv6_plen = len(p[IPv6].payload)
         result += struct.pack(
             "!16s16sII",
             IPv6Address(p[IPv6].src).packed,
             IPv6Address(p[IPv6].dst).packed,
-            p[IPv6].plen,
+            ipv6_plen,
             socket.IPPROTO_TCP,
         )
     else:
