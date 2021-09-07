@@ -58,6 +58,8 @@ class TcpAuthOptAlg:
     def mac(self, traffic_key: bytes, message: bytes) -> bytes:
         raise NotImplementedError()
 
+    maclen = -1
+
 
 class TcpAuthOptAlg_HMAC_SHA1(TcpAuthOptAlg):
     def kdf(self, master_key: bytes, context: bytes) -> bytes:
@@ -66,6 +68,8 @@ class TcpAuthOptAlg_HMAC_SHA1(TcpAuthOptAlg):
     def mac(self, traffic_key: bytes, message: bytes) -> bytes:
         return mac_sha1(traffic_key, message)
 
+    maclen = 12
+
 
 class TcpAuthOptAlg_CMAC_AES(TcpAuthOptAlg):
     def kdf(self, master_key: bytes, context: bytes) -> bytes:
@@ -73,6 +77,8 @@ class TcpAuthOptAlg_CMAC_AES(TcpAuthOptAlg):
 
     def mac(self, traffic_key: bytes, message: bytes) -> bytes:
         return mac_cmac_aes(traffic_key, message)
+
+    maclen = 12
 
 
 def get_alg(name) -> TcpAuthOptAlg:
