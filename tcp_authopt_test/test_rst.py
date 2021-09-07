@@ -100,7 +100,11 @@ class Context:
     """
 
     def __init__(
-        self, address_family=socket.AF_INET, sniffer_session=None, sniffer_kwargs=None
+        self,
+        address_family=socket.AF_INET,
+        sniffer_session=None,
+        sniffer_kwargs=None,
+        tcp_authopt_key: tcp_authopt_key = None,
     ):
         self.address_family = address_family
         self.server_port = DEFAULT_TCP_SERVER_PORT
@@ -109,8 +113,12 @@ class Context:
         if sniffer_kwargs is None:
             sniffer_kwargs = {}
         self.sniffer_kwargs = sniffer_kwargs
+        self.tcp_authopt_key = tcp_authopt_key
 
     def __enter__(self):
+        if self.tcp_authopt_key and not linux_tcp_authopt.has_tcp_authopt:
+            pytest.skip("Need TCP_AUTHOPT")
+
         self.exit_stack = ExitStack()
         self.exit_stack.__enter__()
 
@@ -134,6 +142,10 @@ class Context:
         self.exit_stack.enter_context(self.client_socket)
         self.server_thread = SimpleServerThread(self.listen_socket, mode="echo")
         self.exit_stack.enter_context(self.server_thread)
+
+        if self.tcp_authopt_key:
+            set_tcp_authopt_key(self.listen_socket, self.tcp_authopt_key)
+            set_tcp_authopt_key(self.client_socket, self.tcp_authopt_key)
 
         capture_filter = f"tcp port {self.server_port}"
         self.capture_socket = create_capture_socket(
@@ -176,6 +188,12 @@ class Context:
         )
 
 
+DEFAULT_TCP_AUTHOPT_KEY = tcp_authopt_key(
+    alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+    key=b"hello",
+)
+
+
 @pytest.mark.parametrize(
     "address_family,signed",
     [(socket.AF_INET, True), (socket.AF_INET, False)],
@@ -183,20 +201,11 @@ class Context:
 def test_rst(exit_stack: ExitStack, address_family, signed: bool):
     """Check that an unsigned RST breaks a normal connection but not one protected by TCP-AO"""
 
-    if signed and not linux_tcp_authopt.has_tcp_authopt():
-        pytest.skip("need TCP_AUTHOPT")
-
     sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
     context = Context(sniffer_session=sniffer_session)
-    exit_stack.enter_context(context)
-
     if signed:
-        key = tcp_authopt_key(
-            alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
-            key="hello",
-        )
-        set_tcp_authopt_key(context.listen_socket, key)
-        set_tcp_authopt_key(context.client_socket, key)
+        context.tcp_authopt_key = DEFAULT_TCP_AUTHOPT_KEY
+    exit_stack.enter_context(context)
 
     # connect
     context.client_socket.connect((str(context.server_addr), context.server_port))
