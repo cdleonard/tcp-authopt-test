@@ -5,8 +5,9 @@ from contextlib import ExitStack
 
 import pytest
 from scapy.config import conf as scapy_conf
-from scapy.data import ETH_P_IP
+from scapy.data import ETH_P_IP, ETH_P_IPV6
 from scapy.layers.inet import IP, TCP
+from scapy.layers.inet6 import IPv6
 from scapy.layers.l2 import Ether
 from scapy.packet import Packet
 
@@ -67,7 +68,13 @@ def format_tcp_authopt_packet(
     """Format a TCP packet in a way that is useful for TCP-AO testing"""
     if not TCP in p:
         return p.summary()
-    result = p.sprintf(r"%IP.src%:%TCP.sport% > %IP.dst%:%TCP.dport%")
+    th = p[TCP]
+    if isinstance(th.underlayer, IP):
+        result = p.sprintf(r"%IP.src%:%TCP.sport% > %IP.dst%:%TCP.dport%")
+    elif isinstance(th.underlayer, IPv6):
+        result = p.sprintf(r"%IPv6.src%:%TCP.sport% > %IPv6.dst%:%TCP.dport%")
+    else:
+        raise ValueError(f"Unknown TCP underlayer {th.underlayer}")
     result += p.sprintf(r" Flags %-2s,TCP.flags%")
     if include_ethernet:
         result = p.sprintf(r"ethertype %Ether.type% ") + result
@@ -173,17 +180,34 @@ class Context:
     def __exit__(self, *args):
         self.exit_stack.__exit__(*args)
 
+    @property
+    def ethertype(self):
+        if self.address_family == socket.AF_INET:
+            return ETH_P_IP
+        elif self.address_family == socket.AF_INET6:
+            return ETH_P_IPV6
+        else:
+            raise ValueError("bad address_family={self.address_family}")
+
+    def scapy_iplayer(self):
+        if self.address_family == socket.AF_INET:
+            return IP
+        elif self.address_family == socket.AF_INET6:
+            return IPv6
+        else:
+            raise ValueError("bad address_family={self.address_family}")
+
     def create_client2server_packet(self) -> Packet:
         return (
-            Ether(type=ETH_P_IP, src=self.nsfixture.mac2, dst=self.nsfixture.mac1)
-            / IP(src=str(self.client_addr), dst=str(self.server_addr))
+            Ether(type=self.ethertype, src=self.nsfixture.mac2, dst=self.nsfixture.mac1)
+            / self.scapy_iplayer()(src=str(self.client_addr), dst=str(self.server_addr))
             / TCP(sport=self.client_port, dport=self.server_port)
         )
 
     def create_server2client_packet(self) -> Packet:
         return (
-            Ether(type=ETH_P_IP, src=self.nsfixture.mac1, dst=self.nsfixture.mac2)
-            / IP(src=str(self.server_addr), dst=str(self.client_addr))
+            Ether(type=self.ethertype, src=self.nsfixture.mac1, dst=self.nsfixture.mac2)
+            / self.scapy_iplayer()(src=str(self.server_addr), dst=str(self.client_addr))
             / TCP(sport=self.server_port, dport=self.client_port)
         )
 
@@ -226,11 +250,12 @@ def test_rst(exit_stack: ExitStack, address_family, signed: bool):
             check_socket_echo(context.client_socket)
 
 
-def test_rst_signed_manually(exit_stack: ExitStack):
-    """Check that an unsigned RST breaks a normal connection but not one protected by TCP-AO"""
+@pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
+def test_rst_signed_manually(exit_stack: ExitStack, address_family):
+    """Check that an manually signed RST breaks a connection protected by TCP-AO"""
 
     sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
-    context = Context(sniffer_session=sniffer_session)
+    context = Context(address_family=address_family, sniffer_session=sniffer_session)
     context.tcp_authopt_key = key = DEFAULT_TCP_AUTHOPT_KEY
     exit_stack.enter_context(context)
 
