@@ -14,6 +14,8 @@ import hmac
 
 logger = logging.getLogger(__name__)
 
+TCPOPT_AUTHOPT = 29
+
 
 def kdf_sha1(master_key: bytes, context: bytes) -> bytes:
     """RFC5926 section 3.1.1.1"""
@@ -198,7 +200,7 @@ def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearra
         if optlen < 2:
             logger.info("bad tcp option %d optlen %d less than two", optnum, optlen)
             break
-        if optnum == 29:
+        if optnum == TCPOPT_AUTHOPT:
             if optlen < 4:
                 logger.info("bad tcp option %d optlen %d", optnum, optlen)
                 break
