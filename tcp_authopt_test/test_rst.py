@@ -263,15 +263,8 @@ def test_rst_signed_manually(exit_stack: ExitStack):
 
 def test_rst_linger(exit_stack: ExitStack):
     """Test RST sent deliberately via SO_LINGER is valid"""
-    context = Context(sniffer_kwargs=dict(count=8))
+    context = Context(sniffer_kwargs=dict(count=8), tcp_authopt_key=DEFAULT_TCP_AUTHOPT_KEY)
     exit_stack.enter_context(context)
-
-    key = tcp_authopt_key(
-        alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
-        key=f"hello",
-    )
-    set_tcp_authopt_key(context.listen_socket, key)
-    set_tcp_authopt_key(context.client_socket, key)
 
     context.client_socket.connect((str(context.server_addr), context.server_port))
     check_socket_echo(context.client_socket)
@@ -298,15 +291,8 @@ def test_short_conn(exit_stack: ExitStack, address_family, index):
     """Test TWSK sends signed RST"""
 
     sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
-    context = Context(address_family=address_family, sniffer_session=sniffer_session)
+    context = Context(address_family=address_family, sniffer_session=sniffer_session, tcp_authopt_key=DEFAULT_TCP_AUTHOPT_KEY)
     exit_stack.enter_context(context)
-
-    key = tcp_authopt_key(
-        alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
-        key=f"hello",
-    )
-    set_tcp_authopt_key(context.listen_socket, key)
-    set_tcp_authopt_key(context.client_socket, key)
 
     # Connect and close nicely
     context.client_socket.connect((str(context.server_addr), context.server_port))
