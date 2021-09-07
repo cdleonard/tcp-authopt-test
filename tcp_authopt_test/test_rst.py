@@ -288,7 +288,9 @@ def test_rst_signed_manually(exit_stack: ExitStack, address_family):
 
 def test_rst_linger(exit_stack: ExitStack):
     """Test RST sent deliberately via SO_LINGER is valid"""
-    context = Context(sniffer_kwargs=dict(count=8), tcp_authopt_key=DEFAULT_TCP_AUTHOPT_KEY)
+    context = Context(
+        sniffer_kwargs=dict(count=8), tcp_authopt_key=DEFAULT_TCP_AUTHOPT_KEY
+    )
     exit_stack.enter_context(context)
 
     context.client_socket.connect((str(context.server_addr), context.server_port))
@@ -316,7 +318,11 @@ def test_short_conn(exit_stack: ExitStack, address_family, index):
     """Test TWSK sends signed RST"""
 
     sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
-    context = Context(address_family=address_family, sniffer_session=sniffer_session, tcp_authopt_key=DEFAULT_TCP_AUTHOPT_KEY)
+    context = Context(
+        address_family=address_family,
+        sniffer_session=sniffer_session,
+        tcp_authopt_key=DEFAULT_TCP_AUTHOPT_KEY,
+    )
     exit_stack.enter_context(context)
 
     # Connect and close nicely
