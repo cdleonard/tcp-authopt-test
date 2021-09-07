@@ -226,6 +226,41 @@ def test_rst(exit_stack: ExitStack, address_family, signed: bool):
             check_socket_echo(context.client_socket)
 
 
+def test_rst_signed_manually(exit_stack: ExitStack):
+    """Check that an unsigned RST breaks a normal connection but not one protected by TCP-AO"""
+
+    sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
+    context = Context(sniffer_session=sniffer_session)
+    context.tcp_authopt_key = key = DEFAULT_TCP_AUTHOPT_KEY
+    exit_stack.enter_context(context)
+
+    # connect
+    context.client_socket.connect((str(context.server_addr), context.server_port))
+    check_socket_echo(context.client_socket)
+
+    sisn = sniffer_session.client_isn
+    disn = sniffer_session.server_isn
+    assert sisn is not None and disn is not None
+
+    p = context.create_client2server_packet()
+    p[TCP].flags = "R"
+    p[TCP].seq = sisn + 1001
+    p[TCP].ack = disn + 1001
+
+    from .tcp_authopt_alg import add_tcp_authopt_signature, check_tcp_authopt_signature
+    from .tcp_authopt_alg import TcpAuthOptAlg_HMAC_SHA1
+
+    alg = TcpAuthOptAlg_HMAC_SHA1()
+
+    add_tcp_authopt_signature(p, alg, key.key, sisn, disn)
+    check_tcp_authopt_signature(p, alg, key.key, sisn, disn)
+    context.client_l2socket.send(p)
+
+    # By default an RST that guesses seq can kill the connection.
+    with pytest.raises(Exception):
+        check_socket_echo(context.client_socket)
+
+
 def test_rst_linger(exit_stack: ExitStack):
     """Test RST sent deliberately via SO_LINGER is valid"""
     context = Context(sniffer_kwargs=dict(count=8))
