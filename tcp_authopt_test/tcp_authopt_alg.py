@@ -154,6 +154,13 @@ def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearra
     """Build message bytes as described by RFC5925 section 5.1"""
     result = bytearray()
     result += struct.pack("!I", sne)
+
+    th = p[TCP]
+    doff = th.dataofs
+    if doff is None:
+        opt_len = len(th.get_field("options").i2m(th, th.options))
+        doff = 5 + ((opt_len + 3) // 4)
+
     # ip pseudo-header:
     if IP in p:
         result += struct.pack(
@@ -161,9 +168,8 @@ def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearra
             IPv4Address(p[IP].src).packed,
             IPv4Address(p[IP].dst).packed,
             socket.IPPROTO_TCP,
-            p[TCP].dataofs * 4 + len(p[TCP].payload),
+            doff * 4 + len(p[TCP].payload),
         )
-        assert p[TCP].dataofs * 4 + len(p[TCP].payload) + p[IP].ihl * 4 == p[IP].len
     elif IPv6 in p:
         result += struct.pack(
             "!16s16sII",
@@ -172,7 +178,6 @@ def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearra
             p[IPv6].plen,
             socket.IPPROTO_TCP,
         )
-        assert p[TCP].dataofs * 4 + len(p[TCP].payload) == p[IPv6].plen
     else:
         raise Exception("Neither IP nor IPv6 found on packet")
 
@@ -185,7 +190,7 @@ def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearra
     # Even if include_options=False the TCP-AO option itself is still included
     # with the MAC set to all-zeros. This means we need to parse TCP options.
     pos = 20
-    tcphdr_optend = p[TCP].dataofs * 4
+    tcphdr_optend = doff * 4
     # logger.info("th_bytes: %s", th_bytes.hex(' '))
     assert len(th_bytes) >= tcphdr_optend
     while pos < tcphdr_optend:
@@ -282,3 +287,47 @@ class TCPAuthContext:
         assert self.dport == p[TCP].sport
         assert self.sisn == p[TCP].ack - 1
         self.disn = p[TCP].seq
+
+
+def check_tcp_authopt_signature(
+    p: Packet, alg: TcpAuthOptAlg, master_key, sisn, disn, include_options=True, sne=0
+):
+    from .utils import scapy_tcp_get_authopt_val
+
+    ao = scapy_tcp_get_authopt_val(p[TCP])
+    if ao is None:
+        raise Exception("Missing AO")
+
+    context_bytes = build_context_from_scapy(p, sisn, disn)
+    traffic_key = alg.kdf(master_key, context_bytes)
+    message_bytes = build_message_from_scapy(
+        p, include_options=include_options, sne=sne
+    )
+    mac = alg.mac(traffic_key, message_bytes)
+    if mac != ao.mac:
+        raise Exception(f"AO mismatch {mac.hex()} != {ao.mac.hex()}")
+
+
+def add_tcp_authopt_signature(
+    p: Packet,
+    alg: TcpAuthOptAlg,
+    master_key,
+    sisn,
+    disn,
+    keyid=0,
+    rnextkeyid=0,
+    include_options=True,
+    sne=0,
+):
+    """Sign a packet"""
+    th = p[TCP]
+    keyids = struct.pack("BB", keyid, rnextkeyid)
+    th.options = th.options + [(TCPOPT_AUTHOPT, keyids + alg.maclen * b"\x00")]
+
+    context_bytes = build_context_from_scapy(p, sisn, disn)
+    traffic_key = alg.kdf(master_key, context_bytes)
+    message_bytes = build_message_from_scapy(
+        p, include_options=include_options, sne=sne
+    )
+    mac = alg.mac(traffic_key, message_bytes)
+    th.options[-1] = (TCPOPT_AUTHOPT, keyids + mac)
