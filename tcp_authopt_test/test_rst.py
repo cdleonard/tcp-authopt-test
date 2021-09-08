@@ -12,6 +12,8 @@ from scapy.layers.l2 import Ether
 from scapy.packet import Packet
 
 from . import linux_tcp_authopt
+from .tcp_authopt_alg import add_tcp_authopt_signature
+from .tcp_authopt_alg import TcpAuthOptAlg_HMAC_SHA1
 from .full_tcp_sniff_session import FullTCPSniffSession
 from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
 from .netns_fixture import NamespaceFixture
@@ -280,6 +282,48 @@ def test_rst_signed_manually(exit_stack: ExitStack, address_family):
     add_tcp_authopt_signature(p, alg, key.key, sisn, disn)
     check_tcp_authopt_signature(p, alg, key.key, sisn, disn)
     context.client_l2socket.send(p)
+
+    # By default an RST that guesses seq can kill the connection.
+    with pytest.raises(Exception):
+        check_socket_echo(context.client_socket)
+
+
+@pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
+def test_tw_ack(exit_stack: ExitStack, address_family):
+    """Manually sent a duplicate ACK after FIN and check TWSK signs replies correctly
+
+    Kernel has a custom code path for this
+    """
+
+    sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
+    context = Context(address_family=address_family, sniffer_session=sniffer_session)
+    context.tcp_authopt_key = key = DEFAULT_TCP_AUTHOPT_KEY
+    exit_stack.enter_context(context)
+
+    # connect and close nicely
+    context.client_socket.connect((str(context.server_addr), context.server_port))
+    check_socket_echo(context.client_socket)
+    socket_set_linger(context.client_socket, 1, 10)
+    context.client_socket.close()
+
+    sisn = sniffer_session.server_isn
+    disn = sniffer_session.client_isn
+    assert sisn is not None and disn is not None
+
+    p = context.create_server2client_packet()
+    p[TCP].flags = "FA"
+    p[TCP].seq = sisn + 1001
+    p[TCP].ack = disn + 1002
+    add_tcp_authopt_signature(p, TcpAuthOptAlg_HMAC_SHA1(), key.key, sisn, disn)
+    context.server_l2socket.send(p)
+
+    scapy_sniffer_stop(context.sniffer)
+
+    val = TcpAuthValidator()
+    val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
+    for p in context.sniffer.results:
+        val.handle_packet(p)
+    val.raise_errors()
 
     # By default an RST that guesses seq can kill the connection.
     with pytest.raises(Exception):
