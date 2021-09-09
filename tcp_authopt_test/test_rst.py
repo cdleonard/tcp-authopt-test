@@ -24,6 +24,7 @@ from .utils import (
     check_socket_echo,
     create_listen_socket,
     netns_context,
+    nstat_json,
     scapy_sniffer_stop,
     scapy_tcp_get_authopt_val,
 )
@@ -213,6 +214,28 @@ class Context:
             / TCP(sport=self.server_port, dport=self.client_port)
         )
 
+    @property
+    def server_netns_name(self):
+        return self.nsfixture.ns1_name
+
+    @property
+    def client_netns_name(self):
+        return self.nsfixture.ns2_name
+
+    def client_nstat_json(self):
+        with netns_context(self.client_netns_name):
+            return nstat_json()
+
+    def server_nstat_json(self):
+        with netns_context(self.server_netns_name):
+            return nstat_json()
+
+    def assert_no_snmp_output_failures(self):
+        client_nstat_dict = self.client_nstat_json()
+        assert client_nstat_dict["TcpExtTCPAuthOptFailure"] == 0
+        server_nstat_dict = self.server_nstat_json()
+        assert server_nstat_dict["TcpExtTCPAuthOptFailure"] == 0
+
 
 DEFAULT_TCP_AUTHOPT_KEY = tcp_authopt_key(
     alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
@@ -327,6 +350,8 @@ def test_tw_ack(exit_stack: ExitStack, address_family):
         val.handle_packet(p)
     val.raise_errors()
 
+    context.assert_no_snmp_output_failures()
+
 
 def test_rst_linger(exit_stack: ExitStack):
     """Test RST sent deliberately via SO_LINGER is valid"""
@@ -379,3 +404,5 @@ def test_short_conn(exit_stack: ExitStack, address_family, index):
     for p in context.sniffer.results:
         val.handle_packet(p)
     val.raise_errors()
+
+    context.assert_no_snmp_output_failures()
