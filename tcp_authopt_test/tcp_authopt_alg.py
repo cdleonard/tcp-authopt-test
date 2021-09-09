@@ -17,18 +17,7 @@ logger = logging.getLogger(__name__)
 TCPOPT_AUTHOPT = 29
 
 
-def kdf_sha1(master_key: bytes, context: bytes) -> bytes:
-    """RFC5926 section 3.1.1.1"""
-    input = b"\x01" + b"TCP-AO" + context + b"\x00\xa0"
-    return hmac.digest(master_key, input, "SHA1")
-
-
-def mac_sha1(traffic_key: bytes, message: bytes) -> bytes:
-    """RFC5926 section 3.2.1"""
-    return hmac.digest(traffic_key, message, "SHA1")[:12]
-
-
-def cmac_aes_digest(key: bytes, msg: bytes) -> bytes:
+def _cmac_aes_digest(key: bytes, msg: bytes) -> bytes:
     from cryptography.hazmat.primitives import cmac
     from cryptography.hazmat.primitives.ciphers import algorithms
     from cryptography.hazmat.backends import default_backend
@@ -39,49 +28,48 @@ def cmac_aes_digest(key: bytes, msg: bytes) -> bytes:
     return c.finalize()
 
 
-def kdf_cmac_aes(master_key: bytes, context: bytes) -> bytes:
-    if len(master_key) == 16:
-        key = master_key
-    else:
-        key = cmac_aes_digest(b"\x00" * 16, master_key)
-    return cmac_aes_digest(key, b"\x01" + b"TCP-AO" + context + b"\x00\x80")
-
-
-def mac_cmac_aes(traffic_key: bytes, message: bytes) -> bytes:
-    return cmac_aes_digest(traffic_key, message)[:12]
-
-
 class TcpAuthOptAlg:
-    def kdf(self, master_key: bytes, context: bytes) -> bytes:
+    @classmethod
+    def kdf(cls, master_key: bytes, context: bytes) -> bytes:
         raise NotImplementedError()
 
-    def mac(self, traffic_key: bytes, message: bytes) -> bytes:
+    @classmethod
+    def mac(cls, traffic_key: bytes, message: bytes) -> bytes:
         raise NotImplementedError()
 
     maclen = -1
 
 
 class TcpAuthOptAlg_HMAC_SHA1(TcpAuthOptAlg):
-    def kdf(self, master_key: bytes, context: bytes) -> bytes:
-        return kdf_sha1(master_key, context)
+    @classmethod
+    def kdf(cls, master_key: bytes, context: bytes) -> bytes:
+        input = b"\x01" + b"TCP-AO" + context + b"\x00\xa0"
+        return hmac.digest(master_key, input, "SHA1")
 
-    def mac(self, traffic_key: bytes, message: bytes) -> bytes:
-        return mac_sha1(traffic_key, message)
+    @classmethod
+    def mac(cls, traffic_key: bytes, message: bytes) -> bytes:
+        return hmac.digest(traffic_key, message, "SHA1")[:12]
 
     maclen = 12
 
 
 class TcpAuthOptAlg_CMAC_AES(TcpAuthOptAlg):
+    @classmethod
     def kdf(self, master_key: bytes, context: bytes) -> bytes:
-        return kdf_cmac_aes(master_key, context)
+        if len(master_key) == 16:
+            key = master_key
+        else:
+            key = _cmac_aes_digest(b"\x00" * 16, master_key)
+        return _cmac_aes_digest(key, b"\x01" + b"TCP-AO" + context + b"\x00\x80")
 
+    @classmethod
     def mac(self, traffic_key: bytes, message: bytes) -> bytes:
-        return mac_cmac_aes(traffic_key, message)
+        return _cmac_aes_digest(traffic_key, message)[:12]
 
     maclen = 12
 
 
-def get_alg(name) -> TcpAuthOptAlg:
+def get_alg(name: str) -> TcpAuthOptAlg:
     if name.upper() == "HMAC-SHA-1-96":
         return TcpAuthOptAlg_HMAC_SHA1()
     elif name.upper() == "AES-128-CMAC-96":
