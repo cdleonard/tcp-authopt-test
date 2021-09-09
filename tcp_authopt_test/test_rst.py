@@ -325,10 +325,6 @@ def test_tw_ack(exit_stack: ExitStack, address_family):
         val.handle_packet(p)
     val.raise_errors()
 
-    # By default an RST that guesses seq can kill the connection.
-    with pytest.raises(Exception):
-        check_socket_echo(context.client_socket)
-
 
 def test_rst_linger(exit_stack: ExitStack):
     """Test RST sent deliberately via SO_LINGER is valid"""
