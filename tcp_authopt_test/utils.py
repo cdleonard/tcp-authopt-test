@@ -56,7 +56,7 @@ def nstat_json(command_prefix: str = ""):
         stdout=subprocess.PIPE,
         encoding="utf-8",
     )
-    return json.loads(runres.stdout)
+    return json.loads(runres.stdout)["kernel"]
 
 
 def netns_context(ns: str = ""):

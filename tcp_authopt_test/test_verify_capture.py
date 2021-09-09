@@ -115,8 +115,4 @@ def test_verify_capture(
     validator.raise_errors()
 
     new_nstat = nstat_json()
-    assert (
-        0
-        == new_nstat["kernel"]["TcpExtTCPAuthOptFailure"]
-        - old_nstat["kernel"]["TcpExtTCPAuthOptFailure"]
-    )
+    assert old_nstat["TcpExtTCPAuthOptFailure"] == new_nstat["TcpExtTCPAuthOptFailure"]
