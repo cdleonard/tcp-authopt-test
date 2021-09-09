@@ -283,8 +283,10 @@ def test_rst_signed_manually(exit_stack: ExitStack, address_family):
     check_tcp_authopt_signature(p, alg, key.key, sisn, disn)
     context.client_l2socket.send(p)
 
-    # By default an RST that guesses seq can kill the connection.
-    with pytest.raises(Exception):
+    # The server socket will close in response to RST without a TIME-WAIT
+    # Attempting to send additional packets will result in a timeout because
+    # the signature can't be validated.
+    with pytest.raises(socket.timeout):
         check_socket_echo(context.client_socket)
 
 
