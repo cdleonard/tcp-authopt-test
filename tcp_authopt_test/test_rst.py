@@ -283,10 +283,11 @@ def test_rst(exit_stack: ExitStack, address_family, signed: bool):
     context.client_socket.connect((str(context.server_addr), context.server_port))
     check_socket_echo(context.client_socket)
 
+    client_isn, server_isn = sniffer_session.get_client_server_isn()
     p = context.create_client2server_packet()
     p[TCP].flags = "R"
-    p[TCP].seq = sniffer_session.client_isn + 1001
-    p[TCP].ack = sniffer_session.server_isn + 1001
+    p[TCP].seq = client_isn + 1001
+    p[TCP].ack = server_isn + 1001
     context.client_l2socket.send(p)
 
     if signed:
@@ -311,16 +312,13 @@ def test_rst_signed_manually(exit_stack: ExitStack, address_family):
     context.client_socket.connect((str(context.server_addr), context.server_port))
     check_socket_echo(context.client_socket)
 
-    sisn = sniffer_session.client_isn
-    disn = sniffer_session.server_isn
-    assert sisn is not None and disn is not None
-
+    client_isn, server_isn = sniffer_session.get_client_server_isn()
     p = context.create_client2server_packet()
     p[TCP].flags = "R"
-    p[TCP].seq = sisn + 1001
-    p[TCP].ack = disn + 1001
+    p[TCP].seq = client_isn + 1001
+    p[TCP].ack = server_isn + 1001
 
-    add_tcp_authopt_signature(p, TcpAuthOptAlg_HMAC_SHA1(), key.key, sisn, disn)
+    add_tcp_authopt_signature(p, TcpAuthOptAlg_HMAC_SHA1(), key.key, client_isn, server_isn)
     context.client_l2socket.send(p)
 
     # The server socket will close in response to RST without a TIME-WAIT
@@ -348,15 +346,12 @@ def test_tw_ack(exit_stack: ExitStack, address_family):
     socket_set_linger(context.client_socket, 1, 10)
     context.client_socket.close()
 
-    sisn = sniffer_session.server_isn
-    disn = sniffer_session.client_isn
-    assert sisn is not None and disn is not None
-
+    client_isn, server_isn = sniffer_session.get_client_server_isn()
     p = context.create_server2client_packet()
     p[TCP].flags = "FA"
-    p[TCP].seq = sisn + 1001
-    p[TCP].ack = disn + 1002
-    add_tcp_authopt_signature(p, TcpAuthOptAlg_HMAC_SHA1(), key.key, sisn, disn)
+    p[TCP].seq = server_isn + 1001
+    p[TCP].ack = client_isn + 1002
+    add_tcp_authopt_signature(p, TcpAuthOptAlg_HMAC_SHA1(), key.key, server_isn, client_isn)
     context.server_l2socket.send(p)
 
     scapy_sniffer_stop(context.sniffer)
@@ -406,15 +401,12 @@ def test_tw_rst(exit_stack: ExitStack, address_family):
 
     # sending a FIN-ACK with incorrect seq makes
     # tcp_timewait_state_process return a TCP_TW_RST
-    sisn = sniffer_session.server_isn
-    disn = sniffer_session.client_isn
-    assert sisn is not None and disn is not None
-
+    client_isn, server_isn = sniffer_session.get_client_server_isn()
     p = context.create_server2client_packet()
     p[TCP].flags = "FA"
-    p[TCP].seq = sisn + 1001 + 1
-    p[TCP].ack = disn + 1002
-    add_tcp_authopt_signature(p, TcpAuthOptAlg_HMAC_SHA1(), key.key, sisn, disn)
+    p[TCP].seq = server_isn + 1001 + 1
+    p[TCP].ack = client_isn + 1002
+    add_tcp_authopt_signature(p, TcpAuthOptAlg_HMAC_SHA1(), key.key, server_isn, client_isn)
     context.server_l2socket.send(p)
 
     # remove delay by scapy trick?
