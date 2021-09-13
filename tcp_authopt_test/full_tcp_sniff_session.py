@@ -35,6 +35,7 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
         super().__init__(**kw)
         self.server_port = server_port
         self._close_event = threading.Event()
+        self._init_isn_event = threading.Event()
 
     def on_packet_received(self, p: Packet):
         super().on_packet_received(p)
@@ -53,6 +54,7 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
                 self.found_synack = True
                 self.server_isn = th.seq
                 assert th.ack == self.client_isn + 1
+                self._init_isn_event.set()
         if th.flags.F:
             if self.server_port == th.dport:
                 self.found_client_fin = True
@@ -72,3 +74,14 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
         self._close_event.wait(timeout=timeout)
         if not self._close_event.is_set():
             raise TimeoutError("Timed out waiting for graceful close")
+
+    def wait_init_isn(self, timeout=10):
+        """Wait for both client_isn and server_isn to be determined"""
+        self._init_isn_event.wait(timeout=timeout)
+        if not self._init_isn_event.is_set():
+            raise TimeoutError("Timed out waiting for Initial Sequence Numbers")
+
+    def get_client_server_isn(self, timeout=10) -> typing.Tuple[int, int]:
+        """Return client/server ISN, blocking until they are captured"""
+        self.wait_init_isn(timeout=timeout)
+        return self.client_isn, self.server_isn
