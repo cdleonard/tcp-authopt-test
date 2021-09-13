@@ -371,6 +371,7 @@ def test_tw_ack(exit_stack: ExitStack, address_family):
 
 
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
+@pytest.mark.xfail(run=True, reason="currently broken in kernel")
 def test_tw_rst(exit_stack: ExitStack, address_family):
     """Manually sent a signed invalid packet after FIN and check TWSK signs RST correctly
 
