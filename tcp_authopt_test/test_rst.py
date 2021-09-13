@@ -115,6 +115,7 @@ class Context:
         sniffer_session=None,
         sniffer_kwargs=None,
         tcp_authopt_key: tcp_authopt_key = None,
+        server_thread_kwargs=None,
     ):
         self.address_family = address_family
         self.server_port = DEFAULT_TCP_SERVER_PORT
@@ -124,6 +125,9 @@ class Context:
             sniffer_kwargs = {}
         self.sniffer_kwargs = sniffer_kwargs
         self.tcp_authopt_key = tcp_authopt_key
+        self.server_thread = SimpleServerThread(
+            None, mode="echo", **(server_thread_kwargs or {})
+        )
 
     def __enter__(self):
         if self.tcp_authopt_key and not linux_tcp_authopt.has_tcp_authopt:
@@ -150,7 +154,7 @@ class Context:
             bind_port=self.client_port,
         )
         self.exit_stack.enter_context(self.client_socket)
-        self.server_thread = SimpleServerThread(self.listen_socket, mode="echo")
+        self.server_thread.listen_socket = self.listen_socket
         self.exit_stack.enter_context(self.server_thread)
 
         if self.tcp_authopt_key:
