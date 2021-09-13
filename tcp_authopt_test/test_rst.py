@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 import logging
 import socket
+import subprocess
 from contextlib import ExitStack
 
 import pytest
@@ -239,6 +240,24 @@ class Context:
         assert client_nstat_dict["TcpExtTCPAuthOptFailure"] == 0
         server_nstat_dict = self.server_nstat_json()
         assert server_nstat_dict["TcpExtTCPAuthOptFailure"] == 0
+
+    def _get_state_via_ss(self, command_prefix: str):
+        # Every namespace should have at most one socket
+        cmd = command_prefix + "ss --numeric --no-header --tcp"
+        out = subprocess.check_output(cmd, text=True, shell=True)
+        lines = out.splitlines()
+        # No socket found usually means "CLOSED". It is distinct from "TIME-WAIT"
+        if len(lines) == 0:
+            return None
+        if len(lines) > 1:
+            raise ValueError("At most one line expected")
+        return lines[0].split()[0]
+
+    def get_client_tcp_state(self):
+        return self._get_state_via_ss(f"ip netns exec {self.client_netns_name} ")
+
+    def get_server_tcp_state(self):
+        return self._get_state_via_ss(f"ip netns exec {self.server_netns_name} ")
 
 
 DEFAULT_TCP_AUTHOPT_KEY = tcp_authopt_key(
