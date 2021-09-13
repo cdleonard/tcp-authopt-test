@@ -36,3 +36,5 @@ scapy==2.4.5
     # via tcp-authopt-test (setup.py)
 toml==0.10.2
     # via pytest
+waiting==1.4.1
+    # via tcp-authopt-test (setup.py)
