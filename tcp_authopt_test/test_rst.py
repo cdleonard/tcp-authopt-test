@@ -14,12 +14,11 @@ from scapy.layers.l2 import Ether
 from scapy.packet import Packet
 
 from . import linux_tcp_authopt
-from .tcp_authopt_alg import add_tcp_authopt_signature
-from .tcp_authopt_alg import TcpAuthOptAlg_HMAC_SHA1
 from .full_tcp_sniff_session import FullTCPSniffSession
 from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
 from .netns_fixture import NamespaceFixture
 from .server import SimpleServerThread
+from .tcp_authopt_alg import TcpAuthOptAlg_HMAC_SHA1, add_tcp_authopt_signature
 from .utils import (
     DEFAULT_TCP_SERVER_PORT,
     AsyncSnifferContext,
@@ -321,13 +320,7 @@ def test_rst_signed_manually(exit_stack: ExitStack, address_family):
     p[TCP].seq = sisn + 1001
     p[TCP].ack = disn + 1001
 
-    from .tcp_authopt_alg import add_tcp_authopt_signature, check_tcp_authopt_signature
-    from .tcp_authopt_alg import TcpAuthOptAlg_HMAC_SHA1
-
-    alg = TcpAuthOptAlg_HMAC_SHA1()
-
-    add_tcp_authopt_signature(p, alg, key.key, sisn, disn)
-    check_tcp_authopt_signature(p, alg, key.key, sisn, disn)
+    add_tcp_authopt_signature(p, TcpAuthOptAlg_HMAC_SHA1(), key.key, sisn, disn)
     context.client_l2socket.send(p)
 
     # The server socket will close in response to RST without a TIME-WAIT
