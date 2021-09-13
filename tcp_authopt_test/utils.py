@@ -103,6 +103,10 @@ class tcphdr_authopt:
         return f"tcphdr_authopt({self.keyid}, {self.rnextkeyid}, bytes.fromhex({self.mac.hex(' ')!r})"
 
 
+def tcp_seq_wrap(seq):
+    return seq & 0xFFFFFFFF
+
+
 def scapy_tcp_get_authopt_val(tcp) -> typing.Optional[tcphdr_authopt]:
     for optnum, optval in tcp.options:
         if optnum == 29:
