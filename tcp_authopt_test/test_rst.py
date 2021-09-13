@@ -5,6 +5,7 @@ import subprocess
 from contextlib import ExitStack
 
 import pytest
+import waiting
 from scapy.config import conf as scapy_conf
 from scapy.data import ETH_P_IP, ETH_P_IPV6
 from scapy.layers.inet import IP, TCP
@@ -373,6 +374,78 @@ def test_tw_ack(exit_stack: ExitStack, address_family):
         val.handle_packet(p)
     val.raise_errors()
 
+    context.assert_no_snmp_output_failures()
+
+
+@pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
+def test_tw_rst(exit_stack: ExitStack, address_family):
+    """Manually sent a signed invalid packet after FIN and check TWSK signs RST correctly
+
+    Kernel has a custom code path for this
+    """
+    key = DEFAULT_TCP_AUTHOPT_KEY
+    sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
+    context = Context(
+        address_family=address_family,
+        sniffer_session=sniffer_session,
+        tcp_authopt_key=key,
+    )
+    context.server_thread.keep_half_open = True
+    exit_stack.enter_context(context)
+
+    # connect, transfer data and close client nicely
+    context.client_socket.connect((str(context.server_addr), context.server_port))
+    check_socket_echo(context.client_socket)
+    context.client_socket.close()
+
+    # since server keeps connection open client goes to FIN-WAIT-2
+    def check_socket_states():
+        client_tcp_state_name = context.get_client_tcp_state()
+        server_tcp_state_name = context.get_server_tcp_state()
+        logger.info("%s %s", client_tcp_state_name, server_tcp_state_name)
+        return (
+            client_tcp_state_name == "FIN-WAIT-2"
+            and server_tcp_state_name == "CLOSE-WAIT"
+        )
+
+    waiting.wait(check_socket_states)
+
+    # sending a FIN-ACK with incorrect seq makes
+    # tcp_timewait_state_process return a TCP_TW_RST
+    sisn = sniffer_session.server_isn
+    disn = sniffer_session.client_isn
+    assert sisn is not None and disn is not None
+
+    p = context.create_server2client_packet()
+    p[TCP].flags = "FA"
+    p[TCP].seq = sisn + 1001 + 1
+    p[TCP].ack = disn + 1002
+    add_tcp_authopt_signature(p, TcpAuthOptAlg_HMAC_SHA1(), key.key, sisn, disn)
+    context.server_l2socket.send(p)
+
+    # remove delay by scapy trick?
+    import time
+
+    time.sleep(1)
+    scapy_sniffer_stop(context.sniffer)
+
+    # Check client socket moved from FIN-WAIT-2 to CLOSED
+    assert context.get_client_tcp_state() is None
+
+    # Check some RST was seen
+    def is_tcp_rst(p):
+        return TCP in p and p[TCP].flags.R
+
+    assert any(is_tcp_rst(p) for p in context.sniffer.results)
+
+    # Check everything was valid
+    val = TcpAuthValidator()
+    val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
+    for p in context.sniffer.results:
+        val.handle_packet(p)
+    val.raise_errors()
+
+    # Check no snmp failures
     context.assert_no_snmp_output_failures()
 
 
