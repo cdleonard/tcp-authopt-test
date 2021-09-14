@@ -10,13 +10,14 @@ import pytest
 from . import linux_tcp_authopt
 from .linux_tcp_authopt import (
     TCP_AUTHOPT,
+    TCP_AUTHOPT_KEY_FLAG,
     set_tcp_authopt,
     get_tcp_authopt,
     set_tcp_authopt_key,
     tcp_authopt,
     tcp_authopt_key,
 )
-from .sockaddr import sockaddr_unpack
+from .sockaddr import sockaddr_in, sockaddr_in6, sockaddr_unpack
 from .conftest import skipif_missing_tcp_authopt
 
 pytestmark = skipif_missing_tcp_authopt
@@ -103,3 +104,26 @@ def test_set_get_tcp_authopt_flags(exit_stack):
             set_tcp_authopt(sock, tcp_authopt(flags=badflag))
         opt = get_tcp_authopt(sock)
         assert opt.flags == goodflag
+
+
+def test_set_ipv6_key_on_ipv4():
+    """Binding a key to an ipv6 address on an ipv4 socket makes no sense"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        key = tcp_authopt_key("abc")
+        key.flags = TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
+        key.addr = IPv6Address("::1234")
+        with pytest.raises(OSError):
+            set_tcp_authopt_key(sock, key)
+
+
+def test_set_ipv4_key_on_ipv6():
+    """This could be implemented for ipv6-mapped-ipv4 but it is not
+
+    TCP_MD5SIG has a similar limitation
+    """
+    with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as sock:
+        key = tcp_authopt_key("abc")
+        key.flags = TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
+        key.addr = IPv4Address("1.2.3.4")
+        with pytest.raises(OSError):
+            set_tcp_authopt_key(sock, key)
