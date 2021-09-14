@@ -5,12 +5,18 @@ import subprocess
 import threading
 import typing
 import socket
+from ipaddress import IPv4Address, IPv6Address
 from dataclasses import dataclass
 from contextlib import nullcontext
 
 from nsenter import Namespace
 from scapy.sendrecv import AsyncSniffer
 
+# TCPOPT numbers are apparently not available in scapy
+TCPOPT_AUTHOPT = 29
+
+# Easy generic handling of IPv4/IPv6Address
+IPvXAddress = typing.Union[IPv4Address, IPv6Address]
 
 # TCP port does not impact Authentication Option so define a single default
 DEFAULT_TCP_SERVER_PORT = 17971
@@ -145,7 +151,7 @@ def tcp_seq_wrap(seq):
 
 def scapy_tcp_get_authopt_val(tcp) -> typing.Optional[tcphdr_authopt]:
     for optnum, optval in tcp.options:
-        if optnum == 29:
+        if optnum == TCPOPT_AUTHOPT:
             return tcphdr_authopt.unpack(optval)
     return None
 

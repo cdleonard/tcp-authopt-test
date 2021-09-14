@@ -7,14 +7,13 @@ from ipaddress import IPv4Address, IPv6Address
 from scapy.layers.inet import IP, TCP
 from scapy.layers.inet6 import IPv6
 from scapy.packet import Packet
+from .utils import TCPOPT_AUTHOPT, IPvXAddress
 import socket
 import struct
 import typing
 import hmac
 
 logger = logging.getLogger(__name__)
-
-TCPOPT_AUTHOPT = 29
 
 
 def _cmac_aes_digest(key: bytes, msg: bytes) -> bytes:
@@ -76,9 +75,6 @@ def get_alg(name: str) -> TcpAuthOptAlg:
         return TcpAuthOptAlg_CMAC_AES()
     else:
         raise ValueError(f"Bad TCP AuthOpt algorithms {name}")
-
-
-IPvXAddress = typing.Union[IPv4Address, IPv6Address]
 
 
 def get_scapy_ipvx_src(p: Packet) -> IPvXAddress:
