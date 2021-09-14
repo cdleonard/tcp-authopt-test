@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from .sockaddr import sockaddr_unpack
 
 
-IPPROTO_TCP = 6
 TCP_MD5SIG = 14
 TCP_MD5SIG_EXT = 32
 TCP_MD5SIG_MAXKEYLEN = 80
