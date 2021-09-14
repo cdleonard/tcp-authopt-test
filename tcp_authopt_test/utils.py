@@ -13,6 +13,7 @@ from nsenter import Namespace
 from scapy.sendrecv import AsyncSniffer
 
 # TCPOPT numbers are apparently not available in scapy
+TCPOPT_MD5SIG = 19
 TCPOPT_AUTHOPT = 29
 
 # Easy generic handling of IPv4/IPv6Address
@@ -153,6 +154,14 @@ def scapy_tcp_get_authopt_val(tcp) -> typing.Optional[tcphdr_authopt]:
     for optnum, optval in tcp.options:
         if optnum == TCPOPT_AUTHOPT:
             return tcphdr_authopt.unpack(optval)
+    return None
+
+
+def scapy_tcp_get_md5_sig(tcp) -> typing.Optional[bytes]:
+    """Return the MD5 signature (as bytes) or None"""
+    for optnum, optval in tcp.options:
+        if optnum == TCPOPT_MD5SIG:
+            return optval
     return None
 
 
