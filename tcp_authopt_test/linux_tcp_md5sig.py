@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 """Python wrapper around linux TCP_MD5SIG ABI"""
 
+from enum import IntFlag
 import socket
 import struct
 from dataclasses import dataclass
@@ -11,6 +12,11 @@ IPPROTO_TCP = 6
 TCP_MD5SIG = 14
 TCP_MD5SIG_EXT = 32
 TCP_MD5SIG_MAXKEYLEN = 80
+
+
+class TCP_MD5SIG_FLAG(IntFlag):
+    PREFIX = 0x1
+    IFINDEX = 0x2
 
 
 @dataclass
@@ -24,8 +30,6 @@ class tcp_md5sig:
     ifindex: int
     key: bytes
 
-    TCP_MD5SIG_FLAG_PREFIX = 0x1
-    TCP_MD5SIG_FLAG_PREFIX = 0x2
     sizeof = 128 + 88
 
     def __init__(
