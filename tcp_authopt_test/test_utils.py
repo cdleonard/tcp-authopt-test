@@ -8,12 +8,12 @@ def test_scapy_tcp_seq_rollover():
 
     p = IP() / TCP()
     p[TCP].seq = 0xA0000000 + 0x70000000
-    assert (hex(p[TCP].seq) == "0x110000000")
-    assert (p[TCP].seq == 0x110000000)
-    p[TCP].seq = 0xffffff00
-    assert (hex(p[TCP].seq) == "0xffffff00")
+    assert hex(p[TCP].seq) == "0x110000000"
+    assert p[TCP].seq == 0x110000000
+    p[TCP].seq = 0xFFFFFF00
+    assert hex(p[TCP].seq) == "0xffffff00"
     p[TCP].seq += 0x101
-    assert (hex(p[TCP].seq) == "0x100000001")
+    assert hex(p[TCP].seq) == "0x100000001"
 
     with pytest.raises(Exception):
         TCP(bytes(p[TCP]))
