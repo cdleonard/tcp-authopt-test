@@ -3,6 +3,7 @@ import socket
 import pytest
 from ipaddress import IPv4Address
 from .sockaddr import sockaddr_in
+from contextlib import nullcontext
 from .server import SimpleServerThread
 from .utils import create_listen_socket, check_socket_echo, DEFAULT_TCP_SERVER_PORT
 from .linux_tcp_md5sig import setsockopt_md5sig, tcp_md5sig
@@ -40,3 +41,24 @@ def test_md5_basic(exit_stack):
 
     client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
     check_socket_echo(client_socket)
+
+
+@pytest.mark.parametrize("goodkey", [True, False])
+def test_md5_noaddr(exit_stack, goodkey: bool):
+
+    listen_socket = exit_stack.enter_context(create_listen_socket())
+    server_key = tcp_md5sig(key=b"12345")
+    server_key.set_ipv4_addr_all()
+    setsockopt_md5sig(listen_socket, server_key)
+    exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
+
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.settimeout(1)
+    client_key = tcp_md5sig(key=b"12345" if goodkey else b"54321")
+    client_key.set_ipv4_addr_all()
+    setsockopt_md5sig(client_socket, client_key)
+    exit_stack.push(client_socket)
+
+    with pytest.raises(socket.timeout) if goodkey == False else nullcontext():
+        client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
+        check_socket_echo(client_socket)

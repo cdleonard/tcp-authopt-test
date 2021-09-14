@@ -72,6 +72,24 @@ class tcp_md5sig:
         addr = sockaddr_unpack(tup[0])
         return cls(addr, *tup[1:])
 
+    def set_ipv4_addr_all(self):
+        from .sockaddr import sockaddr_in
+
+        self.addr = sockaddr_in()
+        self.prefixlen = 0
+        self.flags |= TCP_MD5SIG_FLAG.PREFIX
+
+    def set_ipv6_addr_all(self):
+        from .sockaddr import sockaddr_in6
+
+        self.addr = sockaddr_in6()
+        self.prefixlen = 0
+        self.flags |= TCP_MD5SIG_FLAG.PREFIX
+
 
 def setsockopt_md5sig(sock, opt: tcp_md5sig):
-    return sock.setsockopt(socket.IPPROTO_TCP, TCP_MD5SIG, bytes(opt))
+    if opt.flags != 0:
+        optname = TCP_MD5SIG_EXT
+    else:
+        optname = TCP_MD5SIG
+    return sock.setsockopt(socket.IPPROTO_TCP, optname, bytes(opt))
