@@ -35,14 +35,14 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
 
     # set keys:
     server_key = tcp_authopt_key(
-        alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+        alg=linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
         key="hello",
-        flags=linux_tcp_authopt.TCP_AUTHOPT_KEY_BIND_ADDR,
+        flags=linux_tcp_authopt.TCP_AUTHOPT_KEY_FLAG.BIND_ADDR,
         addr=client_addr2,
     )
     set_tcp_authopt(
         listen_socket,
-        tcp_authopt(flags=linux_tcp_authopt.TCP_AUTHOPT_FLAG_REJECT_UNEXPECTED),
+        tcp_authopt(flags=linux_tcp_authopt.TCP_AUTHOPT_FLAG.REJECT_UNEXPECTED),
     )
     set_tcp_authopt_key(listen_socket, server_key)
 
@@ -51,7 +51,7 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
         with netns_context(nsfixture.ns2_name):
             client_socket = socket.socket(address_family, socket.SOCK_STREAM)
         client_key = tcp_authopt_key(
-            alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+            alg=linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
             key="hello",
         )
         set_tcp_authopt_key(client_socket, client_key)
@@ -97,14 +97,14 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
     set_tcp_authopt_key(
         listen_socket1,
         tcp_authopt_key(
-            alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+            alg=linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
             key="11111",
         ),
     )
     set_tcp_authopt_key(
         listen_socket2,
         tcp_authopt_key(
-            alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+            alg=linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
             key="22222",
         ),
     )
@@ -116,18 +116,18 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
         set_tcp_authopt_key(
             client_socket,
             tcp_authopt_key(
-                alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+                alg=linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
                 key="11111",
-                flags=linux_tcp_authopt.TCP_AUTHOPT_KEY_BIND_ADDR,
+                flags=linux_tcp_authopt.TCP_AUTHOPT_KEY_FLAG.BIND_ADDR,
                 addr=server_addr1,
             ),
         )
         set_tcp_authopt_key(
             client_socket,
             tcp_authopt_key(
-                alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+                alg=linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
                 key="22222",
-                flags=linux_tcp_authopt.TCP_AUTHOPT_KEY_BIND_ADDR,
+                flags=linux_tcp_authopt.TCP_AUTHOPT_KEY_FLAG.BIND_ADDR,
                 addr=server_addr2,
             ),
         )

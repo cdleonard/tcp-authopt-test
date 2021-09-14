@@ -262,7 +262,7 @@ class Context:
 
 
 DEFAULT_TCP_AUTHOPT_KEY = tcp_authopt_key(
-    alg=linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96,
+    alg=linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
     key=b"hello",
 )
 

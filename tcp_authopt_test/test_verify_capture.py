@@ -40,9 +40,9 @@ skipif_cant_capture = pytest.mark.skipif(
 
 def get_alg_id(alg_name) -> int:
     if alg_name == "HMAC-SHA-1-96":
-        return linux_tcp_authopt.TCP_AUTHOPT_ALG_HMAC_SHA_1_96
+        return linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96
     elif alg_name == "AES-128-CMAC-96":
-        return linux_tcp_authopt.TCP_AUTHOPT_ALG_AES_128_CMAC_96
+        return linux_tcp_authopt.TCP_AUTHOPT_ALG.AES_128_CMAC_96
     else:
         raise ValueError()
 

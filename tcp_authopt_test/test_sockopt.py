@@ -92,7 +92,7 @@ def test_set_get_tcp_authopt_flags(exit_stack):
         assert opt.flags == 0
 
         # simple flags are echoed
-        goodflag = linux_tcp_authopt.TCP_AUTHOPT_FLAG_REJECT_UNEXPECTED
+        goodflag = linux_tcp_authopt.TCP_AUTHOPT_FLAG.REJECT_UNEXPECTED
         set_tcp_authopt(sock, tcp_authopt(flags=goodflag))
         opt = get_tcp_authopt(sock)
         assert opt.flags == goodflag
