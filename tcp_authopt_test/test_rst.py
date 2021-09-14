@@ -6,7 +6,6 @@ from contextlib import ExitStack
 
 import pytest
 import waiting
-from scapy.config import conf as scapy_conf
 from scapy.data import ETH_P_IP, ETH_P_IPV6
 from scapy.layers.inet import IP, TCP
 from scapy.layers.inet6 import IPv6
@@ -24,6 +23,10 @@ from .utils import (
     AsyncSnifferContext,
     check_socket_echo,
     create_listen_socket,
+    create_client_socket,
+    create_l2socket,
+    create_capture_socket,
+    socket_set_linger,
     netns_context,
     nstat_json,
     scapy_sniffer_stop,
@@ -33,38 +36,6 @@ from .utils import (
 from .validator import TcpAuthValidator, TcpAuthValidatorKey
 
 logger = logging.getLogger(__name__)
-
-
-def create_client_socket(
-    ns: str = "", family=socket.AF_INET, bind_addr="", bind_port=0, timeout=1.0
-):
-    with netns_context(ns):
-        client_socket = socket.socket(family, socket.SOCK_STREAM)
-    if bind_addr or bind_port:
-        client_socket.bind((str(bind_addr), bind_port))
-    if timeout is not None:
-        client_socket.settimeout(timeout)
-    return client_socket
-
-
-def create_l2socket(ns: str = "", **kw):
-    """Create a scapy L2socket inside a namespace"""
-    with netns_context(ns):
-        return scapy_conf.L2socket(**kw)
-
-
-def create_capture_socket(ns: str = "", **kw):
-    """Create a scapy L2listen socket inside a namespace"""
-    with netns_context(ns):
-        return scapy_conf.L2listen(**kw)
-
-
-def socket_set_linger(sock, onoff, value):
-    import struct
-
-    sock.setsockopt(
-        socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", int(onoff), int(value))
-    )
 
 
 def format_tcp_authopt_packet(

@@ -87,6 +87,42 @@ def create_listen_socket(
     return listen_socket
 
 
+def create_client_socket(
+    ns: str = "", family=socket.AF_INET, bind_addr="", bind_port=0, timeout=1.0
+):
+    with netns_context(ns):
+        client_socket = socket.socket(family, socket.SOCK_STREAM)
+    if bind_addr or bind_port:
+        client_socket.bind((str(bind_addr), bind_port))
+    if timeout is not None:
+        client_socket.settimeout(timeout)
+    return client_socket
+
+
+def create_l2socket(ns: str = "", **kw):
+    """Create a scapy L2socket inside a namespace"""
+    from scapy.config import conf as scapy_conf
+
+    with netns_context(ns):
+        return scapy_conf.L2socket(**kw)
+
+
+def create_capture_socket(ns: str = "", **kw):
+    """Create a scapy L2listen socket inside a namespace"""
+    from scapy.config import conf as scapy_conf
+
+    with netns_context(ns):
+        return scapy_conf.L2listen(**kw)
+
+
+def socket_set_linger(sock, onoff, value):
+    import struct
+
+    sock.setsockopt(
+        socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", int(onoff), int(value))
+    )
+
+
 @dataclass
 class tcphdr_authopt:
     """Representation of a TCP auth option as it appears in a TCP packet"""
