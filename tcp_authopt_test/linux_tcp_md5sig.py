@@ -74,8 +74,3 @@ class tcp_md5sig:
 def setsockopt_md5sig(sock, **kw):
     sig = tcp_md5sig(**kw)
     return sock.setsockopt(socket.IPPROTO_TCP, TCP_MD5SIG, sig.pack())
-
-
-def getsockopt_md5sig(sock, **kw) -> tcp_md5sig:
-    buffer = sock.setsockopt(socket.IPPROTO_TCP, TCP_MD5SIG, tcp_md5sig.sizeof)
-    return tcp_md5sig.unpack(buffer)
