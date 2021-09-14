@@ -64,6 +64,9 @@ class tcp_md5sig:
             self.key,
         )
 
+    def __bytes__(self):
+        return self.pack()
+
     @classmethod
     def unpack(cls, buffer: bytes) -> "tcp_md5sig":
         tup = struct.unpack("128sBBHi80s", buffer)
@@ -71,6 +74,5 @@ class tcp_md5sig:
         return cls(addr, *tup[1:])
 
 
-def setsockopt_md5sig(sock, **kw):
-    sig = tcp_md5sig(**kw)
-    return sock.setsockopt(socket.IPPROTO_TCP, TCP_MD5SIG, sig.pack())
+def setsockopt_md5sig(sock, opt: tcp_md5sig):
+    return sock.setsockopt(socket.IPPROTO_TCP, TCP_MD5SIG, bytes(opt))

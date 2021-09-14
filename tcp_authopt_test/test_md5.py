@@ -21,8 +21,10 @@ def test_md5_basic(exit_stack):
     listen_socket = exit_stack.enter_context(create_listen_socket())
     setsockopt_md5sig(
         listen_socket,
-        key=tcp_md5_key,
-        addr=sockaddr_in(addr=IPv4Address("127.0.0.1")),
+        tcp_md5sig(
+            key=tcp_md5_key,
+            addr=sockaddr_in(addr=IPv4Address("127.0.0.1")),
+        )
     )
     exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
 
@@ -30,8 +32,10 @@ def test_md5_basic(exit_stack):
     client_socket = exit_stack.push(client_socket)
     setsockopt_md5sig(
         client_socket,
-        key=tcp_md5_key,
-        addr=sockaddr_in(addr=IPv4Address("127.0.0.1")),
+        tcp_md5sig(
+            key=tcp_md5_key,
+            addr=sockaddr_in(addr=IPv4Address("127.0.0.1")),
+        )
     )
 
     client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
