@@ -25,6 +25,7 @@ from .utils import (
     netns_context,
     nstat_json,
     scapy_tcp_get_authopt_val,
+    scapy_tcp_get_md5_sig,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,8 @@ class TCPConnectionFixture:
     * one client socket
     * one async sniffer on the server interface
     * l2socket allowing packet injection from client
+
+    :ivar tcp_md5_key: Secret key for md5 (addr is implicit)
     """
 
     def __init__(
@@ -49,6 +52,7 @@ class TCPConnectionFixture:
         sniffer_kwargs=None,
         tcp_authopt_key: tcp_authopt_key = None,
         server_thread_kwargs=None,
+        tcp_md5_key=None,
     ):
         self.address_family = address_family
         self.server_port = DEFAULT_TCP_SERVER_PORT
@@ -60,6 +64,24 @@ class TCPConnectionFixture:
         self.tcp_authopt_key = tcp_authopt_key
         self.server_thread = SimpleServerThread(
             None, mode="echo", **(server_thread_kwargs or {})
+        )
+        self.tcp_md5_key = tcp_md5_key
+
+    def _set_tcp_md5(self):
+        from . import linux_tcp_md5sig
+        from .sockaddr import sockaddr_convert
+
+        linux_tcp_md5sig.setsockopt_md5sig(
+            self.listen_socket,
+            linux_tcp_md5sig.tcp_md5sig(
+                key=self.tcp_md5_key, addr=sockaddr_convert(self.client_addr)
+            ),
+        )
+        linux_tcp_md5sig.setsockopt_md5sig(
+            self.client_socket,
+            linux_tcp_md5sig.tcp_md5sig(
+                key=self.tcp_md5_key, addr=sockaddr_convert(self.server_addr)
+            ),
         )
 
     def __enter__(self):
@@ -93,6 +115,9 @@ class TCPConnectionFixture:
         if self.tcp_authopt_key:
             set_tcp_authopt_key(self.listen_socket, self.tcp_authopt_key)
             set_tcp_authopt_key(self.client_socket, self.tcp_authopt_key)
+
+        if self.tcp_md5_key:
+            self._set_tcp_md5()
 
         capture_filter = f"tcp port {self.server_port}"
         self.capture_socket = create_capture_socket(
@@ -193,7 +218,7 @@ class TCPConnectionFixture:
 
 
 def format_tcp_authopt_packet(
-    p: Packet, include_ethernet=False, include_seq=False
+    p: Packet, include_ethernet=False, include_seq=False, include_md5=True
 ) -> str:
     """Format a TCP packet in a way that is useful for TCP-AO testing"""
     if not TCP in p:
@@ -216,7 +241,13 @@ def format_tcp_authopt_packet(
     if authopt:
         result += f" AO keyid={authopt.keyid} rnextkeyid={authopt.rnextkeyid} mac={authopt.mac.hex()}"
     else:
-        result += " AO missing"
+        result += " no AO"
+    if include_md5:
+        md5sig = scapy_tcp_get_md5_sig(p[TCP])
+        if md5sig:
+            result += f" MD5 {md5sig.hex()}"
+        else:
+            result += " no MD5"
     return result
 
 
