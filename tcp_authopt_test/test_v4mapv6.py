@@ -23,7 +23,7 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
-@pytest.mark.parametrize("mode", ['none', 'ao', 'md5'])
+@pytest.mark.parametrize("mode", ["none", "ao", "ao-addrbind", "md5"])
 def test_v4mapv6(exit_stack, mode: str):
     """Test ipv4 client and ipv6 server with and without TCP-AO"""
     nsfixture = NamespaceFixture()
@@ -48,6 +48,18 @@ def test_v4mapv6(exit_stack, mode: str):
         linux_tcp_authopt.set_tcp_authopt_key(listen_socket, key)
         linux_tcp_authopt.set_tcp_authopt_key(client_socket, key)
 
+    if mode == "ao-addrbind":
+        alg = linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96
+        client_ipv6_addr = nsfixture.get_addr(socket.AF_INET6, 2)
+        server_key = linux_tcp_authopt.tcp_authopt_key(
+            alg=alg, key="hello", addr=client_ipv6_addr
+        )
+        server_key.flags = linux_tcp_authopt.TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
+        linux_tcp_authopt.set_tcp_authopt_key(listen_socket, server_key)
+
+        client_key = linux_tcp_authopt.tcp_authopt_key(alg=alg, key="hello")
+        linux_tcp_authopt.set_tcp_authopt_key(client_socket, client_key)
+
     if mode == "md5":
         from . import linux_tcp_md5sig
 
@@ -58,7 +70,7 @@ def test_v4mapv6(exit_stack, mode: str):
         client_key.set_ipv4_addr_all()
         linux_tcp_md5sig.setsockopt_md5sig(client_socket, client_key)
 
-    with pytest.raises(socket.timeout) if mode != 'none' else nullcontext():
+    with pytest.raises(socket.timeout) if mode != "none" else nullcontext():
         client_socket.connect((str(server_ipv4_addr), DEFAULT_TCP_SERVER_PORT))
         check_socket_echo(client_socket)
     client_socket.close()
