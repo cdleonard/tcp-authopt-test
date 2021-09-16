@@ -41,8 +41,8 @@ DEFAULT_TCP_MD5_KEY_SECRET = b"hello"
         (socket.AF_INET6, 0, 0),
         (socket.AF_INET6, 1, 0),
         (socket.AF_INET6, 0, 1),
-        # (socket.AF_INET, 1, 1),
-        # (socket.AF_INET6, 1, 1),
+        (socket.AF_INET, 1, 1),
+        (socket.AF_INET6, 1, 1),
     ],
 )
 def test_basic_authopt_md5(exit_stack, address_family, use_tcp_authopt, use_tcp_md5sig):
