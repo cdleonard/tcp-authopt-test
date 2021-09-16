@@ -1,6 +1,7 @@
 import subprocess
 
 import pytest
+import socket
 import waiting
 from scapy.layers.l2 import Ether
 from scapy.layers.inet import TCP
@@ -32,8 +33,18 @@ def break_tcp_authopt_signature(packet: Packet):
     assert new_packet[TCP].chksum != packet[TCP].chksum
 
 
-@pytest.mark.parametrize("mode", ["goodsign", "fakesign", "unsigned"])
-def test_badack_to_synack(exit_stack, mode: str):
+@pytest.mark.parametrize(
+    "address_family,mode",
+    [
+        (socket.AF_INET, "goodsign"),
+        (socket.AF_INET, "fakesign"),
+        (socket.AF_INET, "unsigned"),
+        (socket.AF_INET6, "goodsign"),
+        (socket.AF_INET6, "fakesign"),
+        (socket.AF_INET6, "unsigned"),
+    ],
+)
+def test_badack_to_synack(exit_stack, address_family, mode: str):
     """Test bad ack in reponse to server to syn/ack.
 
     This is handled by a minisocket in the TCP_SYN_RECV state on a separate code path
