@@ -134,39 +134,55 @@ def build_context_from_scapy_synack(p: Packet) -> bytes:
     return build_context_from_scapy(p, p[TCP].seq, p[TCP].ack - 1)
 
 
-def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearray:
-    """Build message bytes as described by RFC5925 section 5.1"""
-    result = bytearray()
-    result += struct.pack("!I", sne)
-
-    th = p[TCP]
+def _get_tcp_doff(th: TCP):
     doff = th.dataofs
     if doff is None:
         opt_len = len(th.get_field("options").i2m(th, th.options))
         doff = 5 + ((opt_len + 3) // 4)
+    return doff
+
+
+def get_tcp_v4_pseudoheader(tcp_packet: TCP) -> bytes:
+    iph = tcp_packet.underlayer
+    return struct.pack(
+        "!4s4sHH",
+        IPv4Address(iph.src).packed,
+        IPv4Address(iph.dst).packed,
+        socket.IPPROTO_TCP,
+        _get_tcp_doff(tcp_packet) * 4 + len(tcp_packet.payload),
+    )
+
+
+def get_tcp_v6_pseudoheader(tcp_packet: TCP) -> bytes:
+    ipv6 = tcp_packet.underlayer
+    ipv6_plen = ipv6.plen
+    if ipv6_plen is None:
+        ipv6_plen = len(ipv6.payload)
+    return struct.pack(
+        "!16s16sII",
+        IPv6Address(ipv6.src).packed,
+        IPv6Address(ipv6.dst).packed,
+        ipv6_plen,
+        socket.IPPROTO_TCP,
+    )
+
+
+def get_tcp_pseudoheader(tcp_packet: TCP):
+    if isinstance(tcp_packet.underlayer, IP):
+        return get_tcp_v4_pseudoheader(tcp_packet)
+    if isinstance(tcp_packet.underlayer, IPv6):
+        return get_tcp_v6_pseudoheader(tcp_packet)
+    raise ValueError("TCP underlayer is neither IP nor IPv6")
+
+
+def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearray:
+    """Build message bytes as described by RFC5925 section 5.1"""
+    result = bytearray()
+    result += struct.pack("!I", sne)
+    th = p[TCP]
 
     # ip pseudo-header:
-    if IP in p:
-        result += struct.pack(
-            "!4s4sHH",
-            IPv4Address(p[IP].src).packed,
-            IPv4Address(p[IP].dst).packed,
-            socket.IPPROTO_TCP,
-            doff * 4 + len(p[TCP].payload),
-        )
-    elif IPv6 in p:
-        ipv6_plen = p[IPv6].plen
-        if ipv6_plen is None:
-            ipv6_plen = len(p[IPv6].payload)
-        result += struct.pack(
-            "!16s16sII",
-            IPv6Address(p[IPv6].src).packed,
-            IPv6Address(p[IPv6].dst).packed,
-            ipv6_plen,
-            socket.IPPROTO_TCP,
-        )
-    else:
-        raise Exception("Neither IP nor IPv6 found on packet")
+    result += get_tcp_pseudoheader(th)
 
     # tcp header with checksum set to zero
     th_bytes = bytes(p[TCP])
@@ -177,7 +193,7 @@ def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearra
     # Even if include_options=False the TCP-AO option itself is still included
     # with the MAC set to all-zeros. This means we need to parse TCP options.
     pos = 20
-    tcphdr_optend = doff * 4
+    tcphdr_optend = _get_tcp_doff(th) * 4
     # logger.info("th_bytes: %s", th_bytes.hex(' '))
     assert len(th_bytes) >= tcphdr_optend
     while pos < tcphdr_optend:
