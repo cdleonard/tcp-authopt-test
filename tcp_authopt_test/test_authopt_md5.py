@@ -75,7 +75,6 @@ def test_basic_authopt_md5(exit_stack, address_family, use_tcp_authopt, use_tcp_
                 fail = True
         elif use_tcp_md5sig:
             if not has_tcp_md5sig:
-                assert False
                 logger.error("missing MD5: %r", p)
                 fail = True
         else:
