@@ -229,6 +229,24 @@ def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearra
     return result
 
 
+def calc_tcp_md5_hash(p, key: bytes) -> bytes:
+    from scapy.layers.inet import TCP
+    import hashlib
+    from .tcp_authopt_alg import get_tcp_pseudoheader
+
+    h = hashlib.md5()
+    tp = p[TCP]
+    th_bytes = bytes(p[TCP])
+    h.update(get_tcp_pseudoheader(tp))
+    h.update(th_bytes[:16])
+    h.update(b"\x00\x00")
+    h.update(th_bytes[18:20])
+    h.update(bytes(tp.payload))
+    h.update(key)
+
+    return h.digest()
+
+
 @dataclass
 class TCPAuthContext:
     """Context used to TCP Authentication option as defined in RFC5925 5.2"""
