@@ -62,3 +62,32 @@ def test_md5_noaddr(exit_stack, goodkey: bool):
     with pytest.raises(socket.timeout) if goodkey == False else nullcontext():
         client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
         check_socket_echo(client_socket)
+
+
+@pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
+def test_md5_validation(exit_stack, address_family):
+    from .full_tcp_sniff_session import FullTCPSniffSession
+    from .tcp_connection_fixture import TCPConnectionFixture
+    from .tcp_authopt_alg import calc_tcp_md5_hash
+    from .utils import scapy_tcp_get_md5_sig
+    from .utils import scapy_sniffer_stop
+    from scapy.layers.inet import TCP
+
+    sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
+    con = TCPConnectionFixture(
+        address_family=address_family, sniffer_session=sniffer_session
+    )
+    con.tcp_md5_key = b"12345"
+    exit_stack.enter_context(con)
+
+    con.client_socket.connect((str(con.server_addr), con.server_port))
+    check_socket_echo(con.client_socket)
+    con.client_socket.close()
+
+    sniffer_session.wait_close()
+    scapy_sniffer_stop(con.sniffer)
+
+    for p in con.sniffer.results:
+        captured = scapy_tcp_get_md5_sig(p[TCP])
+        computed = calc_tcp_md5_hash(p, con.tcp_md5_key)
+        assert captured.hex() == computed.hex()
