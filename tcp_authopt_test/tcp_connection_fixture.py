@@ -200,7 +200,8 @@ class TCPConnectionFixture:
 
     def _get_state_via_ss(self, command_prefix: str):
         # Every namespace should have at most one socket
-        cmd = command_prefix + "ss --numeric --no-header --tcp"
+        # the "state connected" filter includes TIME-WAIT but not LISTEN
+        cmd = command_prefix + "ss --numeric --no-header --tcp state connected"
         out = subprocess.check_output(cmd, text=True, shell=True)
         lines = out.splitlines()
         # No socket found usually means "CLOSED". It is distinct from "TIME-WAIT"
