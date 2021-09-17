@@ -71,6 +71,7 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
             self._close_event.set()
 
     def wait_close(self, timeout=10):
+        """Wait for a graceful close with FINs acked by both side"""
         self._close_event.wait(timeout=timeout)
         if not self._close_event.is_set():
             raise TimeoutError("Timed out waiting for graceful close")
