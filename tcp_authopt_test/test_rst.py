@@ -109,9 +109,15 @@ def test_tw_ack(exit_stack: ExitStack, address_family):
     # connect and close nicely
     context.client_socket.connect((str(context.server_addr), context.server_port))
     check_socket_echo(context.client_socket)
-    socket_set_linger(context.client_socket, 1, 10)
+    assert context.get_client_tcp_state() == "ESTAB"
+    assert context.get_server_tcp_state() == "ESTAB"
     context.client_socket.close()
+    sniffer_session.wait_close()
 
+    assert context.get_client_tcp_state() == "TIME-WAIT"
+    assert context.get_server_tcp_state() is None
+
+    # Sent a duplicate FIN/ACK
     client_isn, server_isn = sniffer_session.get_client_server_isn()
     p = context.create_server2client_packet()
     p[TCP].flags = "FA"
@@ -120,7 +126,10 @@ def test_tw_ack(exit_stack: ExitStack, address_family):
     add_tcp_authopt_signature(
         p, TcpAuthOptAlg_HMAC_SHA1(), key.key, server_isn, client_isn
     )
-    context.server_l2socket.send(p)
+    pr = context.server_l2socket.sr1(p)
+    assert pr[TCP].ack == tcp_seq_wrap(server_isn + 1001)
+    assert pr[TCP].seq == tcp_seq_wrap(client_isn + 1001)
+    assert pr[TCP].flags == "A"
 
     scapy_sniffer_stop(context.sniffer)
 
@@ -130,7 +139,10 @@ def test_tw_ack(exit_stack: ExitStack, address_family):
         val.handle_packet(p)
     val.raise_errors()
 
-    context.assert_no_snmp_output_failures()
+    # The server does not have enough state to validate the ACK from TIME-WAIT
+    # so it reports a failure.
+    assert context.server_nstat_json()["TcpExtTCPAuthOptFailure"] == 1
+    assert context.client_nstat_json()["TcpExtTCPAuthOptFailure"] == 0
 
 
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
