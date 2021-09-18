@@ -92,4 +92,4 @@ def setsockopt_md5sig(sock, opt: tcp_md5sig):
         optname = TCP_MD5SIG_EXT
     else:
         optname = TCP_MD5SIG
-    return sock.setsockopt(socket.IPPROTO_TCP, optname, bytes(opt))
+    return sock.setsockopt(socket.SOL_TCP, optname, bytes(opt))
