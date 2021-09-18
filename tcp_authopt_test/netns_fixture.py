@@ -31,9 +31,9 @@ class NamespaceFixture:
         else:
             raise ValueError(f"Bad address_family={address_family}")
 
-    # 02 means "locally administered"
-    mac1 = "02:00:00:00:00:01"
-    mac2 = "02:00:00:00:00:02"
+    # 02:* means "locally administered"
+    server_mac_addr = "02:00:00:00:00:01"
+    client_mac_addr = "02:00:00:00:00:02"
 
     def __init__(self, **kw):
         for k, v in kw.items():
@@ -46,8 +46,8 @@ set -e
 ip netns add {self.server_netns_name}
 ip netns add {self.client_netns_name}
 ip link add veth0 netns {self.server_netns_name} type veth peer name veth0 netns {self.client_netns_name}
-ip netns exec {self.server_netns_name} ip link set veth0 up addr {self.mac1}
-ip netns exec {self.client_netns_name} ip link set veth0 up addr {self.mac2}
+ip netns exec {self.server_netns_name} ip link set veth0 up addr {self.server_mac_addr}
+ip netns exec {self.client_netns_name} ip link set veth0 up addr {self.client_mac_addr}
 """
         for index in [1, 2, 3]:
             script += f"ip -n {self.server_netns_name} addr add {self.get_ipv4_addr(1, index)}/16 dev veth0\n"

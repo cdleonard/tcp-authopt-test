@@ -164,14 +164,22 @@ class TCPConnectionFixture:
 
     def create_client2server_packet(self) -> Packet:
         return (
-            Ether(type=self.ethertype, src=self.nsfixture.mac2, dst=self.nsfixture.mac1)
+            Ether(
+                type=self.ethertype,
+                src=self.nsfixture.client_mac_addr,
+                dst=self.nsfixture.server_mac_addr,
+            )
             / self.scapy_iplayer()(src=str(self.client_addr), dst=str(self.server_addr))
             / TCP(sport=self.client_port, dport=self.server_port)
         )
 
     def create_server2client_packet(self) -> Packet:
         return (
-            Ether(type=self.ethertype, src=self.nsfixture.mac1, dst=self.nsfixture.mac2)
+            Ether(
+                type=self.ethertype,
+                src=self.nsfixture.server_mac_addr,
+                dst=self.nsfixture.client_mac_addr,
+            )
             / self.scapy_iplayer()(src=str(self.server_addr), dst=str(self.client_addr))
             / TCP(sport=self.server_port, dport=self.client_port)
         )

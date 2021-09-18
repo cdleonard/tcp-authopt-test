@@ -77,7 +77,7 @@ def test_badack_to_synack(exit_stack, address_family, mode: str):
     subprocess.run(
         f"""\
 ip netns exec {con.nsfixture.client_netns_name} ip addr del {con.client_addr}/16 dev veth0
-ip netns exec {con.nsfixture.server_netns_name} ip neigh add {con.client_addr} lladdr {con.nsfixture.mac2} dev veth0
+ip netns exec {con.nsfixture.server_netns_name} ip neigh add {con.client_addr} lladdr {con.nsfixture.client_mac_addr} dev veth0
 """,
         shell=True,
         check=True,
