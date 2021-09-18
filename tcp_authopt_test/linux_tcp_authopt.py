@@ -72,11 +72,11 @@ class tcp_authopt:
 
 
 def set_tcp_authopt(sock, opt: tcp_authopt):
-    return sock.setsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT, bytes(opt))
+    return sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT, bytes(opt))
 
 
 def get_tcp_authopt(sock: socket.socket) -> tcp_authopt:
-    b = sock.getsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT, tcp_authopt.sizeof)
+    b = sock.getsockopt(socket.SOL_TCP, TCP_AUTHOPT, tcp_authopt.sizeof)
     return tcp_authopt.unpack(b)
 
 
@@ -188,7 +188,7 @@ class tcp_authopt_key:
 
 
 def set_tcp_authopt_key(sock, key: tcp_authopt_key):
-    return sock.setsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT_KEY, bytes(key))
+    return sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT_KEY, bytes(key))
 
 
 def has_tcp_authopt() -> bool:
@@ -196,7 +196,7 @@ def has_tcp_authopt() -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         try:
             optbuf = bytes(4)
-            sock.setsockopt(socket.IPPROTO_TCP, TCP_AUTHOPT, optbuf)
+            sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT, optbuf)
             return True
         except OSError as e:
             if e.errno == errno.ENOPROTOOPT:
