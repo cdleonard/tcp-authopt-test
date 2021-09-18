@@ -11,8 +11,8 @@ class NamespaceFixture:
     Each end of the pair has multiple addresses but everything is in the same subnet
     """
 
-    ns1_name = "tcp_authopt_test_1"
-    ns2_name = "tcp_authopt_test_2"
+    server_netns_name = "tcp_authopt_test_server"
+    client_netns_name = "tcp_authopt_test_client"
 
     @classmethod
     def get_ipv4_addr(cls, ns=1, index=1) -> IPv4Address:
@@ -43,28 +43,28 @@ class NamespaceFixture:
         self._del_netns()
         script = f"""
 set -e
-ip netns add {self.ns1_name}
-ip netns add {self.ns2_name}
-ip link add veth0 netns {self.ns1_name} type veth peer name veth0 netns {self.ns2_name}
-ip netns exec {self.ns1_name} ip link set veth0 up addr {self.mac1}
-ip netns exec {self.ns2_name} ip link set veth0 up addr {self.mac2}
+ip netns add {self.server_netns_name}
+ip netns add {self.client_netns_name}
+ip link add veth0 netns {self.server_netns_name} type veth peer name veth0 netns {self.client_netns_name}
+ip netns exec {self.server_netns_name} ip link set veth0 up addr {self.mac1}
+ip netns exec {self.client_netns_name} ip link set veth0 up addr {self.mac2}
 """
         for index in [1, 2, 3]:
-            script += f"ip -n {self.ns1_name} addr add {self.get_ipv4_addr(1, index)}/16 dev veth0\n"
-            script += f"ip -n {self.ns2_name} addr add {self.get_ipv4_addr(2, index)}/16 dev veth0\n"
-            script += f"ip -n {self.ns1_name} addr add {self.get_ipv6_addr(1, index)}/64 dev veth0 nodad\n"
-            script += f"ip -n {self.ns2_name} addr add {self.get_ipv6_addr(2, index)}/64 dev veth0 nodad\n"
+            script += f"ip -n {self.server_netns_name} addr add {self.get_ipv4_addr(1, index)}/16 dev veth0\n"
+            script += f"ip -n {self.client_netns_name} addr add {self.get_ipv4_addr(2, index)}/16 dev veth0\n"
+            script += f"ip -n {self.server_netns_name} addr add {self.get_ipv6_addr(1, index)}/64 dev veth0 nodad\n"
+            script += f"ip -n {self.client_netns_name} addr add {self.get_ipv6_addr(2, index)}/64 dev veth0 nodad\n"
         subprocess.run(script, shell=True, check=True)
         return self
 
     def _del_netns(self):
         script = f"""\
 set -e
-if ip netns list | grep -q {self.ns1_name}; then
-    ip netns del {self.ns1_name}
+if ip netns list | grep -q {self.server_netns_name}; then
+    ip netns del {self.server_netns_name}
 fi
-if ip netns list | grep -q {self.ns2_name}; then
-    ip netns del {self.ns2_name}
+if ip netns list | grep -q {self.client_netns_name}; then
+    ip netns del {self.client_netns_name}
 fi
 """
         subprocess.run(script, shell=True, check=True)

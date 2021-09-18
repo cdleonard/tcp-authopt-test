@@ -30,14 +30,14 @@ def test_v4mapv6(exit_stack, mode: str):
     exit_stack.enter_context(nsfixture)
     server_ipv4_addr = nsfixture.get_addr(socket.AF_INET, 1)
 
-    listen_socket = create_listen_socket(ns=nsfixture.ns1_name, family=socket.AF_INET6)
+    listen_socket = create_listen_socket(ns=nsfixture.server_netns_name, family=socket.AF_INET6)
     listen_socket = exit_stack.enter_context(listen_socket)
 
     server_thread = SimpleServerThread(listen_socket, mode="echo")
     exit_stack.enter_context(server_thread)
 
     client_socket = create_client_socket(
-        ns=nsfixture.ns2_name,
+        ns=nsfixture.client_netns_name,
         family=socket.AF_INET,
     )
     client_socket = exit_stack.push(client_socket)

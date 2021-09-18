@@ -76,8 +76,8 @@ def test_badack_to_synack(exit_stack, address_family, mode: str):
     # Do this by removing the client address and insert a static ARP on server side
     subprocess.run(
         f"""\
-ip netns exec {con.nsfixture.ns2_name} ip addr del {con.client_addr}/16 dev veth0
-ip netns exec {con.nsfixture.ns1_name} ip neigh add {con.client_addr} lladdr {con.nsfixture.mac2} dev veth0
+ip netns exec {con.nsfixture.client_netns_name} ip addr del {con.client_addr}/16 dev veth0
+ip netns exec {con.nsfixture.server_netns_name} ip neigh add {con.client_addr} lladdr {con.nsfixture.mac2} dev veth0
 """,
         shell=True,
         check=True,

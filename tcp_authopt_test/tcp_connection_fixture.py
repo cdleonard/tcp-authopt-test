@@ -96,14 +96,14 @@ class TCPConnectionFixture:
         self.client_addr = self.nsfixture.get_addr(self.address_family, 2)
 
         self.listen_socket = create_listen_socket(
-            ns=self.nsfixture.ns1_name,
+            ns=self.nsfixture.server_netns_name,
             family=self.address_family,
             bind_addr=self.server_addr,
             bind_port=self.server_port,
         )
         self.exit_stack.enter_context(self.listen_socket)
         self.client_socket = create_client_socket(
-            ns=self.nsfixture.ns2_name,
+            ns=self.nsfixture.client_netns_name,
             family=self.address_family,
             bind_addr=self.client_addr,
             bind_port=self.client_port,
@@ -121,7 +121,7 @@ class TCPConnectionFixture:
 
         capture_filter = f"tcp port {self.server_port}"
         self.capture_socket = create_capture_socket(
-            ns=self.nsfixture.ns1_name, iface="veth0", filter=capture_filter
+            ns=self.nsfixture.server_netns_name, iface="veth0", filter=capture_filter
         )
         self.exit_stack.enter_context(self.capture_socket)
 
@@ -134,11 +134,11 @@ class TCPConnectionFixture:
         self.exit_stack.enter_context(self.sniffer)
 
         self.client_l2socket = create_l2socket(
-            ns=self.nsfixture.ns2_name, iface="veth0"
+            ns=self.nsfixture.client_netns_name, iface="veth0"
         )
         self.exit_stack.enter_context(self.client_l2socket)
         self.server_l2socket = create_l2socket(
-            ns=self.nsfixture.ns1_name, iface="veth0"
+            ns=self.nsfixture.server_netns_name, iface="veth0"
         )
         self.exit_stack.enter_context(self.server_l2socket)
 
@@ -178,11 +178,11 @@ class TCPConnectionFixture:
 
     @property
     def server_netns_name(self):
-        return self.nsfixture.ns1_name
+        return self.nsfixture.server_netns_name
 
     @property
     def client_netns_name(self):
-        return self.nsfixture.ns2_name
+        return self.nsfixture.client_netns_name
 
     def client_nstat_json(self):
         with netns_context(self.client_netns_name):

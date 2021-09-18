@@ -29,7 +29,7 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
 
     # create server:
     listen_socket = exit_stack.push(
-        create_listen_socket(family=address_family, ns=nsfixture.ns1_name)
+        create_listen_socket(family=address_family, ns=nsfixture.server_netns_name)
     )
     exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
 
@@ -48,7 +48,7 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
 
     # create client socket:
     def create_client_socket():
-        with netns_context(nsfixture.ns2_name):
+        with netns_context(nsfixture.client_netns_name):
             client_socket = socket.socket(address_family, socket.SOCK_STREAM)
         client_key = tcp_authopt_key(
             alg=linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
@@ -82,12 +82,12 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
     # create servers:
     listen_socket1 = exit_stack.enter_context(
         create_listen_socket(
-            family=address_family, ns=nsfixture.ns1_name, bind_addr=server_addr1
+            family=address_family, ns=nsfixture.server_netns_name, bind_addr=server_addr1
         )
     )
     listen_socket2 = exit_stack.enter_context(
         create_listen_socket(
-            family=address_family, ns=nsfixture.ns1_name, bind_addr=server_addr2
+            family=address_family, ns=nsfixture.server_netns_name, bind_addr=server_addr2
         )
     )
     exit_stack.enter_context(SimpleServerThread(listen_socket1, mode="echo"))
@@ -111,7 +111,7 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
 
     # create client socket:
     def create_client_socket():
-        with netns_context(nsfixture.ns2_name):
+        with netns_context(nsfixture.client_netns_name):
             client_socket = socket.socket(address_family, socket.SOCK_STREAM)
         set_tcp_authopt_key(
             client_socket,
