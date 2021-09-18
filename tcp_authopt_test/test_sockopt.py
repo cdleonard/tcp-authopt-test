@@ -10,10 +10,13 @@ import pytest
 from . import linux_tcp_authopt
 from .linux_tcp_authopt import (
     TCP_AUTHOPT,
+    TCP_AUTHOPT_KEY,
+    TCP_AUTHOPT_ALG,
     TCP_AUTHOPT_KEY_FLAG,
     set_tcp_authopt,
     get_tcp_authopt,
     set_tcp_authopt_key,
+    del_tcp_authopt_key,
     tcp_authopt,
     tcp_authopt_key,
 )
@@ -78,14 +81,14 @@ def test_tcp_authopt_key_setdel(exit_stack):
     assert e.value.errno == errno.ENOENT
 
 
-def test_get_tcp_authopt(exit_stack):
+def test_get_tcp_authopt():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         with pytest.raises(OSError) as e:
             sock.getsockopt(socket.SOL_TCP, TCP_AUTHOPT, 4)
         assert e.value.errno == errno.ENOENT
 
 
-def test_set_get_tcp_authopt_flags(exit_stack):
+def test_set_get_tcp_authopt_flags():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         # No flags by default
         set_tcp_authopt(sock, tcp_authopt())
@@ -127,3 +130,56 @@ def test_set_ipv4_key_on_ipv6():
         key.addr = IPv4Address("1.2.3.4")
         with pytest.raises(OSError):
             set_tcp_authopt_key(sock, key)
+
+
+def test_authopt_key_badflags():
+    """Don't pretend to handle unknown flags"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        with pytest.raises(OSError):
+            set_tcp_authopt_key(sock, tcp_authopt_key(flags=0xabcdef))
+
+
+def test_authopt_key_longer_bad():
+    """Test that pass a longer sockopt with unknown data fails
+
+    Old kernels won't pretend to handle features they don't know about
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        key = tcp_authopt_key(alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96, key="aaa")
+        optbuf = bytes(key)
+        optbuf = optbuf.ljust(len(optbuf) + 4, b"\x5a")
+        with pytest.raises(OSError):
+            sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT_KEY, optbuf)
+
+
+def test_authopt_key_longer_zeros():
+    """Test that passing a longer sockopt padded with zeros works
+
+    This ensures applications using a larger struct tcp_authopt_key won't have
+    to pass a shorter optlen on old kernels.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        key = tcp_authopt_key(alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96, key="aaa")
+        optbuf = bytes(key)
+        optbuf = optbuf.ljust(len(optbuf) + 4, b"\x00")
+        sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT_KEY, optbuf)
+        # the key was added and can be deleted normally
+        assert del_tcp_authopt_key(sock, key) == True
+        assert del_tcp_authopt_key(sock, key) == False
+
+
+def test_authopt_longer_baddata():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        opt = tcp_authopt()
+        optbuf = bytes(opt)
+        optbuf = optbuf.ljust(len(optbuf) + 4, b"\x5a")
+        with pytest.raises(OSError):
+            sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT, optbuf)
+
+
+def test_authopt_longer_zeros():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        opt = tcp_authopt()
+        optbuf = bytes(opt)
+        optbuf = optbuf.ljust(len(optbuf) + 4, b"\x00")
+        sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT, optbuf)

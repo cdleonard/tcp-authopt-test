@@ -191,6 +191,24 @@ def set_tcp_authopt_key(sock, key: tcp_authopt_key):
     return sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT_KEY, bytes(key))
 
 
+def del_tcp_authopt_key(sock, key: tcp_authopt_key) -> bool:
+    """Try to delete an authopt key
+
+    :return: True if a key was deleted, False if it was not present
+    """
+    import copy
+
+    key = copy.copy(key)
+    key.delete_flag = True
+    try:
+        sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT_KEY, bytes(key))
+        return True
+    except OSError as e:
+        if e.errno == errno.ENOENT:
+            return False
+        raise
+
+
 def has_tcp_authopt() -> bool:
     """Check is TCP_AUTHOPT is implemented by the OS"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
