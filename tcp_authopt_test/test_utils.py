@@ -1,5 +1,5 @@
 import pytest
-from . import utils
+from .scapy_utils import tcp_seq_wrap
 
 
 def test_scapy_tcp_seq_rollover():
@@ -20,5 +20,5 @@ def test_scapy_tcp_seq_rollover():
 
 
 def test_tcp_seq_wrap():
-    assert hex(utils.tcp_seq_wrap(0xA0000000 + 0x70000000)) == "0x10000000"
-    assert hex(utils.tcp_seq_wrap(10 - 12)) == "0xfffffffe"
+    assert hex(tcp_seq_wrap(0xA0000000 + 0x70000000)) == "0x10000000"
+    assert hex(tcp_seq_wrap(10 - 12)) == "0xfffffffe"

@@ -15,17 +15,19 @@ from . import linux_tcp_authopt
 from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
 from .netns_fixture import NamespaceFixture
 from .server import SimpleServerThread
-from .utils import (
-    DEFAULT_TCP_SERVER_PORT,
+from .scapy_utils import (
     AsyncSnifferContext,
-    create_capture_socket,
-    create_client_socket,
     create_l2socket,
-    create_listen_socket,
-    netns_context,
-    nstat_json,
+    create_capture_socket,
     scapy_tcp_get_authopt_val,
     scapy_tcp_get_md5_sig,
+)
+from .utils import (
+    DEFAULT_TCP_SERVER_PORT,
+    create_listen_socket,
+    create_client_socket,
+    netns_context,
+    nstat_json,
 )
 
 logger = logging.getLogger(__name__)

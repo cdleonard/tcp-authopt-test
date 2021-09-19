@@ -8,7 +8,7 @@ from scapy.packet import Packet
 
 from . import tcp_authopt_alg
 from .scapy_conntrack import TCPConnectionTracker, get_packet_tcp_connection_key
-from .utils import scapy_tcp_get_authopt_val
+from .scapy_utils import scapy_tcp_get_authopt_val
 
 logger = logging.getLogger(__name__)
 

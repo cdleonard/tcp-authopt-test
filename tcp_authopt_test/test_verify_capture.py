@@ -7,16 +7,16 @@ import socket
 
 import pytest
 
-from . import linux_tcp_authopt, tcp_authopt_alg
+from . import linux_tcp_authopt
 from .full_tcp_sniff_session import FullTCPSniffSession
 from .linux_tcp_authopt import (
     set_tcp_authopt_key,
     tcp_authopt_key,
 )
 from .server import SimpleServerThread
+from .scapy_utils import AsyncSnifferContext
 from .utils import (
     DEFAULT_TCP_SERVER_PORT,
-    AsyncSnifferContext,
     check_socket_echo,
     create_listen_socket,
     nstat_json,

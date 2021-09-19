@@ -11,7 +11,7 @@ from scapy.sendrecv import sndrcv
 from . import linux_tcp_authopt
 from .tcp_authopt_alg import TcpAuthOptAlg_HMAC_SHA1, add_tcp_authopt_signature
 from .tcp_connection_fixture import TCPConnectionFixture
-from .utils import TCPOPT_AUTHOPT
+from .scapy_utils import TCPOPT_AUTHOPT
 
 
 def break_tcp_authopt_signature(packet: Packet):

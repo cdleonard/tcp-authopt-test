@@ -2,15 +2,13 @@
 """Packet-processing utilities implementing RFC5925 and RFC2926"""
 
 import logging
-from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address
 from scapy.layers.inet import IP, TCP
 from scapy.layers.inet6 import IPv6
 from scapy.packet import Packet
-from .utils import TCPOPT_AUTHOPT, IPvXAddress
+from .scapy_utils import TCPOPT_AUTHOPT, IPvXAddress
 import socket
 import struct
-import typing
 import hmac
 
 logger = logging.getLogger(__name__)

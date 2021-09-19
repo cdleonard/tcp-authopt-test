@@ -12,12 +12,14 @@ from .full_tcp_sniff_session import FullTCPSniffSession
 from .linux_tcp_authopt import tcp_authopt_key
 from .tcp_authopt_alg import TcpAuthOptAlg_HMAC_SHA1, add_tcp_authopt_signature
 from .tcp_connection_fixture import TCPConnectionFixture
+from .scapy_utils import (
+    scapy_sniffer_stop,
+    tcp_seq_wrap
+)
 from .utils import (
     DEFAULT_TCP_SERVER_PORT,
     check_socket_echo,
     socket_set_linger,
-    scapy_sniffer_stop,
-    tcp_seq_wrap,
 )
 from .validator import TcpAuthValidator, TcpAuthValidatorKey
 

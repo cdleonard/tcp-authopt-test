@@ -15,12 +15,12 @@ from scapy.layers.inet import TCP
 
 from . import linux_tcp_authopt
 from .tcp_connection_fixture import TCPConnectionFixture
-from .utils import (
-    check_socket_echo,
+from .scapy_utils import (
     scapy_sniffer_stop,
     scapy_tcp_get_authopt_val,
     scapy_tcp_get_md5_sig,
 )
+from .utils import check_socket_echo
 
 logger = logging.getLogger(__name__)
 
