@@ -126,14 +126,11 @@ def get_tcp_v4_pseudoheader(tcp_packet: TCP) -> bytes:
 
 def get_tcp_v6_pseudoheader(tcp_packet: TCP) -> bytes:
     ipv6 = tcp_packet.underlayer
-    ipv6_plen = ipv6.plen
-    if ipv6_plen is None:
-        ipv6_plen = len(ipv6.payload)
     return struct.pack(
         "!16s16sII",
         IPv6Address(ipv6.src).packed,
         IPv6Address(ipv6.dst).packed,
-        ipv6_plen,
+        _get_tcp_doff(tcp_packet) * 4 + len(tcp_packet.payload),
         socket.IPPROTO_TCP,
     )
 
