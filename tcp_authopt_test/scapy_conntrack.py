@@ -4,8 +4,7 @@ import typing
 from dataclasses import dataclass
 from scapy.packet import Packet
 from scapy.layers.inet import TCP
-from .tcp_authopt_alg import IPvXAddress
-from .tcp_authopt_alg import get_scapy_ipvx_src, get_scapy_ipvx_dst
+from .scapy_utils import IPvXAddress, get_packet_ipvx_src, get_packet_ipvx_dst
 
 
 @dataclass(frozen=True)
@@ -24,7 +23,7 @@ class TCPConnectionKey:
 def get_packet_tcp_connection_key(p: Packet) -> TCPConnectionKey:
     th = p[TCP]
     return TCPConnectionKey(
-        get_scapy_ipvx_src(p), get_scapy_ipvx_dst(p), th.sport, th.dport
+        get_packet_ipvx_src(p), get_packet_ipvx_dst(p), th.sport, th.dport
     )
 
 

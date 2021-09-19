@@ -6,7 +6,7 @@ from ipaddress import IPv4Address, IPv6Address
 from scapy.layers.inet import IP, TCP
 from scapy.layers.inet6 import IPv6
 from scapy.packet import Packet
-from .scapy_utils import TCPOPT_AUTHOPT, IPvXAddress
+from .scapy_utils import TCPOPT_AUTHOPT, IPvXAddress, get_packet_ipvx_src, get_packet_ipvx_dst
 import socket
 import struct
 import hmac
@@ -75,24 +75,6 @@ def get_alg(name: str) -> TcpAuthOptAlg:
         raise ValueError(f"Bad TCP AuthOpt algorithms {name}")
 
 
-def get_scapy_ipvx_src(p: Packet) -> IPvXAddress:
-    if IP in p:
-        return IPv4Address(p[IP].src)
-    elif IPv6 in p:
-        return IPv6Address(p[IPv6].src)
-    else:
-        raise Exception("Neither IP nor IPv6 found on packet")
-
-
-def get_scapy_ipvx_dst(p: Packet) -> IPvXAddress:
-    if IP in p:
-        return IPv4Address(p[IP].dst)
-    elif IPv6 in p:
-        return IPv6Address(p[IPv6].dst)
-    else:
-        raise Exception("Neither IP nor IPv6 found on packet")
-
-
 def build_context(
     saddr: IPvXAddress, daddr: IPvXAddress, sport, dport, src_isn, dst_isn
 ) -> bytes:
@@ -113,8 +95,8 @@ def build_context(
 def build_context_from_scapy(p: Packet, src_isn: int, dst_isn: int) -> bytes:
     """Build context based on a scapy Packet and src/dst initial-sequence numbers"""
     return build_context(
-        get_scapy_ipvx_src(p),
-        get_scapy_ipvx_dst(p),
+        get_packet_ipvx_src(p),
+        get_packet_ipvx_dst(p),
         p[TCP].sport,
         p[TCP].dport,
         src_isn,

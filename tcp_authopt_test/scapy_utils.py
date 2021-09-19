@@ -3,6 +3,9 @@ import threading
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address
 
+from scapy.packet import Packet
+from scapy.layers.inet import IP
+from scapy.layers.inet6 import IPv6
 from scapy.config import conf as scapy_conf
 from scapy.sendrecv import AsyncSniffer
 
@@ -14,6 +17,24 @@ TCPOPT_AUTHOPT = 29
 
 # Easy generic handling of IPv4/IPv6Address
 IPvXAddress = typing.Union[IPv4Address, IPv6Address]
+
+
+def get_packet_ipvx_src(p: Packet) -> IPvXAddress:
+    if IP in p:
+        return IPv4Address(p[IP].src)
+    elif IPv6 in p:
+        return IPv6Address(p[IPv6].src)
+    else:
+        raise Exception("Neither IP nor IPv6 found on packet")
+
+
+def get_packet_ipvx_dst(p: Packet) -> IPvXAddress:
+    if IP in p:
+        return IPv4Address(p[IP].dst)
+    elif IPv6 in p:
+        return IPv6Address(p[IPv6].dst)
+    else:
+        raise Exception("Neither IP nor IPv6 found on packet")
 
 
 def tcp_seq_wrap(seq):
