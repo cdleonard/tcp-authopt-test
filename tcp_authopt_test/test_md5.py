@@ -68,7 +68,7 @@ def test_md5_noaddr(exit_stack, goodkey: bool):
 def test_md5_validation(exit_stack, address_family):
     from .full_tcp_sniff_session import FullTCPSniffSession
     from .tcp_connection_fixture import TCPConnectionFixture
-    from .tcp_authopt_alg import calc_tcp_md5_hash
+    from .scapy_utils import calc_tcp_md5_hash
     from .scapy_utils import scapy_tcp_get_md5_sig
     from .scapy_utils import scapy_sniffer_stop
     from scapy.layers.inet import TCP

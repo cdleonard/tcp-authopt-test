@@ -113,6 +113,23 @@ def scapy_tcp_get_md5_sig(tcp) -> typing.Optional[bytes]:
     return None
 
 
+def calc_tcp_md5_hash(p, key: bytes) -> bytes:
+    """Calculate TCP-MD5 hash from packet and return a 16-byte string"""
+    import hashlib
+
+    h = hashlib.md5()
+    tp = p[TCP]
+    th_bytes = bytes(p[TCP])
+    h.update(get_tcp_pseudoheader(tp))
+    h.update(th_bytes[:16])
+    h.update(b"\x00\x00")
+    h.update(th_bytes[18:20])
+    h.update(bytes(tp.payload))
+    h.update(key)
+
+    return h.digest()
+
+
 def create_l2socket(ns: str = "", **kw):
     """Create a scapy L2socket inside a namespace"""
 
