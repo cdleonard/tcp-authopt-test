@@ -242,32 +242,3 @@ def test_rst_linger(exit_stack: ExitStack):
         return TCP in p and p[TCP].flags.R
 
     assert any(is_tcp_rst(p) for p in context.sniffer.results)
-
-
-@pytest.mark.parametrize("address_family", (socket.AF_INET, socket.AF_INET6))
-@pytest.mark.parametrize("index", range(10))
-def test_short_conn(exit_stack: ExitStack, address_family, index):
-    """Test TWSK sends signed RST"""
-
-    sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
-    context = TCPConnectionFixture(
-        address_family=address_family,
-        sniffer_session=sniffer_session,
-        tcp_authopt_key=DEFAULT_TCP_AUTHOPT_KEY,
-    )
-    exit_stack.enter_context(context)
-
-    # Connect and close nicely
-    context.client_socket.connect((str(context.server_addr), context.server_port))
-    context.client_socket.close()
-
-    sniffer_session.wait_close()
-    scapy_sniffer_stop(context.sniffer)
-
-    val = TcpAuthValidator()
-    val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
-    for p in context.sniffer.results:
-        val.handle_packet(p)
-    val.raise_errors()
-
-    context.assert_no_snmp_output_failures()
