@@ -29,6 +29,10 @@ class TCPSocketPair:
 
 @dataclass
 class TcpAuthValidatorKey:
+    """Representation of a TCP Authentication Option key for the validator
+
+    The matching rules are independent.
+    """
     key: bytes
     alg_name: str
     include_options: bool = True
@@ -36,7 +40,8 @@ class TcpAuthValidatorKey:
     sport: typing.Optional[int] = None
     dport: typing.Optional[int] = None
 
-    def match_packet(self, p: Packet):
+    def match_packet(self, p: Packet) -> bool:
+        """Determine if this key matches a specific packet"""
         if not TCP in p:
             return False
         authopt = scapy_tcp_get_authopt_val(p[TCP])
@@ -59,7 +64,13 @@ def is_init_syn(p: Packet) -> bool:
 
 
 class TcpAuthValidator:
-    """Validate TCP auth sessions inside a capture"""
+    """Validate TCP Authentication Option signatures inside a capture
+
+    This can track multiple connections, determine their initial sequence numbers
+    and verify their signatues independently.
+
+    Keys are provided as a collection of `.TcpAuthValidatorKey`
+    """
 
     keys: typing.List[TcpAuthValidatorKey]
     conn_dict: typing.Dict[TCPSocketPair, TCPAuthContext]
