@@ -110,6 +110,9 @@ class TCPConnectionTracker:
             self.table[key] = info
         return info
 
+    def get(self, key: TCPConnectionKey) -> TCPConnectionInfo:
+        return self.table.get(key, None)
+
     def handle_packet(self, p: Packet):
         if not p or not TCP in p:
             return

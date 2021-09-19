@@ -1,30 +1,16 @@
 # SPDX-License-Identifier: GPL-2.0
-from tcp_authopt_test.utils import scapy_tcp_get_authopt_val
-import typing
 import logging
-
+import typing
 from dataclasses import dataclass
-from scapy.packet import Packet
+
 from scapy.layers.inet import TCP
+from scapy.packet import Packet
+
 from . import tcp_authopt_alg
-from .tcp_authopt_alg import IPvXAddress, TCPAuthContext
-from .tcp_authopt_alg import get_scapy_ipvx_src
-from .tcp_authopt_alg import get_scapy_ipvx_dst
+from .scapy_conntrack import TCPConnectionTracker, get_packet_tcp_connection_key
+from .utils import scapy_tcp_get_authopt_val
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class TCPSocketPair:
-    """TCP connection identifier"""
-
-    saddr: IPvXAddress = None
-    daddr: IPvXAddress = None
-    sport: int = 0
-    dport: int = 0
-
-    def rev(self) -> "TCPSocketPair":
-        return TCPSocketPair(self.daddr, self.saddr, self.dport, self.sport)
 
 
 @dataclass
@@ -33,6 +19,7 @@ class TcpAuthValidatorKey:
 
     The matching rules are independent.
     """
+
     key: bytes
     alg_name: str
     include_options: bool = True
@@ -59,10 +46,6 @@ class TcpAuthValidatorKey:
         return tcp_authopt_alg.get_alg(self.alg_name)
 
 
-def is_init_syn(p: Packet) -> bool:
-    return p[TCP].flags.S and not p[TCP].flags.A
-
-
 class TcpAuthValidator:
     """Validate TCP Authentication Option signatures inside a capture
 
@@ -73,13 +56,14 @@ class TcpAuthValidator:
     """
 
     keys: typing.List[TcpAuthValidatorKey]
-    conn_dict: typing.Dict[TCPSocketPair, TCPAuthContext]
+    tracker: TCPConnectionTracker
     any_incomplete: bool = False
     any_unsigned: bool = False
     any_fail: bool = False
 
     def __init__(self, keys=None):
         self.keys = keys or []
+        self.tracker = TCPConnectionTracker()
         self.conn_dict = {}
 
     def get_key_for_packet(self, p):
@@ -89,9 +73,9 @@ class TcpAuthValidator:
         return None
 
     def handle_packet(self, p: Packet):
-        if TCP not in p:
-            logger.debug("skip non-TCP packet")
+        if not TCP in p:
             return
+        self.tracker.handle_packet(p)
         authopt = scapy_tcp_get_authopt_val(p[TCP])
         if not authopt:
             self.any_unsigned = True
@@ -102,56 +86,22 @@ class TcpAuthValidator:
             self.any_unsigned = True
             logger.debug("skip packet not matching any known keys: %r", p)
             return
+        tcp_track_key = get_packet_tcp_connection_key(p)
+        conn = self.tracker.get(tcp_track_key)
 
-        saddr = get_scapy_ipvx_src(p)
-        daddr = get_scapy_ipvx_dst(p)
+        if not conn.found_syn:
+            logger.warning("missing SYN for %s", p)
+            self.any_incomplete = True
+            return
+        if not conn.found_synack and not p[TCP].flags.S:
+            logger.warning("missing SYNACK for %s", p)
+            self.any_incomplete = True
+            return
 
-        conn_key = TCPSocketPair(saddr, daddr, p[TCP].sport, p[TCP].dport)
-        if p[TCP].flags.S:
-            conn = self.conn_dict.get(conn_key, None)
-            if conn is not None:
-                logger.warning("overwrite %r", conn)
-                self.any_incomplete = True
-            conn = TCPAuthContext()
-            conn.saddr = saddr
-            conn.daddr = daddr
-            conn.sport = p[TCP].sport
-            conn.dport = p[TCP].dport
-            self.conn_dict[conn_key] = conn
-
-            if p[TCP].flags.A == False:
-                # SYN
-                conn.sisn = p[TCP].seq
-                conn.disn = 0
-                logger.info("Initialized for SYN: %r", conn)
-            else:
-                # SYN/ACK
-                conn.sisn = p[TCP].seq
-                conn.disn = p[TCP].ack - 1
-                logger.info("Initialized for SYNACK: %r", conn)
-
-                # Update opposite connection with dst_isn
-                rconn_key = conn_key.rev()
-                rconn = self.conn_dict.get(rconn_key, None)
-                if rconn is None:
-                    logger.warning("missing SYN for SYNACK: %s", rconn_key)
-                    self.any_incomplete = True
-                else:
-                    assert rconn.sisn == conn.disn
-                    assert rconn.disn == 0 or rconn.disn == conn.sisn
-                    rconn.disn = conn.sisn
-                    rconn.update_from_synack_packet(p)
-                    logger.info("Updated peer for SYNACK: %r", rconn)
-        else:
-            conn = self.conn_dict.get(conn_key, None)
-            if conn is None:
-                logger.warning("missing TCP syn for %r", conn_key)
-                self.any_incomplete = True
-                return
-        # logger.debug("conn %r found for packet %r", conn, p)
-
-        context_bytes = conn.pack(syn=is_init_syn(p))
         alg = key.get_alg_imp()
+        context_bytes = tcp_authopt_alg.build_context_from_scapy(
+            p, conn.sisn or 0, conn.disn or 0
+        )
         traffic_key = alg.kdf(key.key, context_bytes)
         message_bytes = tcp_authopt_alg.build_message_from_scapy(
             p, include_options=key.include_options
