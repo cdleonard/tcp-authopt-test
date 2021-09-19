@@ -10,7 +10,7 @@ from scapy.layers.inet import TCP
 from . import linux_tcp_authopt
 from .full_tcp_sniff_session import FullTCPSniffSession
 from .linux_tcp_authopt import tcp_authopt_key
-from .tcp_authopt_alg import TcpAuthOptAlg_HMAC_SHA1, add_tcp_authopt_signature
+from .scapy_tcp_authopt import TcpAuthOptAlg_HMAC_SHA1, add_tcp_authopt_signature
 from .tcp_connection_fixture import TCPConnectionFixture
 from .scapy_utils import (
     scapy_sniffer_stop,

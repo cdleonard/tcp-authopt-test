@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from scapy.layers.inet import TCP
 from scapy.packet import Packet
 
-from . import tcp_authopt_alg
+from . import scapy_tcp_authopt
 from .scapy_conntrack import TCPConnectionTracker, get_packet_tcp_connection_key
 from .scapy_utils import scapy_tcp_get_authopt_val
 
@@ -43,7 +43,7 @@ class TcpAuthValidatorKey:
         return True
 
     def get_alg_imp(self):
-        return tcp_authopt_alg.get_alg(self.alg_name)
+        return scapy_tcp_authopt.get_alg(self.alg_name)
 
 
 class TcpAuthValidator:
@@ -99,11 +99,11 @@ class TcpAuthValidator:
             return
 
         alg = key.get_alg_imp()
-        context_bytes = tcp_authopt_alg.build_context_from_scapy(
+        context_bytes = scapy_tcp_authopt.build_context_from_scapy(
             p, conn.sisn or 0, conn.disn or 0
         )
         traffic_key = alg.kdf(key.key, context_bytes)
-        message_bytes = tcp_authopt_alg.build_message_from_scapy(
+        message_bytes = scapy_tcp_authopt.build_message_from_scapy(
             p, include_options=key.include_options
         )
         computed_mac = alg.mac(traffic_key, message_bytes)

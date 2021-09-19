@@ -9,7 +9,7 @@ from scapy.packet import Packet
 from scapy.sendrecv import sndrcv
 
 from . import linux_tcp_authopt
-from .tcp_authopt_alg import TcpAuthOptAlg_HMAC_SHA1, add_tcp_authopt_signature
+from .scapy_tcp_authopt import TcpAuthOptAlg_HMAC_SHA1, add_tcp_authopt_signature
 from .tcp_connection_fixture import TCPConnectionFixture
 from .scapy_utils import TCPOPT_AUTHOPT
 
