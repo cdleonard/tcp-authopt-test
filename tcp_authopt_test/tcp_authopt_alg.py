@@ -105,6 +105,7 @@ def build_context_from_scapy(p: Packet, src_isn: int, dst_isn: int) -> bytes:
 
 
 def _get_tcp_doff(th: TCP):
+    """Get the TCP data offset, even if packet is not yet built"""
     doff = th.dataofs
     if doff is None:
         opt_len = len(th.get_field("options").i2m(th, th.options))
