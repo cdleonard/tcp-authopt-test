@@ -147,7 +147,7 @@ def test_authopt_key_longer_bad():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         key = tcp_authopt_key(alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96, key="aaa")
         optbuf = bytes(key)
-        optbuf = optbuf.ljust(len(optbuf) + 4, b"\x5a")
+        optbuf = optbuf.ljust(len(optbuf) + 256, b"\x5a")
         with pytest.raises(OSError):
             sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT_KEY, optbuf)
 
@@ -161,7 +161,7 @@ def test_authopt_key_longer_zeros():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         key = tcp_authopt_key(alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96, key="aaa")
         optbuf = bytes(key)
-        optbuf = optbuf.ljust(len(optbuf) + 4, b"\x00")
+        optbuf = optbuf.ljust(len(optbuf) + 256, b"\x00")
         sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT_KEY, optbuf)
         # the key was added and can be deleted normally
         assert del_tcp_authopt_key(sock, key) == True
@@ -172,7 +172,7 @@ def test_authopt_longer_baddata():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         opt = tcp_authopt()
         optbuf = bytes(opt)
-        optbuf = optbuf.ljust(len(optbuf) + 4, b"\x5a")
+        optbuf = optbuf.ljust(len(optbuf) + 256, b"\x5a")
         with pytest.raises(OSError):
             sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT, optbuf)
 
@@ -181,5 +181,5 @@ def test_authopt_longer_zeros():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         opt = tcp_authopt()
         optbuf = bytes(opt)
-        optbuf = optbuf.ljust(len(optbuf) + 4, b"\x00")
+        optbuf = optbuf.ljust(len(optbuf) + 256, b"\x00")
         sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT, optbuf)
