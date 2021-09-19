@@ -1,10 +1,12 @@
 import typing
+import struct
+import socket
 import threading
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address
 
 from scapy.packet import Packet
-from scapy.layers.inet import IP
+from scapy.layers.inet import IP, TCP
 from scapy.layers.inet6 import IPv6
 from scapy.config import conf as scapy_conf
 from scapy.sendrecv import AsyncSniffer
@@ -35,6 +37,45 @@ def get_packet_ipvx_dst(p: Packet) -> IPvXAddress:
         return IPv6Address(p[IPv6].dst)
     else:
         raise Exception("Neither IP nor IPv6 found on packet")
+
+
+def get_tcp_doff(th: TCP):
+    """Get the TCP data offset, even if packet is not yet built"""
+    doff = th.dataofs
+    if doff is None:
+        opt_len = len(th.get_field("options").i2m(th, th.options))
+        doff = 5 + ((opt_len + 3) // 4)
+    return doff
+
+
+def get_tcp_v4_pseudoheader(tcp_packet: TCP) -> bytes:
+    iph = tcp_packet.underlayer
+    return struct.pack(
+        "!4s4sHH",
+        IPv4Address(iph.src).packed,
+        IPv4Address(iph.dst).packed,
+        socket.IPPROTO_TCP,
+        get_tcp_doff(tcp_packet) * 4 + len(tcp_packet.payload),
+    )
+
+
+def get_tcp_v6_pseudoheader(tcp_packet: TCP) -> bytes:
+    ipv6 = tcp_packet.underlayer
+    return struct.pack(
+        "!16s16sII",
+        IPv6Address(ipv6.src).packed,
+        IPv6Address(ipv6.dst).packed,
+        get_tcp_doff(tcp_packet) * 4 + len(tcp_packet.payload),
+        socket.IPPROTO_TCP,
+    )
+
+
+def get_tcp_pseudoheader(tcp_packet: TCP):
+    if isinstance(tcp_packet.underlayer, IP):
+        return get_tcp_v4_pseudoheader(tcp_packet)
+    if isinstance(tcp_packet.underlayer, IPv6):
+        return get_tcp_v6_pseudoheader(tcp_packet)
+    raise ValueError("TCP underlayer is neither IP nor IPv6")
 
 
 def tcp_seq_wrap(seq):

@@ -2,12 +2,9 @@
 """Packet-processing utilities implementing RFC5925 and RFC2926"""
 
 import logging
-from ipaddress import IPv4Address, IPv6Address
-from scapy.layers.inet import IP, TCP
-from scapy.layers.inet6 import IPv6
+from scapy.layers.inet import TCP
 from scapy.packet import Packet
-from .scapy_utils import TCPOPT_AUTHOPT, IPvXAddress, get_packet_ipvx_src, get_packet_ipvx_dst
-import socket
+from .scapy_utils import TCPOPT_AUTHOPT, IPvXAddress, get_packet_ipvx_src, get_packet_ipvx_dst, get_tcp_pseudoheader, get_tcp_doff
 import struct
 import hmac
 
@@ -104,45 +101,6 @@ def build_context_from_scapy(p: Packet, src_isn: int, dst_isn: int) -> bytes:
     )
 
 
-def _get_tcp_doff(th: TCP):
-    """Get the TCP data offset, even if packet is not yet built"""
-    doff = th.dataofs
-    if doff is None:
-        opt_len = len(th.get_field("options").i2m(th, th.options))
-        doff = 5 + ((opt_len + 3) // 4)
-    return doff
-
-
-def get_tcp_v4_pseudoheader(tcp_packet: TCP) -> bytes:
-    iph = tcp_packet.underlayer
-    return struct.pack(
-        "!4s4sHH",
-        IPv4Address(iph.src).packed,
-        IPv4Address(iph.dst).packed,
-        socket.IPPROTO_TCP,
-        _get_tcp_doff(tcp_packet) * 4 + len(tcp_packet.payload),
-    )
-
-
-def get_tcp_v6_pseudoheader(tcp_packet: TCP) -> bytes:
-    ipv6 = tcp_packet.underlayer
-    return struct.pack(
-        "!16s16sII",
-        IPv6Address(ipv6.src).packed,
-        IPv6Address(ipv6.dst).packed,
-        _get_tcp_doff(tcp_packet) * 4 + len(tcp_packet.payload),
-        socket.IPPROTO_TCP,
-    )
-
-
-def get_tcp_pseudoheader(tcp_packet: TCP):
-    if isinstance(tcp_packet.underlayer, IP):
-        return get_tcp_v4_pseudoheader(tcp_packet)
-    if isinstance(tcp_packet.underlayer, IPv6):
-        return get_tcp_v6_pseudoheader(tcp_packet)
-    raise ValueError("TCP underlayer is neither IP nor IPv6")
-
-
 def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearray:
     """Build message bytes as described by RFC5925 section 5.1"""
     result = bytearray()
@@ -161,7 +119,7 @@ def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearra
     # Even if include_options=False the TCP-AO option itself is still included
     # with the MAC set to all-zeros. This means we need to parse TCP options.
     pos = 20
-    tcphdr_optend = _get_tcp_doff(th) * 4
+    tcphdr_optend = get_tcp_doff(th) * 4
     # logger.info("th_bytes: %s", th_bytes.hex(' '))
     assert len(th_bytes) >= tcphdr_optend
     while pos < tcphdr_optend:
