@@ -124,16 +124,6 @@ def build_context_from_scapy(p: Packet, src_isn: int, dst_isn: int) -> bytes:
     )
 
 
-def build_context_from_scapy_syn(p: Packet) -> bytes:
-    """Build context for a scapy SYN packet"""
-    return build_context_from_scapy(p, p[TCP].seq, 0)
-
-
-def build_context_from_scapy_synack(p: Packet) -> bytes:
-    """Build context for a scapy SYN/ACK packet"""
-    return build_context_from_scapy(p, p[TCP].seq, p[TCP].ack - 1)
-
-
 def _get_tcp_doff(th: TCP):
     doff = th.dataofs
     if doff is None:
@@ -245,69 +235,6 @@ def calc_tcp_md5_hash(p, key: bytes) -> bytes:
     h.update(key)
 
     return h.digest()
-
-
-@dataclass
-class TCPAuthContext:
-    """Context used to TCP Authentication option as defined in RFC5925 5.2"""
-
-    saddr: IPvXAddress = None
-    daddr: IPvXAddress = None
-    sport: int = 0
-    dport: int = 0
-    sisn: int = 0
-    disn: int = 0
-
-    def pack(self, syn=False, rev=False) -> bytes:
-        if rev:
-            return build_context(
-                self.daddr,
-                self.saddr,
-                self.dport,
-                self.sport,
-                self.disn if not syn else 0,
-                self.sisn,
-            )
-        else:
-            return build_context(
-                self.saddr,
-                self.daddr,
-                self.sport,
-                self.dport,
-                self.sisn,
-                self.disn if not syn else 0,
-            )
-
-    def rev(self) -> "TCPAuthContext":
-        """Reverse"""
-        return TCPAuthContext(
-            saddr=self.daddr,
-            daddr=self.saddr,
-            sport=self.dport,
-            dport=self.sport,
-            sisn=self.disn,
-            disn=self.sisn,
-        )
-
-    def init_from_syn_packet(self, p):
-        """Init from a SYN packet (and set dist to zero)"""
-        assert p[TCP].flags.S and not p[TCP].flags.A and p[TCP].ack == 0
-        self.saddr = get_scapy_ipvx_src(p)
-        self.daddr = get_scapy_ipvx_dst(p)
-        self.sport = p[TCP].sport
-        self.dport = p[TCP].dport
-        self.sisn = p[TCP].seq
-        self.disn = 0
-
-    def update_from_synack_packet(self, p):
-        """Update disn and check everything else matches"""
-        assert p[TCP].flags.S and p[TCP].flags.A
-        assert self.saddr == get_scapy_ipvx_dst(p)
-        assert self.daddr == get_scapy_ipvx_src(p)
-        assert self.sport == p[TCP].dport
-        assert self.dport == p[TCP].sport
-        assert self.sisn == p[TCP].ack - 1
-        self.disn = p[TCP].seq
 
 
 def check_tcp_authopt_signature(
