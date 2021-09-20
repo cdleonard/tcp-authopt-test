@@ -12,6 +12,7 @@ from scapy.layers.l2 import Ether
 from scapy.packet import Packet
 
 from . import linux_tcp_authopt
+from .full_tcp_sniff_session import FullTCPSniffSession
 from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
 from .netns_fixture import NamespaceFixture
 from .server import SimpleServerThread
@@ -42,15 +43,17 @@ class TCPConnectionFixture:
     * server thread with echo protocol
     * one client socket
     * one async sniffer on the server interface
+    * A `FullTCPSniffSession` examining TCP packets
     * l2socket allowing packet injection from client
 
     :ivar tcp_md5_key: Secret key for md5 (addr is implicit)
     """
 
+    sniffer_session: FullTCPSniffSession
+
     def __init__(
         self,
         address_family=socket.AF_INET,
-        sniffer_session=None,
         sniffer_kwargs=None,
         tcp_authopt_key: tcp_authopt_key = None,
         server_thread_kwargs=None,
@@ -59,7 +62,7 @@ class TCPConnectionFixture:
         self.address_family = address_family
         self.server_port = DEFAULT_TCP_SERVER_PORT
         self.client_port = 27972
-        self.sniffer_session = sniffer_session
+        self.sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
         if sniffer_kwargs is None:
             sniffer_kwargs = {}
         self.sniffer_kwargs = sniffer_kwargs

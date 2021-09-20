@@ -66,17 +66,13 @@ def test_md5_noaddr(exit_stack, goodkey: bool):
 
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
 def test_md5_validation(exit_stack, address_family):
-    from .full_tcp_sniff_session import FullTCPSniffSession
     from .tcp_connection_fixture import TCPConnectionFixture
     from .scapy_utils import calc_tcp_md5_hash
     from .scapy_utils import scapy_tcp_get_md5_sig
     from .scapy_utils import scapy_sniffer_stop
     from scapy.layers.inet import TCP
 
-    sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
-    con = TCPConnectionFixture(
-        address_family=address_family, sniffer_session=sniffer_session
-    )
+    con = TCPConnectionFixture(address_family=address_family)
     con.tcp_md5_key = b"12345"
     exit_stack.enter_context(con)
 
@@ -84,7 +80,7 @@ def test_md5_validation(exit_stack, address_family):
     check_socket_echo(con.client_socket)
     con.client_socket.close()
 
-    sniffer_session.wait_close()
+    con.sniffer_session.wait_close()
     scapy_sniffer_stop(con.sniffer)
 
     for p in con.sniffer.results:

@@ -270,10 +270,7 @@ def test_v4mapv6(exit_stack, mode: str):
 def test_rst(exit_stack: ExitStack, address_family, signed: bool):
     """Check that an unsigned RST breaks a normal connection but not one protected by TCP-AO"""
 
-    sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
-    context = TCPConnectionFixture(
-        address_family=address_family, sniffer_session=sniffer_session
-    )
+    context = TCPConnectionFixture(address_family=address_family)
     if signed:
         context.tcp_authopt_key = DEFAULT_TCP_AUTHOPT_KEY
     exit_stack.enter_context(context)
@@ -282,7 +279,7 @@ def test_rst(exit_stack: ExitStack, address_family, signed: bool):
     context.client_socket.connect((str(context.server_addr), context.server_port))
     check_socket_echo(context.client_socket)
 
-    client_isn, server_isn = sniffer_session.get_client_server_isn()
+    client_isn, server_isn = context.sniffer_session.get_client_server_isn()
     p = context.create_client2server_packet()
     p[TCP].flags = "R"
     p[TCP].seq = tcp_seq_wrap(client_isn + 1001)
@@ -302,10 +299,7 @@ def test_rst(exit_stack: ExitStack, address_family, signed: bool):
 def test_rst_signed_manually(exit_stack: ExitStack, address_family):
     """Check that an manually signed RST breaks a connection protected by TCP-AO"""
 
-    sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
-    context = TCPConnectionFixture(
-        address_family=address_family, sniffer_session=sniffer_session
-    )
+    context = TCPConnectionFixture(address_family=address_family)
     context.tcp_authopt_key = key = DEFAULT_TCP_AUTHOPT_KEY
     exit_stack.enter_context(context)
 
@@ -313,7 +307,7 @@ def test_rst_signed_manually(exit_stack: ExitStack, address_family):
     context.client_socket.connect((str(context.server_addr), context.server_port))
     check_socket_echo(context.client_socket)
 
-    client_isn, server_isn = sniffer_session.get_client_server_isn()
+    client_isn, server_isn = context.sniffer_session.get_client_server_isn()
     p = context.create_client2server_packet()
     p[TCP].flags = "R"
     p[TCP].seq = tcp_seq_wrap(client_isn + 1001)
@@ -338,10 +332,7 @@ def test_tw_ack(exit_stack: ExitStack, address_family):
     Kernel has a custom code path for this
     """
 
-    sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
-    context = TCPConnectionFixture(
-        address_family=address_family, sniffer_session=sniffer_session
-    )
+    context = TCPConnectionFixture(address_family=address_family)
     context.tcp_authopt_key = key = DEFAULT_TCP_AUTHOPT_KEY
     exit_stack.enter_context(context)
 
@@ -351,13 +342,13 @@ def test_tw_ack(exit_stack: ExitStack, address_family):
     assert context.get_client_tcp_state() == "ESTAB"
     assert context.get_server_tcp_state() == "ESTAB"
     context.client_socket.close()
-    sniffer_session.wait_close()
+    context.sniffer_session.wait_close()
 
     assert context.get_client_tcp_state() == "TIME-WAIT"
     assert context.get_server_tcp_state() is None
 
     # Sent a duplicate FIN/ACK
-    client_isn, server_isn = sniffer_session.get_client_server_isn()
+    client_isn, server_isn = context.sniffer_session.get_client_server_isn()
     p = context.create_server2client_packet()
     p[TCP].flags = "FA"
     p[TCP].seq = tcp_seq_wrap(server_isn + 1001)
@@ -391,10 +382,8 @@ def test_tw_rst(exit_stack: ExitStack, address_family):
     Kernel has a custom code path for this
     """
     key = DEFAULT_TCP_AUTHOPT_KEY
-    sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
     context = TCPConnectionFixture(
         address_family=address_family,
-        sniffer_session=sniffer_session,
         tcp_authopt_key=key,
     )
     context.server_thread.keep_half_open = True
@@ -419,7 +408,7 @@ def test_tw_rst(exit_stack: ExitStack, address_family):
 
     # sending a FIN-ACK with incorrect seq makes
     # tcp_timewait_state_process return a TCP_TW_RST
-    client_isn, server_isn = sniffer_session.get_client_server_isn()
+    client_isn, server_isn = context.sniffer_session.get_client_server_isn()
     p = context.create_server2client_packet()
     p[TCP].flags = "FA"
     p[TCP].seq = tcp_seq_wrap(server_isn + 1001 + 1)
