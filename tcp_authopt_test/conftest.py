@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
-from tcp_authopt_test.linux_tcp_authopt import has_tcp_authopt
+from .linux_tcp_authopt import has_tcp_authopt
 import pytest
 import logging
 from contextlib import ExitStack
