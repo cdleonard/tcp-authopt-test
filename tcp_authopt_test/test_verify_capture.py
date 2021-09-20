@@ -261,45 +261,45 @@ def test_v4mapv6(exit_stack, mode: str):
 def test_rst(exit_stack: ExitStack, address_family, signed: bool):
     """Check that an unsigned RST breaks a normal connection but not one protected by TCP-AO"""
 
-    context = TCPConnectionFixture(address_family=address_family)
+    con = TCPConnectionFixture(address_family=address_family)
     if signed:
-        context.tcp_authopt_key = DEFAULT_TCP_AUTHOPT_KEY
-    exit_stack.enter_context(context)
+        con.tcp_authopt_key = DEFAULT_TCP_AUTHOPT_KEY
+    exit_stack.enter_context(con)
 
     # connect
-    context.client_socket.connect((str(context.server_addr), context.server_port))
-    check_socket_echo(context.client_socket)
+    con.client_socket.connect((str(con.server_addr), con.server_port))
+    check_socket_echo(con.client_socket)
 
-    client_isn, server_isn = context.sniffer_session.get_client_server_isn()
-    p = context.create_client2server_packet()
+    client_isn, server_isn = con.sniffer_session.get_client_server_isn()
+    p = con.create_client2server_packet()
     p[TCP].flags = "R"
     p[TCP].seq = tcp_seq_wrap(client_isn + 1001)
     p[TCP].ack = tcp_seq_wrap(server_isn + 1001)
-    context.client_l2socket.send(p)
+    con.client_l2socket.send(p)
 
     if signed:
         # When protected by TCP-AO unsigned RSTs are ignored.
-        check_socket_echo(context.client_socket)
+        check_socket_echo(con.client_socket)
     else:
         # By default an RST that guesses seq can kill the connection.
         with pytest.raises(ConnectionResetError):
-            check_socket_echo(context.client_socket)
+            check_socket_echo(con.client_socket)
 
 
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
 def test_rst_signed_manually(exit_stack: ExitStack, address_family):
     """Check that an manually signed RST breaks a connection protected by TCP-AO"""
 
-    context = TCPConnectionFixture(address_family=address_family)
-    context.tcp_authopt_key = key = DEFAULT_TCP_AUTHOPT_KEY
-    exit_stack.enter_context(context)
+    con = TCPConnectionFixture(address_family=address_family)
+    con.tcp_authopt_key = key = DEFAULT_TCP_AUTHOPT_KEY
+    exit_stack.enter_context(con)
 
     # connect
-    context.client_socket.connect((str(context.server_addr), context.server_port))
-    check_socket_echo(context.client_socket)
+    con.client_socket.connect((str(con.server_addr), con.server_port))
+    check_socket_echo(con.client_socket)
 
-    client_isn, server_isn = context.sniffer_session.get_client_server_isn()
-    p = context.create_client2server_packet()
+    client_isn, server_isn = con.sniffer_session.get_client_server_isn()
+    p = con.create_client2server_packet()
     p[TCP].flags = "R"
     p[TCP].seq = tcp_seq_wrap(client_isn + 1001)
     p[TCP].ack = tcp_seq_wrap(server_isn + 1001)
@@ -307,13 +307,13 @@ def test_rst_signed_manually(exit_stack: ExitStack, address_family):
     add_tcp_authopt_signature(
         p, TcpAuthOptAlg_HMAC_SHA1(), key.key, client_isn, server_isn
     )
-    context.client_l2socket.send(p)
+    con.client_l2socket.send(p)
 
     # The server socket will close in response to RST without a TIME-WAIT
     # Attempting to send additional packets will result in a timeout because
     # the signature can't be validated.
     with pytest.raises(socket.timeout):
-        check_socket_echo(context.client_socket)
+        check_socket_echo(con.client_socket)
 
 
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
@@ -323,47 +323,47 @@ def test_tw_ack(exit_stack: ExitStack, address_family):
     Kernel has a custom code path for this
     """
 
-    context = TCPConnectionFixture(address_family=address_family)
-    context.tcp_authopt_key = key = DEFAULT_TCP_AUTHOPT_KEY
-    exit_stack.enter_context(context)
+    con = TCPConnectionFixture(address_family=address_family)
+    con.tcp_authopt_key = key = DEFAULT_TCP_AUTHOPT_KEY
+    exit_stack.enter_context(con)
 
     # connect and close nicely
-    context.client_socket.connect((str(context.server_addr), context.server_port))
-    check_socket_echo(context.client_socket)
-    assert context.get_client_tcp_state() == "ESTAB"
-    assert context.get_server_tcp_state() == "ESTAB"
-    context.client_socket.close()
-    context.sniffer_session.wait_close()
+    con.client_socket.connect((str(con.server_addr), con.server_port))
+    check_socket_echo(con.client_socket)
+    assert con.get_client_tcp_state() == "ESTAB"
+    assert con.get_server_tcp_state() == "ESTAB"
+    con.client_socket.close()
+    con.sniffer_session.wait_close()
 
-    assert context.get_client_tcp_state() == "TIME-WAIT"
-    assert context.get_server_tcp_state() is None
+    assert con.get_client_tcp_state() == "TIME-WAIT"
+    assert con.get_server_tcp_state() is None
 
     # Sent a duplicate FIN/ACK
-    client_isn, server_isn = context.sniffer_session.get_client_server_isn()
-    p = context.create_server2client_packet()
+    client_isn, server_isn = con.sniffer_session.get_client_server_isn()
+    p = con.create_server2client_packet()
     p[TCP].flags = "FA"
     p[TCP].seq = tcp_seq_wrap(server_isn + 1001)
     p[TCP].ack = tcp_seq_wrap(client_isn + 1002)
     add_tcp_authopt_signature(
         p, TcpAuthOptAlg_HMAC_SHA1(), key.key, server_isn, client_isn
     )
-    pr = context.server_l2socket.sr1(p)
+    pr = con.server_l2socket.sr1(p)
     assert pr[TCP].ack == tcp_seq_wrap(server_isn + 1001)
     assert pr[TCP].seq == tcp_seq_wrap(client_isn + 1001)
     assert pr[TCP].flags == "A"
 
-    scapy_sniffer_stop(context.sniffer)
+    scapy_sniffer_stop(con.sniffer)
 
     val = TcpAuthValidator()
     val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
-    for p in context.sniffer.results:
+    for p in con.sniffer.results:
         val.handle_packet(p)
     val.raise_errors()
 
     # The server does not have enough state to validate the ACK from TIME-WAIT
     # so it reports a failure.
-    assert context.server_nstat_json()["TcpExtTCPAuthOptFailure"] == 1
-    assert context.client_nstat_json()["TcpExtTCPAuthOptFailure"] == 0
+    assert con.server_nstat_json()["TcpExtTCPAuthOptFailure"] == 1
+    assert con.client_nstat_json()["TcpExtTCPAuthOptFailure"] == 0
 
 
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
@@ -373,22 +373,22 @@ def test_tw_rst(exit_stack: ExitStack, address_family):
     Kernel has a custom code path for this
     """
     key = DEFAULT_TCP_AUTHOPT_KEY
-    context = TCPConnectionFixture(
+    con = TCPConnectionFixture(
         address_family=address_family,
         tcp_authopt_key=key,
     )
-    context.server_thread.keep_half_open = True
-    exit_stack.enter_context(context)
+    con.server_thread.keep_half_open = True
+    exit_stack.enter_context(con)
 
     # connect, transfer data and close client nicely
-    context.client_socket.connect((str(context.server_addr), context.server_port))
-    check_socket_echo(context.client_socket)
-    context.client_socket.close()
+    con.client_socket.connect((str(con.server_addr), con.server_port))
+    check_socket_echo(con.client_socket)
+    con.client_socket.close()
 
     # since server keeps connection open client goes to FIN-WAIT-2
     def check_socket_states():
-        client_tcp_state_name = context.get_client_tcp_state()
-        server_tcp_state_name = context.get_server_tcp_state()
+        client_tcp_state_name = con.get_client_tcp_state()
+        server_tcp_state_name = con.get_server_tcp_state()
         logger.info("%s %s", client_tcp_state_name, server_tcp_state_name)
         return (
             client_tcp_state_name == "FIN-WAIT-2"
@@ -399,66 +399,66 @@ def test_tw_rst(exit_stack: ExitStack, address_family):
 
     # sending a FIN-ACK with incorrect seq makes
     # tcp_timewait_state_process return a TCP_TW_RST
-    client_isn, server_isn = context.sniffer_session.get_client_server_isn()
-    p = context.create_server2client_packet()
+    client_isn, server_isn = con.sniffer_session.get_client_server_isn()
+    p = con.create_server2client_packet()
     p[TCP].flags = "FA"
     p[TCP].seq = tcp_seq_wrap(server_isn + 1001 + 1)
     p[TCP].ack = tcp_seq_wrap(client_isn + 1002)
     add_tcp_authopt_signature(
         p, TcpAuthOptAlg_HMAC_SHA1(), key.key, server_isn, client_isn
     )
-    context.server_l2socket.send(p)
+    con.server_l2socket.send(p)
 
     # remove delay by scapy trick?
     import time
 
     time.sleep(1)
-    scapy_sniffer_stop(context.sniffer)
+    scapy_sniffer_stop(con.sniffer)
 
     # Check client socket moved from FIN-WAIT-2 to CLOSED
-    assert context.get_client_tcp_state() is None
+    assert con.get_client_tcp_state() is None
 
     # Check some RST was seen
     def is_tcp_rst(p):
         return TCP in p and p[TCP].flags.R
 
-    assert any(is_tcp_rst(p) for p in context.sniffer.results)
+    assert any(is_tcp_rst(p) for p in con.sniffer.results)
 
     # Check everything was valid
     val = TcpAuthValidator()
     val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
-    for p in context.sniffer.results:
+    for p in con.sniffer.results:
         val.handle_packet(p)
     val.raise_errors()
 
     # Check no snmp failures
-    context.assert_no_snmp_output_failures()
+    con.assert_no_snmp_output_failures()
 
 
 def test_rst_linger(exit_stack: ExitStack):
     """Test RST sent deliberately via SO_LINGER is valid"""
-    context = TCPConnectionFixture(
+    con = TCPConnectionFixture(
         sniffer_kwargs=dict(count=8), tcp_authopt_key=DEFAULT_TCP_AUTHOPT_KEY
     )
-    exit_stack.enter_context(context)
+    exit_stack.enter_context(con)
 
-    context.client_socket.connect((str(context.server_addr), context.server_port))
-    check_socket_echo(context.client_socket)
-    socket_set_linger(context.client_socket, 1, 0)
-    context.client_socket.close()
+    con.client_socket.connect((str(con.server_addr), con.server_port))
+    check_socket_echo(con.client_socket)
+    socket_set_linger(con.client_socket, 1, 0)
+    con.client_socket.close()
 
-    context.sniffer.join(timeout=3)
+    con.sniffer.join(timeout=3)
 
     val = TcpAuthValidator()
     val.keys.append(TcpAuthValidatorKey(key=b"hello", alg_name="HMAC-SHA-1-96"))
-    for p in context.sniffer.results:
+    for p in con.sniffer.results:
         val.handle_packet(p)
     val.raise_errors()
 
     def is_tcp_rst(p):
         return TCP in p and p[TCP].flags.R
 
-    assert any(is_tcp_rst(p) for p in context.sniffer.results)
+    assert any(is_tcp_rst(p) for p in con.sniffer.results)
 
 
 @pytest.mark.parametrize(
