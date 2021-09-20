@@ -4,25 +4,10 @@ import pytest
 import socket
 import waiting
 from scapy.layers.inet import TCP
-from scapy.packet import Packet
 
 from . import linux_tcp_authopt
-from .scapy_tcp_authopt import TcpAuthOptAlg_HMAC_SHA1, add_tcp_authopt_signature
+from .scapy_tcp_authopt import TcpAuthOptAlg_HMAC_SHA1, add_tcp_authopt_signature, break_tcp_authopt_signature
 from .tcp_connection_fixture import TCPConnectionFixture
-from .scapy_utils import TCPOPT_AUTHOPT
-
-
-def break_tcp_authopt_signature(packet: Packet):
-    """Invalidate TCP-AO signature inside a packet
-
-    The packet must already be signed and it gets modified in-place.
-    """
-    opt = packet[TCP].options[-1]
-    if opt[0] != TCPOPT_AUTHOPT:
-        raise ValueError("TCP option list must end with TCP_AUTHOPT")
-    opt_mac = bytearray(opt[1])
-    opt_mac[-1] ^= 0xFF
-    packet[TCP].options[-1] = (opt[0], bytes(opt_mac))
 
 
 @pytest.mark.parametrize(

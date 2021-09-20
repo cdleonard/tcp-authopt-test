@@ -196,3 +196,16 @@ def add_tcp_authopt_signature(
     )
     mac = alg.mac(traffic_key, message_bytes)
     th.options[-1] = (TCPOPT_AUTHOPT, keyids + mac)
+
+
+def break_tcp_authopt_signature(packet: Packet):
+    """Invalidate TCP-AO signature inside a packet
+
+    The packet must already be signed and it gets modified in-place.
+    """
+    opt = packet[TCP].options[-1]
+    if opt[0] != TCPOPT_AUTHOPT:
+        raise ValueError("TCP option list must end with TCP_AUTHOPT")
+    opt_mac = bytearray(opt[1])
+    opt_mac[-1] ^= 0xFF
+    packet[TCP].options[-1] = (opt[0], bytes(opt_mac))
