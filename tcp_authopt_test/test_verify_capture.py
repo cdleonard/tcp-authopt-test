@@ -12,7 +12,7 @@ import waiting
 from scapy.layers.inet import TCP
 
 from . import linux_tcp_authopt
-from .conftest import skipif_missing_tcp_authopt
+from .conftest import skipif_cant_capture, skipif_missing_tcp_authopt
 from .full_tcp_sniff_session import FullTCPSniffSession
 from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
 from .netns_fixture import NamespaceFixture
@@ -41,20 +41,10 @@ from .utils import (
 from .validator import TcpAuthValidator, TcpAuthValidatorKey
 
 logger = logging.getLogger(__name__)
-pytestmark = skipif_missing_tcp_authopt
+pytestmark = [skipif_missing_tcp_authopt, skipif_cant_capture]
 DEFAULT_TCP_AUTHOPT_KEY = tcp_authopt_key(
     alg=linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
     key=b"hello",
-)
-
-
-def can_capture():
-    # This is too restrictive:
-    return os.geteuid() == 0
-
-
-skipif_cant_capture = pytest.mark.skipif(
-    not can_capture(), reason="run as root to capture packets"
 )
 
 
@@ -67,7 +57,6 @@ def get_alg_id(alg_name) -> int:
         raise ValueError()
 
 
-@skipif_cant_capture
 @pytest.mark.parametrize(
     "address_family,alg_name,include_options,transfer_data",
     [
