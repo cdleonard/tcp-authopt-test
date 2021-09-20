@@ -29,8 +29,6 @@ DEFAULT_TCP_AUTHOPT_KEY = linux_tcp_authopt.tcp_authopt_key(
     key=b"hello",
 )
 
-DEFAULT_TCP_MD5_KEY_SECRET = b"hello"
-
 
 @pytest.mark.parametrize(
     "address_family,use_tcp_authopt,use_tcp_md5sig",
@@ -50,7 +48,7 @@ def test_basic_authopt_md5(exit_stack, address_family, use_tcp_authopt, use_tcp_
     if use_tcp_authopt:
         con.tcp_authopt_key = DEFAULT_TCP_AUTHOPT_KEY
     if use_tcp_md5sig:
-        con.tcp_md5_key = DEFAULT_TCP_MD5_KEY_SECRET
+        con.tcp_md5_key = b"hello"
     exit_stack.enter_context(con)
 
     con.client_socket.connect((str(con.server_addr), con.server_port))
