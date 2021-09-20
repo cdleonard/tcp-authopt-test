@@ -189,13 +189,20 @@ def test_v4mapv6(exit_stack, mode: str):
 
 @pytest.mark.parametrize(
     "address_family,signed",
-    [(socket.AF_INET, True), (socket.AF_INET, False)],
+    [
+        (socket.AF_INET, True),
+        (socket.AF_INET, False),
+        (socket.AF_INET6, True),
+        (socket.AF_INET6, False),
+    ],
 )
 def test_rst(exit_stack: ExitStack, address_family, signed: bool):
     """Check that an unsigned RST breaks a normal connection but not one protected by TCP-AO"""
 
     sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
-    context = TCPConnectionFixture(sniffer_session=sniffer_session)
+    context = TCPConnectionFixture(
+        address_family=address_family, sniffer_session=sniffer_session
+    )
     if signed:
         context.tcp_authopt_key = DEFAULT_TCP_AUTHOPT_KEY
     exit_stack.enter_context(context)
