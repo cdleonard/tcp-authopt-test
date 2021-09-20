@@ -7,11 +7,11 @@ from ipaddress import IPv4Address, IPv6Address
 
 import pytest
 
-from . import linux_tcp_authopt
 from .linux_tcp_authopt import (
     TCP_AUTHOPT,
     TCP_AUTHOPT_KEY,
     TCP_AUTHOPT_ALG,
+    TCP_AUTHOPT_FLAG,
     TCP_AUTHOPT_KEY_FLAG,
     set_tcp_authopt,
     get_tcp_authopt,
@@ -96,7 +96,7 @@ def test_set_get_tcp_authopt_flags():
         assert opt.flags == 0
 
         # simple flags are echoed
-        goodflag = linux_tcp_authopt.TCP_AUTHOPT_FLAG.REJECT_UNEXPECTED
+        goodflag = TCP_AUTHOPT_FLAG.REJECT_UNEXPECTED
         set_tcp_authopt(sock, tcp_authopt(flags=goodflag))
         opt = get_tcp_authopt(sock)
         assert opt.flags == goodflag

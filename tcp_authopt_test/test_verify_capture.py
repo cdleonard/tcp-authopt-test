@@ -11,10 +11,14 @@ import pytest
 import waiting
 from scapy.layers.inet import TCP
 
-from . import linux_tcp_authopt
 from .conftest import skipif_cant_capture, skipif_missing_tcp_authopt
 from .full_tcp_sniff_session import FullTCPSniffSession
-from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
+from .linux_tcp_authopt import (
+    TCP_AUTHOPT_ALG,
+    TCP_AUTHOPT_KEY_FLAG,
+    set_tcp_authopt_key,
+    tcp_authopt_key,
+)
 from .netns_fixture import NamespaceFixture
 from .scapy_tcp_authopt import (
     TcpAuthOptAlg_HMAC_SHA1,
@@ -43,16 +47,16 @@ from .validator import TcpAuthValidator, TcpAuthValidatorKey
 logger = logging.getLogger(__name__)
 pytestmark = [skipif_missing_tcp_authopt, skipif_cant_capture]
 DEFAULT_TCP_AUTHOPT_KEY = tcp_authopt_key(
-    alg=linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
+    alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
     key=b"hello",
 )
 
 
 def get_alg_id(alg_name) -> int:
     if alg_name == "HMAC-SHA-1-96":
-        return linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96
+        return TCP_AUTHOPT_ALG.HMAC_SHA_1_96
     elif alg_name == "AES-128-CMAC-96":
-        return linux_tcp_authopt.TCP_AUTHOPT_ALG.AES_128_CMAC_96
+        return TCP_AUTHOPT_ALG.AES_128_CMAC_96
     else:
         raise ValueError()
 
@@ -214,22 +218,20 @@ def test_v4mapv6(exit_stack, mode: str):
     client_socket = exit_stack.push(client_socket)
 
     if mode == "ao":
-        alg = linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96
-        key = linux_tcp_authopt.tcp_authopt_key(alg=alg, key="hello")
-        linux_tcp_authopt.set_tcp_authopt_key(listen_socket, key)
-        linux_tcp_authopt.set_tcp_authopt_key(client_socket, key)
+        alg = TCP_AUTHOPT_ALG.HMAC_SHA_1_96
+        key = tcp_authopt_key(alg=alg, key="hello")
+        set_tcp_authopt_key(listen_socket, key)
+        set_tcp_authopt_key(client_socket, key)
 
     if mode == "ao-addrbind":
-        alg = linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96
+        alg = TCP_AUTHOPT_ALG.HMAC_SHA_1_96
         client_ipv6_addr = nsfixture.get_addr(socket.AF_INET6, 2)
-        server_key = linux_tcp_authopt.tcp_authopt_key(
-            alg=alg, key="hello", addr=client_ipv6_addr
-        )
-        server_key.flags = linux_tcp_authopt.TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
-        linux_tcp_authopt.set_tcp_authopt_key(listen_socket, server_key)
+        server_key = tcp_authopt_key(alg=alg, key="hello", addr=client_ipv6_addr)
+        server_key.flags = TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
+        set_tcp_authopt_key(listen_socket, server_key)
 
-        client_key = linux_tcp_authopt.tcp_authopt_key(alg=alg, key="hello")
-        linux_tcp_authopt.set_tcp_authopt_key(client_socket, client_key)
+        client_key = tcp_authopt_key(alg=alg, key="hello")
+        set_tcp_authopt_key(client_socket, client_key)
 
     if mode == "md5":
         from . import linux_tcp_md5sig
@@ -477,8 +479,8 @@ def test_badack_to_synack(exit_stack, address_family, mode: str):
     """
     con = TCPConnectionFixture(address_family=address_family)
     if mode != "unsigned":
-        con.tcp_authopt_key = linux_tcp_authopt.tcp_authopt_key(
-            alg=linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
+        con.tcp_authopt_key = tcp_authopt_key(
+            alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
             key=b"hello",
         )
     exit_stack.enter_context(con)
