@@ -158,11 +158,11 @@ def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearra
 def check_tcp_authopt_signature(
     p: Packet, alg: TcpAuthOptAlg, master_key, sisn, disn, include_options=True, sne=0
 ):
-    from .utils import scapy_tcp_get_authopt_val
+    from .scapy_utils import scapy_tcp_get_authopt_val
 
     ao = scapy_tcp_get_authopt_val(p[TCP])
     if ao is None:
-        raise Exception("Missing AO")
+        return None
 
     context_bytes = build_context_from_scapy(p, sisn, disn)
     traffic_key = alg.kdf(master_key, context_bytes)
@@ -170,8 +170,7 @@ def check_tcp_authopt_signature(
         p, include_options=include_options, sne=sne
     )
     mac = alg.mac(traffic_key, message_bytes)
-    if mac != ao.mac:
-        raise Exception(f"AO mismatch {mac.hex()} != {ao.mac.hex()}")
+    return mac == ao.mac
 
 
 def add_tcp_authopt_signature(
