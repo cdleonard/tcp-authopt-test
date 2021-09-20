@@ -73,7 +73,7 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
 
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
 def test_addr_client_bind(exit_stack: ExitStack, address_family):
-    """ "Client configures different keys with same id but different addresses"""
+    """Client configures different keys with same id but different addresses"""
     nsfixture = exit_stack.enter_context(NamespaceFixture())
     server_addr1 = str(nsfixture.get_addr(address_family, 1, 1))
     server_addr2 = str(nsfixture.get_addr(address_family, 1, 2))
