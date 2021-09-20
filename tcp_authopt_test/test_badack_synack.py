@@ -6,7 +6,6 @@ import waiting
 from scapy.layers.l2 import Ether
 from scapy.layers.inet import TCP
 from scapy.packet import Packet
-from scapy.sendrecv import sndrcv
 
 from . import linux_tcp_authopt
 from .scapy_tcp_authopt import TcpAuthOptAlg_HMAC_SHA1, add_tcp_authopt_signature
@@ -91,10 +90,7 @@ ip netns exec {con.nsfixture.server_netns_name} ip neigh add {con.client_addr} l
     p1[TCP].ack = 0
     sign(p1)
 
-    ans, unans = sndrcv(client_l2socket, [p1], timeout=1)
-    assert len(unans) == 0
-    assert len(ans) == 1
-    p2 = ans[0].answer
+    p2 = client_l2socket.sr1(p1, timeout=1)
     server_isn = p2[TCP].seq
     assert p2[TCP].ack == client_isn + 1
     assert p2[TCP].flags == "SA"
