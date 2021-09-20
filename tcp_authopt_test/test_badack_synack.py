@@ -49,7 +49,7 @@ def test_badack_to_synack(exit_stack, address_family, mode: str):
 
     This is handled by a minisocket in the TCP_SYN_RECV state on a separate code path
     """
-    con = TCPConnectionFixture()
+    con = TCPConnectionFixture(address_family=address_family)
     if mode != "unsigned":
         con.tcp_authopt_key = linux_tcp_authopt.tcp_authopt_key(
             alg=linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
@@ -74,9 +74,11 @@ def test_badack_to_synack(exit_stack, address_family, mode: str):
 
     # Prevent TCP in client namespace from sending RST
     # Do this by removing the client address and insert a static ARP on server side
+    client_prefix_length = con.nsfixture.get_prefix_length(address_family)
     subprocess.run(
         f"""\
-ip netns exec {con.nsfixture.client_netns_name} ip addr del {con.client_addr}/16 dev veth0
+set -e
+ip netns exec {con.nsfixture.client_netns_name} ip addr del {con.client_addr}/{client_prefix_length} dev veth0
 ip netns exec {con.nsfixture.server_netns_name} ip neigh add {con.client_addr} lladdr {con.nsfixture.client_mac_addr} dev veth0
 """,
         shell=True,
