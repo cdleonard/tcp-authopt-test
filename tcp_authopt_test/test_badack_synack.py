@@ -3,7 +3,6 @@ import subprocess
 import pytest
 import socket
 import waiting
-from scapy.layers.l2 import Ether
 from scapy.layers.inet import TCP
 from scapy.packet import Packet
 
@@ -19,17 +18,11 @@ def break_tcp_authopt_signature(packet: Packet):
     The packet must already be signed and it gets modified in-place.
     """
     opt = packet[TCP].options[-1]
-    assert opt[0] == TCPOPT_AUTHOPT
-    old_packet_bytes = bytes(packet)
+    if opt[0] != TCPOPT_AUTHOPT:
+        raise ValueError("TCP option list must end with TCP_AUTHOPT")
     opt_mac = bytearray(opt[1])
     opt_mac[-1] ^= 0xFF
     packet[TCP].options[-1] = (opt[0], bytes(opt_mac))
-    new_packet_bytes = bytes(packet)
-    assert new_packet_bytes != old_packet_bytes
-
-    # Check packet checksum was recomputed so we don't get dropped for other reasons.
-    new_packet = Ether(new_packet_bytes)
-    assert new_packet[TCP].chksum != packet[TCP].chksum
 
 
 @pytest.mark.parametrize(
