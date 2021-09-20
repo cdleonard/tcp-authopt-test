@@ -4,6 +4,7 @@
 import logging
 import os
 import socket
+import subprocess
 from contextlib import ExitStack, nullcontext
 
 import pytest
@@ -15,7 +16,11 @@ from .conftest import skipif_missing_tcp_authopt
 from .full_tcp_sniff_session import FullTCPSniffSession
 from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
 from .netns_fixture import NamespaceFixture
-from .scapy_tcp_authopt import TcpAuthOptAlg_HMAC_SHA1, add_tcp_authopt_signature
+from .scapy_tcp_authopt import (
+    TcpAuthOptAlg_HMAC_SHA1,
+    add_tcp_authopt_signature,
+    break_tcp_authopt_signature,
+)
 from .scapy_utils import AsyncSnifferContext, scapy_sniffer_stop, tcp_seq_wrap
 from .server import SimpleServerThread
 from .tcp_connection_fixture import TCPConnectionFixture
@@ -408,3 +413,97 @@ def test_rst_linger(exit_stack: ExitStack):
         return TCP in p and p[TCP].flags.R
 
     assert any(is_tcp_rst(p) for p in context.sniffer.results)
+
+
+@pytest.mark.parametrize(
+    "address_family,mode",
+    [
+        (socket.AF_INET, "goodsign"),
+        (socket.AF_INET, "fakesign"),
+        (socket.AF_INET, "unsigned"),
+        (socket.AF_INET6, "goodsign"),
+        (socket.AF_INET6, "fakesign"),
+        (socket.AF_INET6, "unsigned"),
+    ],
+)
+def test_badack_to_synack(exit_stack, address_family, mode: str):
+    """Test bad ack in reponse to server to syn/ack.
+
+    This is handled by a minisocket in the TCP_SYN_RECV state on a separate code path
+    """
+    con = TCPConnectionFixture(address_family=address_family)
+    if mode != "unsigned":
+        con.tcp_authopt_key = linux_tcp_authopt.tcp_authopt_key(
+            alg=linux_tcp_authopt.TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
+            key=b"hello",
+        )
+    exit_stack.enter_context(con)
+
+    client_l2socket = con.client_l2socket
+    client_isn = 1000
+    server_isn = 0
+
+    def sign(packet):
+        if mode == "unsigned":
+            return
+        add_tcp_authopt_signature(
+            packet,
+            TcpAuthOptAlg_HMAC_SHA1(),
+            con.tcp_authopt_key.key,
+            client_isn,
+            server_isn,
+        )
+
+    # Prevent TCP in client namespace from sending RST
+    # Do this by removing the client address and insert a static ARP on server side
+    client_prefix_length = con.nsfixture.get_prefix_length(address_family)
+    subprocess.run(
+        f"""\
+set -e
+ip netns exec {con.nsfixture.client_netns_name} ip addr del {con.client_addr}/{client_prefix_length} dev veth0
+ip netns exec {con.nsfixture.server_netns_name} ip neigh add {con.client_addr} lladdr {con.nsfixture.client_mac_addr} dev veth0
+""",
+        shell=True,
+        check=True,
+    )
+
+    p1 = con.create_client2server_packet()
+    p1[TCP].flags = "S"
+    p1[TCP].seq = client_isn
+    p1[TCP].ack = 0
+    sign(p1)
+
+    p2 = client_l2socket.sr1(p1, timeout=1)
+    server_isn = p2[TCP].seq
+    assert p2[TCP].ack == client_isn + 1
+    assert p2[TCP].flags == "SA"
+
+    p3 = con.create_client2server_packet()
+    p3[TCP].flags = "A"
+    p3[TCP].seq = client_isn + 1
+    p3[TCP].ack = server_isn + 1
+    sign(p3)
+    if mode == "fakesign":
+        break_tcp_authopt_signature(p3)
+
+    assert con.server_nstat_json()["TcpExtTCPAuthOptFailure"] == 0
+    client_l2socket.send(p3)
+
+    def confirm_good():
+        return len(con.server_thread.server_socket) > 0
+
+    def confirm_fail():
+        return con.server_nstat_json()["TcpExtTCPAuthOptFailure"] == 1
+
+    def wait_good():
+        assert not confirm_fail()
+        return confirm_good()
+
+    def wait_fail():
+        assert not confirm_good()
+        return confirm_fail()
+
+    if mode == "fakesign":
+        waiting.wait(wait_fail, timeout_seconds=5, sleep_seconds=0.1)
+    else:
+        waiting.wait(wait_good, timeout_seconds=5, sleep_seconds=0.1)
