@@ -89,7 +89,7 @@ def build_context(
     )
 
 
-def build_context_from_scapy(p: Packet, src_isn: int, dst_isn: int) -> bytes:
+def build_context_from_packet(p: Packet, src_isn: int, dst_isn: int) -> bytes:
     """Build context based on a scapy Packet and src/dst initial-sequence numbers"""
     return build_context(
         get_packet_ipvx_src(p),
@@ -101,7 +101,7 @@ def build_context_from_scapy(p: Packet, src_isn: int, dst_isn: int) -> bytes:
     )
 
 
-def build_message_from_scapy(p: Packet, include_options=True, sne=0) -> bytearray:
+def build_message_from_packet(p: Packet, include_options=True, sne=0) -> bytearray:
     """Build message bytes as described by RFC5925 section 5.1"""
     result = bytearray()
     result += struct.pack("!I", sne)
@@ -164,9 +164,9 @@ def check_tcp_authopt_signature(
     if ao is None:
         return None
 
-    context_bytes = build_context_from_scapy(p, sisn, disn)
+    context_bytes = build_context_from_packet(p, sisn, disn)
     traffic_key = alg.kdf(master_key, context_bytes)
-    message_bytes = build_message_from_scapy(
+    message_bytes = build_message_from_packet(
         p, include_options=include_options, sne=sne
     )
     mac = alg.mac(traffic_key, message_bytes)
@@ -189,9 +189,9 @@ def add_tcp_authopt_signature(
     keyids = struct.pack("BB", keyid, rnextkeyid)
     th.options = th.options + [(TCPOPT_AUTHOPT, keyids + alg.maclen * b"\x00")]
 
-    context_bytes = build_context_from_scapy(p, sisn, disn)
+    context_bytes = build_context_from_packet(p, sisn, disn)
     traffic_key = alg.kdf(master_key, context_bytes)
-    message_bytes = build_message_from_scapy(
+    message_bytes = build_message_from_packet(
         p, include_options=include_options, sne=sne
     )
     mac = alg.mac(traffic_key, message_bytes)
