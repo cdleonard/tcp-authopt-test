@@ -90,7 +90,7 @@ class TCPConnectionFixture:
         )
 
     def __enter__(self):
-        if self.tcp_authopt_key and not linux_tcp_authopt.has_tcp_authopt:
+        if self.tcp_authopt_key and not linux_tcp_authopt.has_tcp_authopt():
             pytest.skip("Need TCP_AUTHOPT")
 
         self.exit_stack = ExitStack()
