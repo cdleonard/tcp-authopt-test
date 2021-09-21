@@ -5,7 +5,7 @@ from contextlib import ExitStack
 
 import pytest
 
-from .linux_tcp_authopt import has_tcp_authopt
+from .linux_tcp_authopt import has_tcp_authopt, enable_sysctl_tcp_authopt
 
 logger = logging.getLogger(__name__)
 
@@ -37,3 +37,5 @@ def exit_stack():
 def pytest_configure():
     # Silence messages regarding netns enter/exit:
     logging.getLogger("nsenter").setLevel(logging.INFO)
+    if has_tcp_authopt():
+        enable_sysctl_tcp_authopt()

@@ -209,8 +209,31 @@ def del_tcp_authopt_key(sock, key: tcp_authopt_key) -> bool:
         raise
 
 
+def get_sysctl_tcp_authopt() -> bool:
+    from pathlib import Path
+
+    path = Path("/proc/sys/net/ipv4/tcp_authopt")
+    if path.exists():
+        return path.read_text().strip() != "0"
+
+
+def enable_sysctl_tcp_authopt() -> bool:
+    from pathlib import Path
+
+    path = Path("/proc/sys/net/ipv4/tcp_authopt")
+    try:
+        if path.read_text().strip() == "0":
+            path.write_text("1")
+    except:
+        raise Exception("Failed to enable /proc/sys/net/ipv4/tcp_authopt")
+
+
 def has_tcp_authopt() -> bool:
-    """Check is TCP_AUTHOPT is implemented by the OS"""
+    """Check is TCP_AUTHOPT is implemented by the OS
+
+    Returns True if implemented but disabled by sysctl
+    Returns False if disabled at compile time
+    """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         try:
             optbuf = bytes(4)
@@ -219,5 +242,7 @@ def has_tcp_authopt() -> bool:
         except OSError as e:
             if e.errno == errno.ENOPROTOOPT:
                 return False
+            elif e.errno == errno.EPERM and get_sysctl_tcp_authopt() is False:
+                return True
             else:
                 raise
