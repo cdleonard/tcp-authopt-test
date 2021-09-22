@@ -1,5 +1,6 @@
 import pytest
 from scapy.layers.inet import IP, TCP
+from scapy.layers.inet6 import IPv6
 from scapy.layers.l2 import Ether
 from .scapy_utils import tcp_seq_wrap
 
@@ -45,3 +46,20 @@ def test_sign_tcp_authopt():
     p2bytes = bytes(p)
     assert not check_tcp_authopt_signature(p, alg, master_key, sisn, disn)
     assert Ether(p1bytes)[TCP].chksum != Ether(p2bytes)[TCP].chksum
+
+
+def test_calc_tcp_md5_hash_value(index):
+    """Test the hash computation"""
+    from .scapy_utils import calc_tcp_md5_hash
+
+    key = b"12345"
+
+    p = IP() / TCP()
+    print(bytes(p).hex())
+    mac = calc_tcp_md5_hash(p[TCP], key)
+    assert mac.hex() == "797e69f8dbe44a8b84f687a2832595ed"
+
+    p = IPv6() / TCP()
+    print(bytes(p).hex())
+    mac = calc_tcp_md5_hash(p[TCP], key)
+    assert mac.hex() == "3711309b0305a4269ec5dbc27183e9a0"
