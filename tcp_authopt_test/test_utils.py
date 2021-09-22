@@ -36,7 +36,7 @@ def test_sign_tcp_authopt():
     sisn = 1000
     disn = 0
 
-    p = Ether() / IP() / TCP(flags='S', seq=sisn, ack=disn)
+    p = Ether() / IP() / TCP(flags="S", seq=sisn, ack=disn)
     add_tcp_authopt_signature(p, alg, master_key, sisn, disn)
     assert check_tcp_authopt_signature(p, alg, master_key, sisn, disn)
 
