@@ -1,4 +1,5 @@
 #! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
 #
 # Create virtualenv using tox and run pytest
 # Accepts all args that pytest does
