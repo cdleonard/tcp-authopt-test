@@ -473,7 +473,7 @@ def test_rst_linger(exit_stack: ExitStack):
     ],
 )
 def test_badack_to_synack(exit_stack, address_family, mode: str):
-    """Test bad ack in reponse to server to syn/ack.
+    """Test bad ack in response to server to syn/ack.
 
     This is handled by a minisocket in the TCP_SYN_RECV state on a separate code path
     """
