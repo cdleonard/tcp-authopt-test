@@ -20,6 +20,7 @@ else
 	echo >&2 "Creating $(readlink -f venv)"
 	python3 -m venv venv
 	. venv/bin/activate
+	pip install wheel
 	pip install -r requirements.txt
 fi
 exec $maybe_sudo pytest -s --log-cli-level=DEBUG "$@"
