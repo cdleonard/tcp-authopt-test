@@ -48,7 +48,7 @@ def test_sign_tcp_authopt():
     assert Ether(p1bytes)[TCP].chksum != Ether(p2bytes)[TCP].chksum
 
 
-def test_calc_tcp_md5_hash_value(index):
+def test_calc_tcp_md5_hash_value():
     """Test the hash computation"""
     from .scapy_utils import calc_tcp_md5_hash
 
