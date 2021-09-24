@@ -23,6 +23,17 @@ skipif_cant_capture = pytest.mark.skipif(
     not can_capture(), reason="run as root to capture packets"
 )
 
+_has_tcp_authopt_snmp = None
+
+def has_tcp_authopt_snmp():
+    global _has_tcp_authopt_snmp
+
+    if _has_tcp_authopt_snmp is None:
+        from .utils import nstat_json
+
+        _has_tcp_authopt_snmp = "TcpExtTCPAuthOptFailure" in nstat_json()
+    return _has_tcp_authopt_snmp
+
 
 @pytest.fixture
 def exit_stack():
