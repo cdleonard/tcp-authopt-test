@@ -221,6 +221,9 @@ def enable_sysctl_tcp_authopt() -> bool:
     from pathlib import Path
 
     path = Path("/proc/sys/net/ipv4/tcp_authopt")
+    # Do nothing if absent
+    if not path.exists():
+        return
     try:
         if path.read_text().strip() == "0":
             path.write_text("1")
