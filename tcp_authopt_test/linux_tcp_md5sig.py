@@ -100,3 +100,11 @@ def setsockopt_md5sig(sock, opt: tcp_md5sig):
     else:
         optname = TCP_MD5SIG
     return sock.setsockopt(socket.SOL_TCP, optname, bytes(opt))
+
+
+def setsockopt_md5sig_kwargs(sock, opt: tcp_md5sig = None, **kw):
+    if opt is None:
+        opt = tcp_md5sig()
+    for k, v in kw.items():
+        setattr(opt, k, v)
+    return setsockopt_md5sig(sock, opt)
