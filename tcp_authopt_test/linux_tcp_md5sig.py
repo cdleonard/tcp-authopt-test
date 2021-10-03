@@ -3,9 +3,11 @@
 
 from enum import IntFlag
 import socket
+import typing
 import struct
 from dataclasses import dataclass
-from .sockaddr import sockaddr_unpack
+
+from .sockaddr import sockaddr_convert, sockaddr_unpack
 
 
 TCP_MD5SIG = 14
@@ -22,27 +24,34 @@ class TCP_MD5SIG_FLAG(IntFlag):
 class tcp_md5sig:
     """Like linux struct tcp_md5sig"""
 
-    addr = None
-    flags: int
-    prefixlen: int
-    keylen: int
-    ifindex: int
+    addr: typing.Any
+    flags: typing.Optional[int]
+    prefixlen: typing.Optional[int]
+    keylen: typing.Optional[int]
+    ifindex: typing.Optional[int]
     key: bytes
 
     sizeof = 128 + 88
 
     def __init__(
-        self, addr=None, flags=0, prefixlen=0, keylen=None, ifindex=0, key=bytes()
+        self, addr=None, flags=None, prefixlen=None, keylen=None, ifindex=0, key=bytes()
     ):
         self.addr = addr
         self.flags = flags
         self.prefixlen = prefixlen
         self.ifindex = ifindex
         self.key = key
-        if keylen is None:
-            self.keylen = len(key)
+        self.keylen = keylen
+
+    def get_auto_flags(self):
+        return ((TCP_MD5SIG_FLAG.PREFIX if self.prefixlen is not None else 0) |
+                (TCP_MD5SIG_FLAG.IFINDEX if self.ifindex else 0))
+
+    def get_real_flags(self):
+        if self.flags is None:
+            return self.get_auto_flags()
         else:
-            self.keylen = keylen
+            return self.flags
 
     def get_addr_bytes(self) -> bytes:
         if self.addr is None:
@@ -50,16 +59,16 @@ class tcp_md5sig:
         if self.addr is bytes:
             assert len(self.addr) == 128
             return self.addr
-        return self.addr.pack()
+        return sockaddr_convert(self.addr).pack()
 
     def pack(self) -> bytes:
         return struct.pack(
             "128sBBHi80s",
             self.get_addr_bytes(),
-            self.flags,
-            self.prefixlen,
-            self.keylen,
-            self.ifindex,
+            self.get_real_flags(),
+            self.prefixlen if self.prefixlen is not None else 0,
+            self.keylen if self.keylen is not None else len(self.key),
+            self.ifindex if self.ifindex is not None else 0,
             self.key,
         )
 
@@ -77,14 +86,12 @@ class tcp_md5sig:
 
         self.addr = sockaddr_in()
         self.prefixlen = 0
-        self.flags |= TCP_MD5SIG_FLAG.PREFIX
 
     def set_ipv6_addr_all(self):
         from .sockaddr import sockaddr_in6
 
         self.addr = sockaddr_in6()
         self.prefixlen = 0
-        self.flags |= TCP_MD5SIG_FLAG.PREFIX
 
 
 def setsockopt_md5sig(sock, opt: tcp_md5sig):
