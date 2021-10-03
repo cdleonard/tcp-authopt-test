@@ -28,6 +28,11 @@ def can_capture() -> bool:
     return has_effective_capability(13)
 
 
+def raise_skip_no_netns():
+    if not has_effective_capability(12):
+        pytest.skip("Need CAP_NET_ADMIN for network namespaces")
+
+
 skipif_cant_capture = pytest.mark.skipif(
     not can_capture(), reason="run as root to capture packets"
 )

@@ -3,6 +3,7 @@ import subprocess
 import socket
 from ipaddress import IPv4Address
 from ipaddress import IPv6Address
+from .conftest import raise_skip_no_netns
 
 
 class NamespaceFixture:
@@ -46,6 +47,7 @@ class NamespaceFixture:
         }[address_family]
 
     def __init__(self, **kw):
+        raise_skip_no_netns()
         for k, v in kw.items():
             setattr(self, k, v)
 
