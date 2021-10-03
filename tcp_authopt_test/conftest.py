@@ -14,9 +14,18 @@ skipif_missing_tcp_authopt = pytest.mark.skipif(
 )
 
 
-def can_capture():
-    # This is too restrictive:
-    return os.geteuid() == 0
+def get_effective_capabilities():
+    for line in open("/proc/self/status", "r"):
+        if line.startswith("CapEff:"):
+            return int(line.split(':')[1], 16)
+
+
+def has_effective_capability(bit) -> bool:
+    return get_effective_capabilities() & (1 << bit) != 0
+
+
+def can_capture() -> bool:
+    return has_effective_capability(13)
 
 
 skipif_cant_capture = pytest.mark.skipif(
