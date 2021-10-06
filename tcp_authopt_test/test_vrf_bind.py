@@ -73,6 +73,7 @@ class VrfFixture:
         self.exit_stack.enter_context(self.listen_socket)
         self.server_thread = SimpleServerThread(self.listen_socket, mode="echo")
         self.exit_stack.enter_context(self.server_thread)
+        return self
 
     def __exit__(self, *args):
         self.exit_stack.__exit__(*args)
