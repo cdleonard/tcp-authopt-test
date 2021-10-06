@@ -29,7 +29,7 @@ class VrfFixture:
     VRF and one outside.
     """
 
-    def __init__(self, address_family):
+    def __init__(self, address_family=socket.AF_INET):
         self.address_family = address_family
 
     @property
