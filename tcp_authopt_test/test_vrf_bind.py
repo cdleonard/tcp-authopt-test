@@ -13,6 +13,7 @@ from .utils import (
     check_socket_echo,
     DEFAULT_TCP_SERVER_PORT,
 )
+from .conftest import skipif_missing_tcp_authopt
 from .server import SimpleServerThread
 from .vrf_netns_fixture import VrfNamespaceFixture
 from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
@@ -64,9 +65,6 @@ class VrfFixture:
         return result
 
     def __enter__(self):
-        if not linux_tcp_authopt.has_tcp_authopt():
-            pytest.skip("Need TCP_AUTHOPT")
-
         self.exit_stack = ExitStack()
         self.exit_stack.__enter__()
         self.nsfixture = self.exit_stack.enter_context(VrfNamespaceFixture())
@@ -208,6 +206,7 @@ def test_vrf_overlap10_md5(exit_stack: ExitStack, address_family):
     check_socket_echo(client_socket1)
 
 
+@skipif_missing_tcp_authopt
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
 def test_vrf_overlap_ao_samekey(exit_stack: ExitStack, address_family):
     """Single server serving both VRF and non-VRF client with same password.
@@ -231,6 +230,7 @@ def test_vrf_overlap_ao_samekey(exit_stack: ExitStack, address_family):
     check_socket_echo(client_socket2)
 
 
+@skipif_missing_tcp_authopt
 @pytest.mark.skip("no ifindex in tcp_authopt_key yet")
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
 def test_vrf_overlap_ao(exit_stack: ExitStack, address_family):
