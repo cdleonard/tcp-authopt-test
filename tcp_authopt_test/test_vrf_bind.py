@@ -19,6 +19,7 @@ from .vrf_netns_fixture import VrfNamespaceFixture
 from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
 from . import linux_tcp_authopt
 from . import linux_tcp_md5sig
+import errno
 
 
 class VrfFixture:
@@ -49,6 +50,14 @@ class VrfFixture:
     @property
     def server_addr_port(self):
         return (str(self.server_addr), DEFAULT_TCP_SERVER_PORT)
+
+    @property
+    def vrf1_ifindex(self):
+        return self.nsfixture.server_vrf1_ifindex
+
+    @property
+    def vrf2_ifindex(self):
+        return self.nsfixture.server_vrf2_ifindex
 
     def create_listen_socket(self):
         return create_listen_socket(
@@ -104,28 +113,22 @@ def test_vrf_overlap_unsigned(exit_stack: ExitStack, address_family):
     check_socket_echo(client_socket2)
 
 
-def set_server_md5_key0(fix, key=b"000"):
+def set_server_md5(fix, key=b"000", **kw):
     linux_tcp_md5sig.setsockopt_md5sig_kwargs(
-        fix.listen_socket, key=key, addr=fix.client_addr
+        fix.listen_socket, key=key, addr=fix.client_addr, **kw
     )
+
+
+def set_server_md5_key0(fix, key=b"000"):
+    return set_server_md5(fix, key=key)
 
 
 def set_server_md5_key1(fix, key=b"111"):
-    linux_tcp_md5sig.setsockopt_md5sig_kwargs(
-        fix.listen_socket,
-        key=key,
-        ifindex=fix.nsfixture.server_vrf1_ifindex,
-        addr=fix.client_addr,
-    )
+    return set_server_md5(fix, key=key, ifindex=fix.vrf1_ifindex)
 
 
 def set_server_md5_key2(fix, key=b"222"):
-    linux_tcp_md5sig.setsockopt_md5sig_kwargs(
-        fix.listen_socket,
-        key=key,
-        ifindex=fix.nsfixture.server_vrf2_ifindex,
-        addr=fix.client_addr,
-    )
+    return set_server_md5(fix, key=key, ifindex=fix.vrf2_ifindex)
 
 
 def set_client_md5_key(fix, client_socket, key):
@@ -205,6 +208,59 @@ def test_vrf_overlap10_md5(exit_stack: ExitStack, address_family):
     client_socket0.connect(fix.server_addr_port)
     check_socket_echo(client_socket0)
     check_socket_echo(client_socket1)
+
+
+@pytest.mark.parametrize("address_family", [socket.AF_INET])
+def test_vrf_overlap_md5_prefix(exit_stack: ExitStack, address_family):
+    """VRF keys should take precedence even if prefixlen is low"""
+    fix = VrfFixture(address_family)
+    exit_stack.enter_context(fix)
+    set_server_md5(fix, key=b"fail", prefixlen=16)
+    set_server_md5(
+        fix, key=b"pass", ifindex=fix.nsfixture.server_vrf1_ifindex, prefixlen=1
+    )
+    set_server_md5(fix, key=b"fail", prefixlen=24)
+
+    # connect via VRF
+    client_socket = fix.create_client_socket(fix.nsfixture.client1_netns_name)
+    set_client_md5_key(fix, client_socket, b"pass")
+    client_socket.connect(fix.server_addr_port)
+
+
+def assert_raises_enoent(func):
+    with pytest.raises(OSError) as e:
+        func()
+    assert e.value.errno == errno.ENOENT
+
+
+def test_vrf_overlap_md5_del_0110():
+    """Removing keys should not raise ENOENT because they are distinct"""
+    with VrfFixture() as fix:
+        set_server_md5(fix, key=b"000")
+        set_server_md5(fix, key=b"111", ifindex=fix.vrf1_ifindex)
+        set_server_md5(fix, key=b"", ifindex=fix.vrf1_ifindex)
+        set_server_md5(fix, key=b"")
+        assert_raises_enoent(lambda: set_server_md5(fix, key=b""))
+
+
+def test_vrf_overlap_md5_del_1001():
+    """Removing keys should not raise ENOENT because they are distinct"""
+    with VrfFixture() as fix:
+        set_server_md5(fix, key=b"111", ifindex=fix.vrf1_ifindex)
+        set_server_md5(fix, key=b"000")
+        set_server_md5(fix, key=b"")
+        set_server_md5(fix, key=b"", ifindex=fix.vrf1_ifindex)
+        assert_raises_enoent(lambda: set_server_md5(fix, key=b""))
+
+
+def test_vrf_overlap_md5_del_1010():
+    """Removing keys should not raise ENOENT because they are distinct"""
+    with VrfFixture() as fix:
+        set_server_md5(fix, key=b"111", ifindex=fix.vrf1_ifindex)
+        set_server_md5(fix, key=b"000")
+        set_server_md5(fix, key=b"", ifindex=fix.vrf1_ifindex)
+        set_server_md5(fix, key=b"")
+        assert_raises_enoent(lambda: set_server_md5(fix, key=b""))
 
 
 @skipif_missing_tcp_authopt
