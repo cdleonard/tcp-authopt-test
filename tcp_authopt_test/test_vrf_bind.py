@@ -16,7 +16,11 @@ from .utils import (
 from .conftest import skipif_missing_tcp_authopt
 from .server import SimpleServerThread
 from .vrf_netns_fixture import VrfNamespaceFixture
-from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
+from .linux_tcp_authopt import (
+    TCP_AUTHOPT_KEY_FLAG,
+    set_tcp_authopt_key,
+    tcp_authopt_key,
+)
 from . import linux_tcp_authopt
 from . import linux_tcp_md5sig
 import errno
@@ -288,26 +292,47 @@ def test_vrf_overlap_ao_samekey(exit_stack: ExitStack, address_family):
 
 
 @skipif_missing_tcp_authopt
-@pytest.mark.skip("no ifindex in tcp_authopt_key yet")
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
 def test_vrf_overlap_ao(exit_stack: ExitStack, address_family):
     """Single server serving both VRF and non-VRF client with different passwords
 
-    This requ
+    This requires kernel to handle ifindex
     """
     fix = VrfFixture(address_family)
     exit_stack.enter_context(fix)
-    set_tcp_authopt_key(fix.listen_socket, tcp_authopt_key(key=b"11111", ifindex=4))
-    set_tcp_authopt_key(fix.listen_socket, tcp_authopt_key(key=b"22222", ifindex=0))
+    set_tcp_authopt_key(
+        fix.listen_socket,
+        tcp_authopt_key(
+            key=b"00000",
+            ifindex=0,
+            flags=TCP_AUTHOPT_KEY_FLAG.IFINDEX,
+        ),
+    )
+    set_tcp_authopt_key(
+        fix.listen_socket,
+        tcp_authopt_key(
+            key=b"11111", ifindex=fix.vrf1_ifindex, flags=TCP_AUTHOPT_KEY_FLAG.IFINDEX
+        ),
+    )
+    set_tcp_authopt_key(
+        fix.listen_socket,
+        tcp_authopt_key(
+            key=b"22222", ifindex=fix.vrf2_ifindex, flags=TCP_AUTHOPT_KEY_FLAG.IFINDEX
+        ),
+    )
 
+    client_socket0 = fix.create_client_socket(fix.nsfixture.client0_netns_name)
     client_socket1 = fix.create_client_socket(fix.nsfixture.client1_netns_name)
     client_socket2 = fix.create_client_socket(fix.nsfixture.client2_netns_name)
-
+    set_tcp_authopt_key(client_socket0, tcp_authopt_key(key=b"00000"))
     set_tcp_authopt_key(client_socket1, tcp_authopt_key(key=b"11111"))
     set_tcp_authopt_key(client_socket2, tcp_authopt_key(key=b"22222"))
+    client_socket0.connect(fix.server_addr_port)
     client_socket1.connect(fix.server_addr_port)
     client_socket2.connect(fix.server_addr_port)
+    check_socket_echo(client_socket0)
     check_socket_echo(client_socket1)
     check_socket_echo(client_socket2)
+    check_socket_echo(client_socket0)
     check_socket_echo(client_socket1)
     check_socket_echo(client_socket2)
