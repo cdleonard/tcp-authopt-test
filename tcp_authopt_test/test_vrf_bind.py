@@ -302,23 +302,15 @@ def test_vrf_overlap_ao(exit_stack: ExitStack, address_family):
     exit_stack.enter_context(fix)
     set_tcp_authopt_key(
         fix.listen_socket,
-        tcp_authopt_key(
-            key=b"00000",
-            ifindex=0,
-            flags=TCP_AUTHOPT_KEY_FLAG.IFINDEX,
-        ),
+        tcp_authopt_key(key=b"00000", ifindex=0),
     )
     set_tcp_authopt_key(
         fix.listen_socket,
-        tcp_authopt_key(
-            key=b"11111", ifindex=fix.vrf1_ifindex, flags=TCP_AUTHOPT_KEY_FLAG.IFINDEX
-        ),
+        tcp_authopt_key(key=b"11111", ifindex=fix.vrf1_ifindex),
     )
     set_tcp_authopt_key(
         fix.listen_socket,
-        tcp_authopt_key(
-            key=b"22222", ifindex=fix.vrf2_ifindex, flags=TCP_AUTHOPT_KEY_FLAG.IFINDEX
-        ),
+        tcp_authopt_key(key=b"22222", ifindex=fix.vrf2_ifindex),
     )
 
     client_socket0 = fix.create_client_socket(fix.nsfixture.client0_netns_name)
