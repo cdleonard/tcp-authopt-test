@@ -11,8 +11,8 @@ from .scapy_utils import IPvXAddress, get_packet_ipvx_src, get_packet_ipvx_dst
 class TCPConnectionKey:
     """TCP connection identification key: standard 4-tuple"""
 
-    saddr: IPvXAddress = None
-    daddr: IPvXAddress = None
+    saddr: typing.Optional[IPvXAddress] = None
+    daddr: typing.Optional[IPvXAddress] = None
     sport: int = 0
     dport: int = 0
 
@@ -28,8 +28,8 @@ def get_packet_tcp_connection_key(p: Packet) -> TCPConnectionKey:
 
 
 class TCPConnectionInfo:
-    saddr: IPvXAddress = None
-    daddr: IPvXAddress = None
+    saddr: typing.Optional[IPvXAddress] = None
+    daddr: typing.Optional[IPvXAddress] = None
     sport: int = 0
     dport: int = 0
     sisn: typing.Optional[int] = None
@@ -109,7 +109,7 @@ class TCPConnectionTracker:
             self.table[key] = info
         return info
 
-    def get(self, key: TCPConnectionKey) -> TCPConnectionInfo:
+    def get(self, key: TCPConnectionKey) -> typing.Optional[TCPConnectionInfo]:
         return self.table.get(key, None)
 
     def handle_packet(self, p: Packet):
@@ -140,7 +140,7 @@ class TCPConnectionTracker:
 
     def match_one(
         self, saddr=None, daddr=None, sport=None, dport=None
-    ) -> TCPConnectionInfo:
+    ) -> typing.Optional[TCPConnectionInfo]:
         res = list(self.iter_match(saddr, daddr, sport, dport))
         if len(res) == 1:
             return res[0]
