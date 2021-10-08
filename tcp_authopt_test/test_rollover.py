@@ -24,7 +24,7 @@ def make_tcp_authopt_socket_pair(
     server_key_list: typing.Iterable[tcp_authopt_key] = [],
     client_authopt: tcp_authopt = None,
     client_key_list: typing.Iterable[tcp_authopt_key] = [],
-) -> typing.Tuple[socket.socket, socket.socket]:
+) -> typing.Iterator[typing.Tuple[socket.socket, socket.socket]]:
     """Make a pair for connected sockets for key switching tests
 
     Server runs in a background thread implementing echo protocol"""
