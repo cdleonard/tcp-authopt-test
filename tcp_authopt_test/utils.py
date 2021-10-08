@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
+import typing
 import json
 import random
 import subprocess
@@ -65,6 +66,12 @@ def netns_context(ns: str = ""):
         return nullcontext()
 
 
+def socket_set_bindtodevice(sock, dev: str):
+    """Set SO_BINDTODEVICE"""
+    opt = dev.encode("utf-8") + b"\0"
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, opt)
+
+
 def create_listen_socket(
     ns: str = "",
     family=socket.AF_INET,
@@ -72,11 +79,14 @@ def create_listen_socket(
     listen_depth=10,
     bind_addr="",
     bind_port=DEFAULT_TCP_SERVER_PORT,
+    bind_device: typing.Optional[str] = None,
 ):
     with netns_context(ns):
         listen_socket = socket.socket(family, socket.SOCK_STREAM)
     if reuseaddr:
         listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if bind_device:
+        socket_set_bindtodevice(listen_socket, bind_device)
     listen_socket.bind((str(bind_addr), bind_port))
     listen_socket.listen(listen_depth)
     return listen_socket
