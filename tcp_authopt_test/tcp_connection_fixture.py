@@ -69,7 +69,7 @@ class TCPConnectionFixture:
         self.sniffer_kwargs = sniffer_kwargs
         self.tcp_authopt_key = tcp_authopt_key
         self.server_thread = SimpleServerThread(
-            None, mode="echo", **(server_thread_kwargs or {})
+            mode="echo", **(server_thread_kwargs or {})
         )
         self.tcp_md5_key = tcp_md5_key
 
@@ -115,7 +115,7 @@ class TCPConnectionFixture:
             bind_port=self.client_port,
         )
         self.exit_stack.enter_context(self.client_socket)
-        self.server_thread.listen_socket = self.listen_socket
+        self.server_thread.add_listen_socket(self.listen_socket)
         self.exit_stack.enter_context(self.server_thread)
 
         if self.tcp_authopt_key:
