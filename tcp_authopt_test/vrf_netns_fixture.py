@@ -29,6 +29,8 @@ class VrfNamespaceFixture:
     outside.
     """
 
+    tcp_l3mdev_accept = 1
+
     server_netns_name = "tcp_authopt_test_server"
     client0_netns_name = "tcp_authopt_test_client0"
     client1_netns_name = "tcp_authopt_test_client1"
@@ -71,7 +73,7 @@ ip netns add {self.client0_netns_name}
 ip netns add {self.client1_netns_name}
 ip netns add {self.client2_netns_name}
 # Enable tcp_l3mdev unconditionally
-ip netns exec {self.server_netns_name} sysctl -q net.ipv4.tcp_l3mdev_accept=1
+ip netns exec {self.server_netns_name} sysctl -q net.ipv4.tcp_l3mdev_accept={int(self.tcp_l3mdev_accept)}
 ip link add veth0 netns {self.server_netns_name} type veth peer name veth0 netns {self.client0_netns_name}
 ip link add veth1 netns {self.server_netns_name} type veth peer name veth0 netns {self.client1_netns_name}
 ip link add veth2 netns {self.server_netns_name} type veth peer name veth0 netns {self.client2_netns_name}
