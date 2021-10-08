@@ -34,8 +34,15 @@ class VrfFixture:
     VRF and one outside.
     """
 
-    def __init__(self, address_family=socket.AF_INET):
+    def __init__(
+        self,
+        address_family=socket.AF_INET,
+        tcp_l3mdev_accept=1,
+        init_default_listen_socket=True,
+    ):
         self.address_family = address_family
+        self.tcp_l3mdev_accept = tcp_l3mdev_accept
+        self.init_default_listen_socket = init_default_listen_socket
 
     @property
     def server_addr(self):
@@ -63,12 +70,15 @@ class VrfFixture:
     def vrf2_ifindex(self):
         return self.nsfixture.server_vrf2_ifindex
 
-    def create_listen_socket(self):
-        return create_listen_socket(
+    def create_listen_socket(self, **kw):
+        result = create_listen_socket(
             family=self.address_family,
             ns=self.nsfixture.server_netns_name,
             bind_addr=self.server_addr,
+            **kw
         )
+        self.exit_stack.enter_context(result)
+        return result
 
     def create_client_socket(self, ns):
         result = create_client_socket(
@@ -80,11 +90,14 @@ class VrfFixture:
     def __enter__(self):
         self.exit_stack = ExitStack()
         self.exit_stack.__enter__()
-        self.nsfixture = self.exit_stack.enter_context(VrfNamespaceFixture())
+        self.nsfixture = self.exit_stack.enter_context(
+            VrfNamespaceFixture(tcp_l3mdev_accept=self.tcp_l3mdev_accept)
+        )
 
-        self.listen_socket = self.create_listen_socket()
-        self.exit_stack.enter_context(self.listen_socket)
-        self.server_thread = SimpleServerThread(self.listen_socket, mode="echo")
+        self.server_thread = SimpleServerThread(mode="echo")
+        if self.init_default_listen_socket:
+            self.listen_socket = self.create_listen_socket()
+            self.server_thread.add_listen_socket(self.listen_socket)
         self.exit_stack.enter_context(self.server_thread)
         return self
 
@@ -328,3 +341,89 @@ def test_vrf_overlap_ao(exit_stack: ExitStack, address_family):
     check_socket_echo(client_socket0)
     check_socket_echo(client_socket1)
     check_socket_echo(client_socket2)
+
+
+def pytest_parametrize_product(**kw):
+    """Parametrize each key to each item in the value list"""
+    import itertools
+
+    return pytest.mark.parametrize(",".join(kw.keys()), itertools.product(*kw.values()))
+
+
+@pytest_parametrize_product(
+    address_family=(socket.AF_INET, socket.AF_INET6),
+    tcp_l3mdev_accept=(0, 1),
+    bind_key_to_vrf=(0, 1),
+)
+def test_md5_pervrf(
+    exit_stack: ExitStack, address_family, tcp_l3mdev_accept, bind_key_to_vrf
+):
+    """Test one VRF-bound socket.
+
+    Since the socket is already bound to the vrf binding the key should not be required.
+    """
+    fix = VrfFixture(
+        address_family,
+        tcp_l3mdev_accept=tcp_l3mdev_accept,
+        init_default_listen_socket=False,
+    )
+    exit_stack.enter_context(fix)
+    listen_socket1 = fix.create_listen_socket(bind_device="veth1")
+    linux_tcp_md5sig.setsockopt_md5sig_kwargs(
+        listen_socket1,
+        key=b"111",
+        addr=fix.client_addr,
+        ifindex=fix.vrf1_ifindex if bind_key_to_vrf else None,
+    )
+    fix.server_thread.add_listen_socket(listen_socket1)
+    client_socket1 = fix.create_client_socket(fix.nsfixture.client1_netns_name)
+    set_client_md5_key(fix, client_socket1, b"111")
+    client_socket1.connect(fix.server_addr_port)
+    check_socket_echo(client_socket1)
+
+
+@pytest.mark.parametrize(
+    "address_family",
+    (socket.AF_INET, socket.AF_INET6),
+)
+def test_vrf_overlap_md5_pervrf(exit_stack: ExitStack, address_family):
+    """Test overlapping via per-VRF sockets"""
+    fix = VrfFixture(
+        address_family,
+        tcp_l3mdev_accept=0,
+        init_default_listen_socket=False,
+    )
+    exit_stack.enter_context(fix)
+    listen_socket0 = fix.create_listen_socket()
+    listen_socket1 = fix.create_listen_socket(bind_device="veth1")
+    listen_socket2 = fix.create_listen_socket(bind_device="veth2")
+    linux_tcp_md5sig.setsockopt_md5sig_kwargs(
+        listen_socket0,
+        key=b"000",
+        addr=fix.client_addr,
+    )
+    linux_tcp_md5sig.setsockopt_md5sig_kwargs(
+        listen_socket1,
+        key=b"111",
+        addr=fix.client_addr,
+    )
+    linux_tcp_md5sig.setsockopt_md5sig_kwargs(
+        listen_socket2,
+        key=b"222",
+        addr=fix.client_addr,
+    )
+    fix.server_thread.add_listen_socket(listen_socket0)
+    fix.server_thread.add_listen_socket(listen_socket1)
+    fix.server_thread.add_listen_socket(listen_socket2)
+    client_socket0 = fix.create_client_socket(fix.nsfixture.client0_netns_name)
+    client_socket1 = fix.create_client_socket(fix.nsfixture.client1_netns_name)
+    client_socket2 = fix.create_client_socket(fix.nsfixture.client2_netns_name)
+    set_client_md5_key(fix, client_socket0, b"000")
+    set_client_md5_key(fix, client_socket1, b"111")
+    set_client_md5_key(fix, client_socket2, b"222")
+    client_socket0.connect(fix.server_addr_port)
+    client_socket1.connect(fix.server_addr_port)
+    client_socket2.connect(fix.server_addr_port)
+    check_socket_echo(client_socket1)
+    check_socket_echo(client_socket1)
+    check_socket_echo(client_socket0)
