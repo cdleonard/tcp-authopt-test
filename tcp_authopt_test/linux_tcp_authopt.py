@@ -82,16 +82,21 @@ def get_tcp_authopt(sock: socket.socket) -> tcp_authopt:
 
 
 class tcp_authopt_key:
-    """Like linux struct tcp_authopt_key"""
+    """Like linux struct tcp_authopt_key
+
+    :ivar auto_flags: If true(default) then set TCP_AUTHOPT_KEY_FLAG.IFINDEX and
+        TCP_AUTHOPT_KEY_FLAG.BIND_ADDR automatically based on non-null values.
+    """
 
     def __init__(
         self,
-        flags: int = 0,
+        flags: TCP_AUTHOPT_KEY_FLAG = 0,
         send_id: int = 0,
         recv_id: int = 0,
         alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
         key: bytes = b"",
         addr: bytes = b"",
+        auto_flags: bool = True,
         ifindex: typing.Optional[int] = None,
         include_options=None,
     ):
@@ -102,15 +107,29 @@ class tcp_authopt_key:
         self.key = key
         self.ifindex = ifindex
         self.addr = addr
+        self.auto_flags = auto_flags
         if include_options is not None:
             self.include_options = include_options
+
+    def get_real_flags(self) -> TCP_AUTHOPT_KEY_FLAG:
+        result = self.flags
+        if self.auto_flags:
+            if self.ifindex is not None:
+                result |= TCP_AUTHOPT_KEY_FLAG.IFINDEX
+            else:
+                result &= ~TCP_AUTHOPT_KEY_FLAG.IFINDEX
+            if self.addr is not None:
+                result |= TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
+            else:
+                result &= ~TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
+        return result
 
     def pack(self):
         if len(self.key) > TCP_AUTHOPT_MAXKEYLEN:
             raise ValueError(f"Max key length is {TCP_AUTHOPT_MAXKEYLEN}")
         data = struct.pack(
             "IBBBB80s",
-            self.flags,
+            self.get_real_flags(),
             self.send_id,
             self.recv_id,
             self.alg,
