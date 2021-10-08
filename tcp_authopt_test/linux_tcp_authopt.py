@@ -198,6 +198,7 @@ class tcp_authopt_key:
             self.flags &= ~TCP_AUTHOPT_KEY_FLAG.EXCLUDE_OPTS
         else:
             self.flags |= TCP_AUTHOPT_KEY_FLAG.EXCLUDE_OPTS
+        return value
 
     @property
     def delete_flag(self) -> bool:
@@ -209,6 +210,7 @@ class tcp_authopt_key:
             self.flags |= TCP_AUTHOPT_KEY_FLAG.DEL
         else:
             self.flags &= ~TCP_AUTHOPT_KEY_FLAG.DEL
+        return value
 
 
 def set_tcp_authopt_key(sock, key: tcp_authopt_key):
