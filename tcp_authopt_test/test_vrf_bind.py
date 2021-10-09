@@ -112,11 +112,8 @@ def test_vrf_overlap_unsigned(exit_stack: ExitStack, address_family):
     exit_stack.enter_context(fix)
 
     client_socket0 = fix.create_client_socket(fix.nsfixture.client1_netns_name)
-    exit_stack.enter_context(client_socket0)
     client_socket1 = fix.create_client_socket(fix.nsfixture.client1_netns_name)
-    exit_stack.enter_context(client_socket1)
     client_socket2 = fix.create_client_socket(fix.nsfixture.client2_netns_name)
-    exit_stack.enter_context(client_socket2)
 
     client_socket2.connect(fix.server_addr_port)
     client_socket1.connect(fix.server_addr_port)
