@@ -90,6 +90,14 @@ class TCPConnectionFixture:
             ),
         )
 
+    def create_client_socket(self, bind_port=0):
+        return create_client_socket(
+            ns=self.nsfixture.client_netns_name,
+            family=self.address_family,
+            bind_addr=self.client_addr,
+            bind_port=bind_port,
+        )
+
     def __enter__(self):
         if self.tcp_authopt_key and not linux_tcp_authopt.has_tcp_authopt():
             pytest.skip("Need TCP_AUTHOPT")
@@ -108,12 +116,7 @@ class TCPConnectionFixture:
             bind_port=self.server_port,
         )
         self.exit_stack.enter_context(self.listen_socket)
-        self.client_socket = create_client_socket(
-            ns=self.nsfixture.client_netns_name,
-            family=self.address_family,
-            bind_addr=self.client_addr,
-            bind_port=self.client_port,
-        )
+        self.client_socket = self.create_client_socket(bind_port=self.client_port)
         self.exit_stack.enter_context(self.client_socket)
         self.server_thread.add_listen_socket(self.listen_socket)
         self.exit_stack.enter_context(self.server_thread)
