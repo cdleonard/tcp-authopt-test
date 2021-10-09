@@ -11,7 +11,11 @@ import pytest
 import waiting
 from scapy.layers.inet import TCP
 
-from .conftest import skipif_cant_capture, skipif_missing_tcp_authopt, has_tcp_authopt_snmp
+from .conftest import (
+    skipif_cant_capture,
+    skipif_missing_tcp_authopt,
+    has_tcp_authopt_snmp,
+)
 from .full_tcp_sniff_session import FullTCPSniffSession
 from .linux_tcp_authopt import (
     TCP_AUTHOPT_ALG,
@@ -129,7 +133,9 @@ def test_verify_capture(
 
     if has_tcp_authopt_snmp():
         new_nstat = nstat_json()
-        assert old_nstat["TcpExtTCPAuthOptFailure"] == new_nstat["TcpExtTCPAuthOptFailure"]
+        assert (
+            old_nstat["TcpExtTCPAuthOptFailure"] == new_nstat["TcpExtTCPAuthOptFailure"]
+        )
 
 
 @pytest.mark.parametrize(
@@ -160,7 +166,7 @@ def test_both_authopt_md5(exit_stack, address_family, use_tcp_authopt, use_tcp_m
         con.tcp_md5_key = b"hello"
     exit_stack.enter_context(con)
 
-    con.client_socket.connect((str(con.server_addr), con.server_port))
+    con.client_socket.connect(con.server_addr_port)
     check_socket_echo(con.client_socket)
     check_socket_echo(con.client_socket)
     check_socket_echo(con.client_socket)
@@ -268,7 +274,7 @@ def test_rst(exit_stack: ExitStack, address_family, signed: bool):
     exit_stack.enter_context(con)
 
     # connect
-    con.client_socket.connect((str(con.server_addr), con.server_port))
+    con.client_socket.connect(con.server_addr_port)
     check_socket_echo(con.client_socket)
 
     client_isn, server_isn = con.sniffer_session.get_client_server_isn()
@@ -296,7 +302,7 @@ def test_rst_signed_manually(exit_stack: ExitStack, address_family):
     exit_stack.enter_context(con)
 
     # connect
-    con.client_socket.connect((str(con.server_addr), con.server_port))
+    con.client_socket.connect(con.server_addr_port)
     check_socket_echo(con.client_socket)
 
     client_isn, server_isn = con.sniffer_session.get_client_server_isn()
@@ -329,7 +335,7 @@ def test_tw_ack(exit_stack: ExitStack, address_family):
     exit_stack.enter_context(con)
 
     # connect and close nicely
-    con.client_socket.connect((str(con.server_addr), con.server_port))
+    con.client_socket.connect(con.server_addr_port)
     check_socket_echo(con.client_socket)
     assert con.get_client_tcp_state() == "ESTAB"
     assert con.get_server_tcp_state() == "ESTAB"
@@ -383,7 +389,7 @@ def test_tw_rst(exit_stack: ExitStack, address_family):
     exit_stack.enter_context(con)
 
     # connect, transfer data and close client nicely
-    con.client_socket.connect((str(con.server_addr), con.server_port))
+    con.client_socket.connect(con.server_addr_port)
     check_socket_echo(con.client_socket)
     con.client_socket.close()
 
@@ -444,7 +450,7 @@ def test_rst_linger(exit_stack: ExitStack):
     )
     exit_stack.enter_context(con)
 
-    con.client_socket.connect((str(con.server_addr), con.server_port))
+    con.client_socket.connect(con.server_addr_port)
     check_socket_echo(con.client_socket)
     socket_set_linger(con.client_socket, 1, 0)
     con.client_socket.close()

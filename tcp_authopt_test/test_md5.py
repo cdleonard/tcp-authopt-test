@@ -25,7 +25,7 @@ def test_md5_basic(exit_stack):
         tcp_md5sig(
             key=tcp_md5_key,
             addr=sockaddr_in(addr=IPv4Address("127.0.0.1")),
-        )
+        ),
     )
     exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
 
@@ -36,7 +36,7 @@ def test_md5_basic(exit_stack):
         tcp_md5sig(
             key=tcp_md5_key,
             addr=sockaddr_in(addr=IPv4Address("127.0.0.1")),
-        )
+        ),
     )
 
     client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
@@ -76,7 +76,7 @@ def test_md5_validation(exit_stack, address_family):
     con.tcp_md5_key = b"12345"
     exit_stack.enter_context(con)
 
-    con.client_socket.connect((str(con.server_addr), con.server_port))
+    con.client_socket.connect(con.server_addr_port)
     check_socket_echo(con.client_socket)
     con.client_socket.close()
 

@@ -194,6 +194,10 @@ class TCPConnectionFixture:
         )
 
     @property
+    def server_addr_port(self):
+        return (str(self.server_addr), self.server_port)
+
+    @property
     def server_netns_name(self):
         return self.nsfixture.server_netns_name
 
