@@ -63,6 +63,14 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
         if self.client_info.found_recv_finack and self.server_info.found_recv_finack:
             self._close_event.set()
 
+    def reset(self):
+        """Reset known information about client/server"""
+        self.tracker.reset()
+        self._server_info = None
+        self._client_info = None
+        self._close_event.clear()
+        self._init_isn_event.clear()
+
     def wait_close(self, timeout=10):
         """Wait for a graceful close with FINs acked by both side"""
         self._close_event.wait(timeout=timeout)

@@ -102,6 +102,10 @@ class TCPConnectionTracker:
     def __init__(self):
         self.table = {}
 
+    def reset(self):
+        """Forget known connections"""
+        self.table = {}
+
     def get_or_create(self, key: TCPConnectionKey) -> TCPConnectionInfo:
         info = self.table.get(key, None)
         if info is None:
