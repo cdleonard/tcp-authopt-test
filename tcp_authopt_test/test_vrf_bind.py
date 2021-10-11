@@ -127,21 +127,26 @@ def test_vrf_overlap_unsigned(exit_stack: ExitStack, address_family):
     check_socket_echo(client_socket2)
 
 
-def set_server_md5(fix, key=b"000", **kw):
+KEY0 = b"00000"
+KEY1 = b"1"
+KEY2 = b"22"
+
+
+def set_server_md5(fix, key=KEY0, **kw):
     linux_tcp_md5sig.setsockopt_md5sig_kwargs(
         fix.listen_socket, key=key, addr=fix.client_addr, **kw
     )
 
 
-def set_server_md5_key0(fix, key=b"000"):
+def set_server_md5_key0(fix, key=KEY0):
     return set_server_md5(fix, key=key)
 
 
-def set_server_md5_key1(fix, key=b"111"):
+def set_server_md5_key1(fix, key=KEY1):
     return set_server_md5(fix, key=key, ifindex=fix.vrf1_ifindex)
 
 
-def set_server_md5_key2(fix, key=b"222"):
+def set_server_md5_key2(fix, key=KEY2):
     return set_server_md5(fix, key=key, ifindex=fix.vrf2_ifindex)
 
 
@@ -182,8 +187,8 @@ def test_vrf_overlap12_md5(exit_stack: ExitStack, address_family):
     set_server_md5_key2(fix)
     client_socket1 = fix.create_client_socket(fix.nsfixture.client1_netns_name)
     client_socket2 = fix.create_client_socket(fix.nsfixture.client2_netns_name)
-    set_client_md5_key(fix, client_socket1, b"111")
-    set_client_md5_key(fix, client_socket2, b"222")
+    set_client_md5_key(fix, client_socket1, KEY1)
+    set_client_md5_key(fix, client_socket2, KEY2)
     client_socket1.connect(fix.server_addr_port)
     client_socket2.connect(fix.server_addr_port)
     check_socket_echo(client_socket1)
@@ -199,8 +204,8 @@ def test_vrf_overlap01_md5(exit_stack: ExitStack, address_family):
     set_server_md5_key1(fix)
     client_socket0 = fix.create_client_socket(fix.nsfixture.client0_netns_name)
     client_socket1 = fix.create_client_socket(fix.nsfixture.client1_netns_name)
-    set_client_md5_key(fix, client_socket0, b"000")
-    set_client_md5_key(fix, client_socket1, b"111")
+    set_client_md5_key(fix, client_socket0, KEY0)
+    set_client_md5_key(fix, client_socket1, KEY1)
     client_socket1.connect(fix.server_addr_port)
     client_socket0.connect(fix.server_addr_port)
     check_socket_echo(client_socket0)
@@ -216,8 +221,8 @@ def test_vrf_overlap10_md5(exit_stack: ExitStack, address_family):
     set_server_md5_key0(fix)
     client_socket0 = fix.create_client_socket(fix.nsfixture.client0_netns_name)
     client_socket1 = fix.create_client_socket(fix.nsfixture.client1_netns_name)
-    set_client_md5_key(fix, client_socket0, b"000")
-    set_client_md5_key(fix, client_socket1, b"111")
+    set_client_md5_key(fix, client_socket0, KEY0)
+    set_client_md5_key(fix, client_socket1, KEY1)
     client_socket1.connect(fix.server_addr_port)
     client_socket0.connect(fix.server_addr_port)
     check_socket_echo(client_socket0)
@@ -250,8 +255,8 @@ def assert_raises_enoent(func):
 def test_vrf_overlap_md5_del_0110():
     """Removing keys should not raise ENOENT because they are distinct"""
     with VrfFixture() as fix:
-        set_server_md5(fix, key=b"000")
-        set_server_md5(fix, key=b"111", ifindex=fix.vrf1_ifindex)
+        set_server_md5(fix, key=KEY0)
+        set_server_md5(fix, key=KEY1, ifindex=fix.vrf1_ifindex)
         set_server_md5(fix, key=b"", ifindex=fix.vrf1_ifindex)
         set_server_md5(fix, key=b"")
         assert_raises_enoent(lambda: set_server_md5(fix, key=b""))
@@ -260,8 +265,8 @@ def test_vrf_overlap_md5_del_0110():
 def test_vrf_overlap_md5_del_1001():
     """Removing keys should not raise ENOENT because they are distinct"""
     with VrfFixture() as fix:
-        set_server_md5(fix, key=b"111", ifindex=fix.vrf1_ifindex)
-        set_server_md5(fix, key=b"000")
+        set_server_md5(fix, key=KEY1, ifindex=fix.vrf1_ifindex)
+        set_server_md5(fix, key=KEY0)
         set_server_md5(fix, key=b"")
         set_server_md5(fix, key=b"", ifindex=fix.vrf1_ifindex)
         assert_raises_enoent(lambda: set_server_md5(fix, key=b""))
@@ -270,8 +275,8 @@ def test_vrf_overlap_md5_del_1001():
 def test_vrf_overlap_md5_del_1010():
     """Removing keys should not raise ENOENT because they are distinct"""
     with VrfFixture() as fix:
-        set_server_md5(fix, key=b"111", ifindex=fix.vrf1_ifindex)
-        set_server_md5(fix, key=b"000")
+        set_server_md5(fix, key=KEY1, ifindex=fix.vrf1_ifindex)
+        set_server_md5(fix, key=KEY0)
         set_server_md5(fix, key=b"", ifindex=fix.vrf1_ifindex)
         set_server_md5(fix, key=b"")
         assert_raises_enoent(lambda: set_server_md5(fix, key=b""))
@@ -312,23 +317,23 @@ def test_vrf_overlap_ao(exit_stack: ExitStack, address_family):
     exit_stack.enter_context(fix)
     set_tcp_authopt_key(
         fix.listen_socket,
-        tcp_authopt_key(key=b"00000", ifindex=0),
+        tcp_authopt_key(key=KEY0, ifindex=0),
     )
     set_tcp_authopt_key(
         fix.listen_socket,
-        tcp_authopt_key(key=b"11111", ifindex=fix.vrf1_ifindex),
+        tcp_authopt_key(key=KEY1, ifindex=fix.vrf1_ifindex),
     )
     set_tcp_authopt_key(
         fix.listen_socket,
-        tcp_authopt_key(key=b"22222", ifindex=fix.vrf2_ifindex),
+        tcp_authopt_key(key=KEY2, ifindex=fix.vrf2_ifindex),
     )
 
     client_socket0 = fix.create_client_socket(fix.nsfixture.client0_netns_name)
     client_socket1 = fix.create_client_socket(fix.nsfixture.client1_netns_name)
     client_socket2 = fix.create_client_socket(fix.nsfixture.client2_netns_name)
-    set_tcp_authopt_key(client_socket0, tcp_authopt_key(key=b"00000"))
-    set_tcp_authopt_key(client_socket1, tcp_authopt_key(key=b"11111"))
-    set_tcp_authopt_key(client_socket2, tcp_authopt_key(key=b"22222"))
+    set_tcp_authopt_key(client_socket0, tcp_authopt_key(key=KEY0))
+    set_tcp_authopt_key(client_socket1, tcp_authopt_key(key=KEY1))
+    set_tcp_authopt_key(client_socket2, tcp_authopt_key(key=KEY2))
     client_socket0.connect(fix.server_addr_port)
     client_socket1.connect(fix.server_addr_port)
     client_socket2.connect(fix.server_addr_port)
@@ -368,13 +373,13 @@ def test_md5_pervrf(
     listen_socket1 = fix.create_listen_socket(bind_device="veth1")
     linux_tcp_md5sig.setsockopt_md5sig_kwargs(
         listen_socket1,
-        key=b"111",
+        key=KEY1,
         addr=fix.client_addr,
         ifindex=fix.vrf1_ifindex if bind_key_to_vrf else None,
     )
     fix.server_thread.add_listen_socket(listen_socket1)
     client_socket1 = fix.create_client_socket(fix.nsfixture.client1_netns_name)
-    set_client_md5_key(fix, client_socket1, b"111")
+    set_client_md5_key(fix, client_socket1, KEY1)
     client_socket1.connect(fix.server_addr_port)
     check_socket_echo(client_socket1)
 
@@ -396,17 +401,17 @@ def test_vrf_overlap_md5_pervrf(exit_stack: ExitStack, address_family):
     listen_socket2 = fix.create_listen_socket(bind_device="veth2")
     linux_tcp_md5sig.setsockopt_md5sig_kwargs(
         listen_socket0,
-        key=b"000",
+        key=KEY0,
         addr=fix.client_addr,
     )
     linux_tcp_md5sig.setsockopt_md5sig_kwargs(
         listen_socket1,
-        key=b"111",
+        key=KEY1,
         addr=fix.client_addr,
     )
     linux_tcp_md5sig.setsockopt_md5sig_kwargs(
         listen_socket2,
-        key=b"222",
+        key=KEY2,
         addr=fix.client_addr,
     )
     fix.server_thread.add_listen_socket(listen_socket0)
@@ -415,9 +420,9 @@ def test_vrf_overlap_md5_pervrf(exit_stack: ExitStack, address_family):
     client_socket0 = fix.create_client_socket(fix.nsfixture.client0_netns_name)
     client_socket1 = fix.create_client_socket(fix.nsfixture.client1_netns_name)
     client_socket2 = fix.create_client_socket(fix.nsfixture.client2_netns_name)
-    set_client_md5_key(fix, client_socket0, b"000")
-    set_client_md5_key(fix, client_socket1, b"111")
-    set_client_md5_key(fix, client_socket2, b"222")
+    set_client_md5_key(fix, client_socket0, KEY0)
+    set_client_md5_key(fix, client_socket1, KEY1)
+    set_client_md5_key(fix, client_socket2, KEY2)
     client_socket0.connect(fix.server_addr_port)
     client_socket1.connect(fix.server_addr_port)
     client_socket2.connect(fix.server_addr_port)
