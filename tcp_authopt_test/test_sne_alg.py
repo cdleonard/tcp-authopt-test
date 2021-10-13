@@ -8,47 +8,38 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def _sne_test_data():
-    """Test data from https://datatracker.ietf.org/doc/draft-touch-sne/"""
-    val = """
-00000000 00000000
-00000000 30000000
-00000000 90000000
-00000000 70000000
-00000000 a0000000
-00000001 00000001
-00000000 e0000000
-00000001 00000000
-00000001 7fffffff
-00000001 00000000
-00000001 50000000
-00000001 80000000
-00000001 00000001
-00000001 40000000
-00000001 90000000
-00000001 b0000000
-00000002 0fffffff
-00000002 20000000
-00000002 90000000
-00000002 70000000
-00000002 A0000000
-00000003 00004000
-00000002 D0000000
-00000003 20000000
-00000003 90000000
-00000003 70000000
-00000003 A0000000
-00000004 00004000
-00000003 D0000000
-"""
-    for item in val.splitlines():
-        item = item.strip()
-        if not item:
-            continue
-        sne_hex, seq_hex = item.split()
-        sne = int(sne_hex, 16)
-        seq = int(seq_hex, 16)
-        yield sne, seq
+# Data from https://datatracker.ietf.org/doc/draft-touch-sne/
+_SNE_TEST_DATA = [
+    (0x00000000, 0x00000000),
+    (0x00000000, 0x30000000),
+    (0x00000000, 0x90000000),
+    (0x00000000, 0x70000000),
+    (0x00000000, 0xA0000000),
+    (0x00000001, 0x00000001),
+    (0x00000000, 0xE0000000),
+    (0x00000001, 0x00000000),
+    (0x00000001, 0x7FFFFFFF),
+    (0x00000001, 0x00000000),
+    (0x00000001, 0x50000000),
+    (0x00000001, 0x80000000),
+    (0x00000001, 0x00000001),
+    (0x00000001, 0x40000000),
+    (0x00000001, 0x90000000),
+    (0x00000001, 0xB0000000),
+    (0x00000002, 0x0FFFFFFF),
+    (0x00000002, 0x20000000),
+    (0x00000002, 0x90000000),
+    (0x00000002, 0x70000000),
+    (0x00000002, 0xA0000000),
+    (0x00000003, 0x00004000),
+    (0x00000002, 0xD0000000),
+    (0x00000003, 0x20000000),
+    (0x00000003, 0x90000000),
+    (0x00000003, 0x70000000),
+    (0x00000003, 0xA0000000),
+    (0x00000004, 0x00004000),
+    (0x00000003, 0xD0000000),
+]
 
 
 # Easier test data with small jumps <= 0x30000000
@@ -77,7 +68,7 @@ def check_sne_alg(alg, data):
 
 
 def test_sne_alg():
-    check_sne_alg(SequenceNumberExtender(), _sne_test_data())
+    check_sne_alg(SequenceNumberExtender(), _SNE_TEST_DATA)
 
 
 def test_sne_alg_easy():
@@ -86,7 +77,7 @@ def test_sne_alg_easy():
 
 @pytest.mark.xfail
 def test_sne_alg_rfc():
-    check_sne_alg(SequenceNumberExtenderRFC(), _sne_test_data())
+    check_sne_alg(SequenceNumberExtenderRFC(), _SNE_TEST_DATA)
 
 
 @pytest.mark.xfail
