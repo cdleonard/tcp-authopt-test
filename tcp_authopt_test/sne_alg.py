@@ -9,41 +9,41 @@ def distance(x, y):
 
 
 class SequenceNumberExtender:
-    rcv_sne: int = 0
-    rcv_sne_flag: bool = True
-    rcv_prev_seq: int = 0
+    sne: int = 0
+    sne_flag: bool = True
+    prev_seq: int = 0
 
     def calc(self, seq):
         """Update SNE info
 
         Returns SNE for packet with a certain SEQ and updates internal state"""
         # use current SNE to start
-        result = self.rcv_sne
+        result = self.sne
 
         # both in same SNE range?
-        if distance(seq, self.rcv_prev_seq) < 0x80000000:
+        if distance(seq, self.prev_seq) < 0x80000000:
             # jumps fwd over N/2?
-            if seq >= 0x80000000 and self.rcv_prev_seq < 0x80000000:
-                self.rcv_sne_flag = False
+            if seq >= 0x80000000 and self.prev_seq < 0x80000000:
+                self.sne_flag = False
             # move prev forward if needed
-            self.rcv_prev_seq = max(seq, self.rcv_prev_seq)
+            self.prev_seq = max(seq, self.prev_seq)
         # both in diff SNE ranges?
         else:
             # jumps forward over zero?
             if seq < 0x80000000:
                 # update prev
-                self.rcv_prev_seq = seq
+                self.prev_seq = seq
                 # first jump over zero? (wrap)
-                if self.rcv_sne_flag == 0:
+                if self.sne_flag == 0:
                     # set flag so we increment once
-                    self.rcv_sne_flag = 1
+                    self.sne_flag = 1
                     # increment window
-                    self.rcv_sne = self.rcv_sne + 1
+                    self.sne = self.sne + 1
                     # use updated SNE value
-                    result = self.rcv_sne
+                    result = self.sne
             # jump backward over zero?
             else:
                 # use pre-rollover SNE value
-                result = self.rcv_sne - 1
+                result = self.sne - 1
 
         return result
