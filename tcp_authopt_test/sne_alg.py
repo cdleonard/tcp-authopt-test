@@ -1,4 +1,4 @@
-"""Python translation of https://datatracker.ietf.org/doc/draft-touch-sne/"""
+"""Python implementation of SNE algorithms"""
 
 
 def distance(x, y):
@@ -9,14 +9,14 @@ def distance(x, y):
 
 
 class SequenceNumberExtender:
+    """Based on https://datatracker.ietf.org/doc/draft-touch-sne/"""
+
     sne: int = 0
-    sne_flag: bool = True
+    sne_flag: bool = 1
     prev_seq: int = 0
 
     def calc(self, seq):
-        """Update SNE info
-
-        Returns SNE for packet with a certain SEQ and updates internal state"""
+        """Update internal state and return SNE for certain SEQ"""
         # use current SNE to start
         result = self.sne
 
@@ -24,7 +24,7 @@ class SequenceNumberExtender:
         if distance(seq, self.prev_seq) < 0x80000000:
             # jumps fwd over N/2?
             if seq >= 0x80000000 and self.prev_seq < 0x80000000:
-                self.sne_flag = False
+                self.sne_flag = 0
             # move prev forward if needed
             self.prev_seq = max(seq, self.prev_seq)
         # both in diff SNE ranges?
@@ -47,3 +47,32 @@ class SequenceNumberExtender:
                 result = self.sne - 1
 
         return result
+
+
+class SequenceNumberExtenderRFC:
+    """Based on sample code in original RFC5925 document"""
+
+    sne: int = 0
+    sne_flag: int = 1
+    prev_seq: int = 0
+
+    def calc(self, seq):
+        """Update internal state and return SNE for certain SEQ"""
+        # set the flag when the SEG.SEQ first rolls over
+        if self.sne_flag == 0 and self.prev_seq > 0x7FFFFFFF and seq < 0x7FFFFFFF:
+            self.sne = self.sne + 1
+            self.sne_flag = 1
+        # decide which SNE to use after incremented
+        if self.sne_flag and seq > 0x7FFFFFFF:
+            # use the pre-increment value
+            sne = self.sne - 1
+        else:
+            # use the current value
+            sne = self.sne
+        # reset the flag in the *middle* of the window
+        if self.prev_seq < 0x7FFFFFFF and seq > 0x7FFFFFFF:
+            self.sne_flag = 0
+        # save the current SEQ for the next time through the code
+        self.prev_seq = seq
+
+        return sne
