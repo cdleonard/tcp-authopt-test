@@ -89,7 +89,7 @@ class SimpleServerThread(Thread):
         return super().start()
 
     def _accept(self, sock, events):
-        logger.info("accept on %r", sock)
+        # logger.info("accept on %r", sock)
         conn, _addr = sock.accept()
         conn = self.exit_stack.enter_context(conn)
         conn.setblocking(False)
