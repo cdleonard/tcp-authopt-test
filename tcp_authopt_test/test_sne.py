@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 """Validate SNE implementation for TCP-AO"""
 
+import pytest
 import logging
 from contextlib import ExitStack
 import socket
@@ -14,15 +15,18 @@ from .utils import (
     create_listen_socket,
     socket_set_linger,
 )
+from .linux_tcp_authopt import set_tcp_authopt_key_kwargs
 from .server import SimpleServerThread
 
 logger = logging.getLogger(__name__)
 
 
-def test_sne(exit_stack: ExitStack):
+@pytest.mark.parametrize("signed", [False, True])
+def test_sne(exit_stack: ExitStack, signed: bool):
     """Reproduce a seq/ack overlap"""
     overflow = 0x200000
     bufsize = 0x10000
+    secret_key = b"12345"
     nsfixture = exit_stack.enter_context(NamespaceFixture())
     server_addr = nsfixture.get_addr(socket.AF_INET, 1)
     client_addr = nsfixture.get_addr(socket.AF_INET, 2)
@@ -32,6 +36,8 @@ def test_sne(exit_stack: ExitStack):
         bind_addr=server_addr,
     )
     exit_stack.enter_context(listen_socket)
+    if signed:
+        set_tcp_authopt_key_kwargs(listen_socket, key=secret_key)
     server_thread = SimpleServerThread(listen_socket, mode="echo", bufsize=bufsize)
     exit_stack.enter_context(server_thread)
 
@@ -44,6 +50,8 @@ def test_sne(exit_stack: ExitStack):
                 ns=nsfixture.client_netns_name,
                 bind_addr=client_addr,
             )
+            if signed:
+                set_tcp_authopt_key_kwargs(client_socket, key=secret_key)
             client_socket.connect(server_addr_port)
 
             recv_seq, send_seq = get_tcp_repair_recv_send_queue_seq(client_socket)
