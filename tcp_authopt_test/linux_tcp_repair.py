@@ -1,7 +1,7 @@
-import struct
 import socket
+import struct
+from contextlib import contextmanager
 from enum import IntEnum
-
 
 # Extra sockopts not present in python stdlib
 TCP_REPAIR = 19
@@ -47,13 +47,20 @@ def set_tcp_queue_seq(sock, val: int) -> None:
     return sock.setsockopt(socket.SOL_TCP, TCP_QUEUE_SEQ, val)[0]
 
 
-def get_tcp_repair_recv_send_queue_seq(sock):
+@contextmanager
+def tcp_repair_toggle(sock, off_val=TCP_REPAIR_VAL.OFF_NO_WP):
+    """Set TCP_REPAIR on/off as a context"""
     try:
         set_tcp_repair(sock, TCP_REPAIR_VAL.ON)
+        yield
+    finally:
+        set_tcp_repair(sock, off_val)
+
+
+def get_tcp_repair_recv_send_queue_seq(sock):
+    with tcp_repair_toggle(sock):
         set_tcp_repair_queue(sock, TCP_REPAIR_QUEUE_ID.RECV_QUEUE)
         recv_seq = get_tcp_queue_seq(sock)
         set_tcp_repair_queue(sock, TCP_REPAIR_QUEUE_ID.SEND_QUEUE)
         send_seq = get_tcp_queue_seq(sock)
         return (recv_seq, send_seq)
-    finally:
-        set_tcp_repair(sock, TCP_REPAIR_VAL.OFF_NO_WP)
