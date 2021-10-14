@@ -213,8 +213,16 @@ class tcp_authopt_key:
         return value
 
 
-def set_tcp_authopt_key(sock, key: tcp_authopt_key):
-    return sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT_KEY, bytes(key))
+def set_tcp_authopt_key(sock, keyopt: tcp_authopt_key):
+    return sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT_KEY, bytes(keyopt))
+
+
+def set_tcp_authopt_key_kwargs(sock, keyopt: tcp_authopt_key = None, **kw):
+    if keyopt is None:
+        keyopt = tcp_authopt_key()
+    for k, v in kw.items():
+        setattr(keyopt, k, v)
+    return set_tcp_authopt_key(sock, keyopt)
 
 
 def del_tcp_authopt_key(sock, key: tcp_authopt_key) -> bool:
