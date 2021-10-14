@@ -76,3 +76,31 @@ class SequenceNumberExtenderRFC:
         self.prev_seq = seq
 
         return sne
+
+
+def tcp_seq_before(a, b) -> bool:
+    return ((a - b) & 0xFFFFFFFF) > 0x80000000
+
+
+def tcp_seq_after(a, b) -> bool:
+    return tcp_seq_before(a, b)
+
+
+class SequenceNumberExtenderLinux:
+    """Based on sample code in original RFC5925 document"""
+
+    sne: int = 0
+    prev_seq: int = 0
+
+    def calc(self, seq, update=True):
+        sne = self.sne
+        if tcp_seq_before(seq, self.prev_seq):
+            if seq > self.prev_seq:
+                sne -= 1
+        else:
+            if seq < self.prev_seq:
+                sne += 1
+        if update and tcp_seq_before(self.prev_seq, seq):
+            self.prev_seq = seq
+            self.sne = sne
+        return sne

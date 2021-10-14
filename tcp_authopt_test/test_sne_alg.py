@@ -1,9 +1,14 @@
 """Test SNE algorithm implementations"""
 
-import pytest
-from .sne_alg import SequenceNumberExtender
-from .sne_alg import SequenceNumberExtenderRFC
 import logging
+
+import pytest
+
+from .sne_alg import (
+    SequenceNumberExtender,
+    SequenceNumberExtenderLinux,
+    SequenceNumberExtenderRFC,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,3 +88,8 @@ def test_sne_alg_rfc():
 @pytest.mark.xfail
 def test_sne_alg_rfc_easy():
     check_sne_alg(SequenceNumberExtenderRFC(), SNE_DATA_EASY)
+
+
+def test_sne_alg_linux():
+    check_sne_alg(SequenceNumberExtenderLinux(), _SNE_TEST_DATA)
+    check_sne_alg(SequenceNumberExtenderLinux(), SNE_DATA_EASY)
