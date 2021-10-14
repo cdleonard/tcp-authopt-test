@@ -12,6 +12,7 @@ from .utils import (
     check_socket_echo,
     create_client_socket,
     create_listen_socket,
+    socket_set_linger,
 )
 from .server import SimpleServerThread
 
@@ -49,6 +50,7 @@ def test_sne(exit_stack: ExitStack):
             if recv_seq + overflow > 0x100000000 or send_seq + overflow > 0x100000000:
                 found = True
                 break
+            socket_set_linger(client_socket, 1, 0)
             client_socket.close()
             client_socket = None
         finally:
