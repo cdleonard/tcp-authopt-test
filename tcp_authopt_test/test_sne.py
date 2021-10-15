@@ -37,6 +37,7 @@ def test_sne(exit_stack: ExitStack, signed: bool):
     listen_socket = create_listen_socket(
         ns=nsfixture.server_netns_name,
         bind_addr=server_addr,
+        listen_depth=1024,
     )
     exit_stack.enter_context(listen_socket)
     if signed:
@@ -47,7 +48,7 @@ def test_sne(exit_stack: ExitStack, signed: bool):
     found = False
 
     client_socket = None
-    for _ in range(10000):
+    for iternum in range(10000):
         try:
             client_socket = create_client_socket(
                 ns=nsfixture.client_netns_name,
@@ -55,7 +56,11 @@ def test_sne(exit_stack: ExitStack, signed: bool):
             )
             if signed:
                 set_tcp_authopt_key_kwargs(client_socket, key=secret_key)
-            client_socket.connect(server_addr_port)
+            try:
+                client_socket.connect(server_addr_port)
+            except:
+                logger.error("failed on iteration %d", iternum)
+                raise
 
             recv_seq, send_seq = get_tcp_repair_recv_send_queue_seq(client_socket)
             if (recv_seq + overflow > 0x100000000 and mode == "echo") or (
@@ -63,7 +68,8 @@ def test_sne(exit_stack: ExitStack, signed: bool):
             ):
                 found = True
                 break
-            socket_set_linger(client_socket, 1, 0)
+            # Wait for graceful close to avoid swamping server listen queue
+            socket_set_linger(client_socket, 1, 1)
             client_socket.close()
             client_socket = None
         finally:
