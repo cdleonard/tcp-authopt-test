@@ -68,7 +68,9 @@ def test_sne(exit_stack: ExitStack, signed: bool):
             ):
                 found = True
                 break
-            # Wait for graceful close to avoid swamping server listen queue
+            # Wait for graceful close to avoid swamping server listen queue.
+            # This makes the test work even with a server listen_depth=1 but set
+            # a very high value anyway.
             socket_set_linger(client_socket, 1, 1)
             client_socket.close()
             client_socket = None
