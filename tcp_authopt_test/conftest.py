@@ -5,7 +5,7 @@ from contextlib import ExitStack
 
 import pytest
 
-from .linux_tcp_authopt import has_tcp_authopt, enable_sysctl_tcp_authopt
+from .linux_tcp_authopt import enable_sysctl_tcp_authopt, has_tcp_authopt
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ skipif_missing_tcp_authopt = pytest.mark.skipif(
 def get_effective_capabilities():
     for line in open("/proc/self/status", "r"):
         if line.startswith("CapEff:"):
-            return int(line.split(':')[1], 16)
+            return int(line.split(":")[1], 16)
 
 
 def has_effective_capability(bit) -> bool:
@@ -38,6 +38,7 @@ skipif_cant_capture = pytest.mark.skipif(
 )
 
 _has_tcp_authopt_snmp = None
+
 
 def has_tcp_authopt_snmp():
     global _has_tcp_authopt_snmp
