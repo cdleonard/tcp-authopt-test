@@ -3,28 +3,23 @@
 With tcp_l3mdev_accept single server should be able to differentiate multiple
 clients with same IP coming from different VRFs.
 """
-import pytest
-from contextlib import ExitStack
-import socket
-
-from .utils import (
-    create_listen_socket,
-    create_client_socket,
-    check_socket_echo,
-    DEFAULT_TCP_SERVER_PORT,
-)
-from .conftest import skipif_missing_tcp_authopt
-from .server import SimpleServerThread
-from .vrf_netns_fixture import VrfNamespaceFixture
-from .linux_tcp_authopt import (
-    TCP_AUTHOPT_KEY_FLAG,
-    set_tcp_authopt_key,
-    tcp_authopt_key,
-)
-from . import linux_tcp_authopt
-from . import linux_tcp_md5sig
-from .conftest import parametrize_product
 import errno
+import socket
+from contextlib import ExitStack
+
+import pytest
+
+from . import linux_tcp_md5sig
+from .conftest import parametrize_product, skipif_missing_tcp_authopt
+from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
+from .server import SimpleServerThread
+from .utils import (
+    DEFAULT_TCP_SERVER_PORT,
+    check_socket_echo,
+    create_client_socket,
+    create_listen_socket,
+)
+from .vrf_netns_fixture import VrfNamespaceFixture
 
 
 class VrfFixture:
