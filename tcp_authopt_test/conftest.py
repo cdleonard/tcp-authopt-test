@@ -64,3 +64,10 @@ def pytest_configure():
     logging.getLogger("nsenter").setLevel(logging.INFO)
     if has_tcp_authopt():
         enable_sysctl_tcp_authopt()
+
+
+def parametrize_product(**kw):
+    """Parametrize each key to each item in the value list"""
+    import itertools
+
+    return pytest.mark.parametrize(",".join(kw.keys()), itertools.product(*kw.values()))

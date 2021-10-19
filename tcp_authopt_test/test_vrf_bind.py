@@ -23,6 +23,7 @@ from .linux_tcp_authopt import (
 )
 from . import linux_tcp_authopt
 from . import linux_tcp_md5sig
+from .conftest import parametrize_product
 import errno
 
 
@@ -345,14 +346,7 @@ def test_vrf_overlap_ao(exit_stack: ExitStack, address_family):
     check_socket_echo(client_socket2)
 
 
-def pytest_parametrize_product(**kw):
-    """Parametrize each key to each item in the value list"""
-    import itertools
-
-    return pytest.mark.parametrize(",".join(kw.keys()), itertools.product(*kw.values()))
-
-
-@pytest_parametrize_product(
+@parametrize_product(
     address_family=(socket.AF_INET, socket.AF_INET6),
     tcp_l3mdev_accept=(0, 1),
     bind_key_to_vrf=(0, 1),
