@@ -57,9 +57,12 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
     client_socket = None
     for iternum in range(10000):
         try:
+            # AO sometimes fails when ports are reused: unsigned RSTs get sent
+            # and are ignored by remote.
             client_socket = create_client_socket(
                 ns=nsfixture.client_netns_name,
                 bind_addr=client_addr,
+                bind_port=10000 + iternum,
             )
             if signed:
                 set_tcp_authopt_key_kwargs(client_socket, key=secret_key)
