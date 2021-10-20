@@ -66,7 +66,7 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
             try:
                 client_socket.connect(server_addr_port)
             except:
-                logger.error("failed on iteration %d", iternum)
+                logger.error("failed connect on iteration %d", iternum, exc_info=True)
                 raise
 
             recv_seq, send_seq = get_tcp_repair_recv_send_queue_seq(client_socket)
@@ -98,14 +98,20 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
         logger.debug("tcp repair authopt: %r", init_tcp_repair_authopt)
 
     logger.info("transfer %d bytes", 2 * overflow)
-    for _ in range(2 * overflow // bufsize):
-        if mode == "recv":
-            from .utils import randbytes
+    fail_transfer = False
+    for iternum in range(2 * overflow // bufsize):
+        try:
+            if mode == "recv":
+                from .utils import randbytes
 
-            send_buf = randbytes(bufsize)
-            client_socket.sendall(send_buf)
-        else:
-            check_socket_echo(client_socket, bufsize)
+                send_buf = randbytes(bufsize)
+                client_socket.sendall(send_buf)
+            else:
+                check_socket_echo(client_socket, bufsize)
+        except:
+            logger.error("failed traffic on iteration %d", iternum, exc_info=True)
+            fail_transfer = True
+            break
 
     new_recv_seq, new_send_seq = get_tcp_repair_recv_send_queue_seq(client_socket)
     logger.debug("final recv_seq %08x send_seq %08x", new_recv_seq, new_send_seq)
@@ -121,3 +127,4 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
         )
 
     assert new_recv_seq < recv_seq or new_send_seq < send_seq
+    assert not fail_transfer
