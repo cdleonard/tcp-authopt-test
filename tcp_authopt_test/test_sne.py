@@ -24,8 +24,15 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.parametrize("signed", [False, True])
-def test_sne(exit_stack: ExitStack, signed: bool):
-    """Reproduce a seq/ack overlap"""
+def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
+    """Test SNE by rolling over from a high seq/ack value
+
+    Create many connections until a very high seq/ack is found and then transfer
+    enough for those values to roll over.
+
+    A side effect of this approach is that this stresses connection
+    establishment.
+    """
     overflow = 0x200000
     bufsize = 0x10000
     secret_key = b"12345"
