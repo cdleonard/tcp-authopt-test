@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0
-import typing
 import json
 import random
-import subprocess
 import socket
+import subprocess
+import typing
 from contextlib import nullcontext
 
 from nsenter import Namespace
@@ -43,8 +43,10 @@ def check_socket_echo(sock: socket.socket, size=1000):
     assert send_buf == recv_buf
 
 
-def nstat_json(command_prefix: str = ""):
+def nstat_json(command_prefix: str = "", namespace=None):
     """Parse nstat output into a python dict"""
+    if namespace is not None:
+        command_prefix += f"ip netns exec {namespace} "
     runres = subprocess.run(
         f"{command_prefix}nstat -a --zeros --json",
         shell=True,
