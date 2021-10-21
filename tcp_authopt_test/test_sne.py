@@ -57,8 +57,14 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
     client_socket = None
     for iternum in range(10000):
         try:
-            # AO sometimes fails when ports are reused: unsigned RSTs get sent
-            # and are ignored by remote.
+            # Manually assign increasing client ports
+            #
+            # Sometimes linux kills timewait sockets (TCPTimeWaitOverflow) and
+            # then attempts to reuse the port. The stricter validation
+            # requirements of TCP-AO mean the other side of the socket survives
+            # and rejects packets coming from the reused port.
+            #
+            # This issue is not related to SNE so a workaround is acceptable.
             client_socket = create_client_socket(
                 ns=nsfixture.client_netns_name,
                 bind_addr=client_addr,
