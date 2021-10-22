@@ -183,3 +183,13 @@ def test_authopt_longer_zeros():
         optbuf = bytes(opt)
         optbuf = optbuf.ljust(len(optbuf) + 256, b"\x00")
         sock.setsockopt(socket.SOL_TCP, TCP_AUTHOPT, optbuf)
+
+
+def test_authopt_setdel_addrbind():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        key = tcp_authopt_key(addr="1.1.1.1", recv_id=1, send_id=1)
+        key2 = tcp_authopt_key(addr="1.1.1.2", recv_id=1, send_id=1)
+        set_tcp_authopt_key(sock, key)
+        assert del_tcp_authopt_key(sock, key2) == False
+        assert del_tcp_authopt_key(sock, key) == True
+        assert del_tcp_authopt_key(sock, key) == False
