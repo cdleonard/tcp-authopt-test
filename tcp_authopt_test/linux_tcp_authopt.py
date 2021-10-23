@@ -93,7 +93,7 @@ class tcp_authopt_key:
 
     def __init__(
         self,
-        flags: TCP_AUTHOPT_KEY_FLAG = 0,
+        flags: TCP_AUTHOPT_KEY_FLAG = TCP_AUTHOPT_KEY_FLAG(0),
         send_id: int = 0,
         recv_id: int = 0,
         alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
