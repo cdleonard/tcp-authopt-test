@@ -13,6 +13,7 @@ from scapy.layers.inet import TCP
 
 from .conftest import (
     has_tcp_authopt_snmp,
+    raises_optional_exception,
     skipif_cant_capture,
     skipif_missing_tcp_authopt,
 )
@@ -250,7 +251,7 @@ def test_v4mapv6(exit_stack, mode: str):
         client_key.set_ipv4_addr_all()
         linux_tcp_md5sig.setsockopt_md5sig(client_socket, client_key)
 
-    with pytest.raises(socket.timeout) if mode != "none" else nullcontext():
+    with raises_optional_exception(socket.timeout if mode != "none" else None):
         client_socket.connect((str(server_ipv4_addr), DEFAULT_TCP_SERVER_PORT))
         check_socket_echo(client_socket)
     client_socket.close()

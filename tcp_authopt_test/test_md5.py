@@ -5,6 +5,7 @@ from ipaddress import IPv4Address
 
 import pytest
 
+from .conftest import raises_optional_exception
 from .linux_tcp_md5sig import setsockopt_md5sig, tcp_md5sig
 from .server import SimpleServerThread
 from .sockaddr import sockaddr_in
@@ -61,7 +62,7 @@ def test_md5_noaddr(exit_stack, goodkey: bool):
     setsockopt_md5sig(client_socket, client_key)
     exit_stack.push(client_socket)
 
-    with pytest.raises(socket.timeout) if goodkey == False else nullcontext():
+    with raises_optional_exception(None if goodkey else socket.timeout):
         client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
         check_socket_echo(client_socket)
 

@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0
 import logging
 import os
-from contextlib import ExitStack
+from contextlib import ExitStack, nullcontext
+from typing import ContextManager
 
 import pytest
 
@@ -72,3 +73,11 @@ def parametrize_product(**kw):
     import itertools
 
     return pytest.mark.parametrize(",".join(kw.keys()), itertools.product(*kw.values()))
+
+
+def raises_optional_exception(expected_exception, **kw) -> ContextManager:
+    """Like pytest.raises except accept expected_exception=None"""
+    if expected_exception is None:
+        return nullcontext()
+    else:
+        return pytest.raises(expected_exception, **kw)
