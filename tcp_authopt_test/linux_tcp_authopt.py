@@ -256,7 +256,7 @@ def get_sysctl_tcp_authopt() -> typing.Optional[bool]:
         return None
 
 
-def enable_sysctl_tcp_authopt() -> bool:
+def enable_sysctl_tcp_authopt():
     from pathlib import Path
 
     path = Path("/proc/sys/net/ipv4/tcp_authopt")
