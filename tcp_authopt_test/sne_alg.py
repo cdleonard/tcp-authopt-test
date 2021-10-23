@@ -12,7 +12,7 @@ class SequenceNumberExtender:
     """Based on https://datatracker.ietf.org/doc/draft-touch-sne/"""
 
     sne: int = 0
-    sne_flag: bool = 1
+    sne_flag: int = 1
     prev_seq: int = 0
 
     def calc(self, seq):
