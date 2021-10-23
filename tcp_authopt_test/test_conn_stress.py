@@ -20,7 +20,14 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
-@pytest.mark.parametrize("sign_mode", ["ao", "md5", "none"])
+@pytest.mark.parametrize(
+    "sign_mode",
+    [
+        pytest.param("ao", marks=pytest.mark.xfail),
+        "md5",
+        "none",
+    ],
+)
 def test_many_conns(exit_stack: ExitStack, sign_mode: str):
     """Stress connection establishment
 
