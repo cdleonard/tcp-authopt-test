@@ -244,12 +244,12 @@ def test_v4mapv6(exit_stack, mode: str):
     if mode == "md5":
         from . import linux_tcp_md5sig
 
-        server_key = linux_tcp_md5sig.tcp_md5sig(key=b"hello")
-        server_key.set_ipv6_addr_all()
-        linux_tcp_md5sig.setsockopt_md5sig(listen_socket, server_key)
-        client_key = linux_tcp_md5sig.tcp_md5sig(key=b"hellx")
-        client_key.set_ipv4_addr_all()
-        linux_tcp_md5sig.setsockopt_md5sig(client_socket, client_key)
+        server_md5key = linux_tcp_md5sig.tcp_md5sig(key=b"hello")
+        server_md5key.set_ipv6_addr_all()
+        linux_tcp_md5sig.setsockopt_md5sig(listen_socket, server_md5key)
+        client_md5key = linux_tcp_md5sig.tcp_md5sig(key=b"hellx")
+        client_md5key.set_ipv4_addr_all()
+        linux_tcp_md5sig.setsockopt_md5sig(client_socket, client_md5key)
 
     with raises_optional_exception(socket.timeout if mode != "none" else None):
         client_socket.connect((str(server_ipv4_addr), DEFAULT_TCP_SERVER_PORT))
