@@ -246,12 +246,14 @@ def del_tcp_authopt_key(sock, key: tcp_authopt_key) -> bool:
         raise
 
 
-def get_sysctl_tcp_authopt() -> bool:
+def get_sysctl_tcp_authopt() -> typing.Optional[bool]:
     from pathlib import Path
 
     path = Path("/proc/sys/net/ipv4/tcp_authopt")
     if path.exists():
         return path.read_text().strip() != "0"
+    else:
+        return None
 
 
 def enable_sysctl_tcp_authopt() -> bool:
