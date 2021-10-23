@@ -6,8 +6,15 @@ from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address, ip_address
 
 
-@dataclass
-class sockaddr_in:
+class sockaddr_base:
+    def pack(self) -> bytes:
+        raise NotImplementedError()
+
+    def __bytes__(self):
+        return self.pack()
+
+
+class sockaddr_in(sockaddr_base):
     port: int
     addr: IPv4Address
     sizeof = 8
@@ -28,12 +35,9 @@ class sockaddr_in:
             raise ValueError(f"Must be AF_INET not {family}")
         return cls(port, addr_packed)
 
-    def __bytes__(self):
-        return self.pack()
-
 
 @dataclass
-class sockaddr_in6:
+class sockaddr_in6(sockaddr_base):
     """Like sockaddr_in6 but for python. Always contains scope_id"""
 
     port: int
@@ -69,21 +73,15 @@ class sockaddr_in6:
             raise ValueError(f"Must be AF_INET6 not {family}")
         return cls(port, addr_packed, flowinfo=flowinfo, scope_id=scope_id)
 
-    def __bytes__(self):
-        return self.pack()
-
 
 @dataclass
-class sockaddr_storage:
+class sockaddr_storage(sockaddr_base):
     family: int
     data: bytes
     sizeof = 128
 
     def pack(self):
         return struct.pack("H126s", self.family, self.data)
-
-    def __bytes__(self):
-        return self.pack()
 
     @classmethod
     def unpack(cls, buffer):
