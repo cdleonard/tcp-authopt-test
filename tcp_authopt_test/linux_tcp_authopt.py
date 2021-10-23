@@ -193,7 +193,7 @@ class tcp_authopt_key:
 
     @property
     def include_options(self) -> bool:
-        return (self.flags & TCP_AUTHOPT_KEY.EXCLUDE_OPTS) == 0
+        return not self.flags & TCP_AUTHOPT_KEY_FLAG.EXCLUDE_OPTS
 
     @include_options.setter
     def include_options(self, value) -> bool:

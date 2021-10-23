@@ -193,3 +193,11 @@ def test_authopt_setdel_addrbind():
         assert del_tcp_authopt_key(sock, key2) == False
         assert del_tcp_authopt_key(sock, key) == True
         assert del_tcp_authopt_key(sock, key) == False
+
+
+def test_authopt_include_options():
+    key = tcp_authopt_key()
+    assert key.include_options
+    key.include_options = False
+    assert key.flags & TCP_AUTHOPT_KEY_FLAG.EXCLUDE_OPTS
+    assert not key.include_options
