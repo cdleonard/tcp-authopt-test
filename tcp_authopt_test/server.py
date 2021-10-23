@@ -23,6 +23,7 @@ class SimpleServerThread(Thread):
     DEFAULT_BUFSIZE = 1000
     _listen_socket_list: typing.List[socket.socket]
     server_socket: typing.List[socket.socket]
+    sel: typing.Optional[selectors.BaseSelector]
 
     def __init__(
         self,
