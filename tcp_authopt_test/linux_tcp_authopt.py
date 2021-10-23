@@ -8,9 +8,14 @@ import struct
 import typing
 from dataclasses import dataclass
 from enum import IntEnum, IntFlag
-from ipaddress import IPv4Address, IPv6Address, ip_address
 
-from .sockaddr import sockaddr_in, sockaddr_in6, sockaddr_storage, sockaddr_unpack
+from .sockaddr import (
+    SockaddrConvertType,
+    sockaddr_base,
+    sockaddr_convert,
+    sockaddr_storage,
+    sockaddr_unpack,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +95,7 @@ class tcp_authopt_key:
     """
 
     KeyArgType = typing.Union[str, bytes]
+    AddrArgType = typing.Union[None, str, bytes, SockaddrConvertType]
 
     def __init__(
         self,
@@ -98,7 +104,7 @@ class tcp_authopt_key:
         recv_id: int = 0,
         alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
         key: KeyArgType = b"",
-        addr: bytes = b"",
+        addr: AddrArgType = None,
         auto_flags: bool = True,
         ifindex: typing.Optional[int] = None,
         include_options=None,
@@ -168,27 +174,17 @@ class tcp_authopt_key:
             return sockaddr_unpack(bytes(self.addrbuf))
 
     @addr.setter
-    def addr(self, val):
+    def addr(self, val: AddrArgType):
         if isinstance(val, bytes):
             if len(val) > sockaddr_storage.sizeof:
                 raise ValueError(f"Must be up to {sockaddr_storage.sizeof}")
             self.addrbuf = val
         elif val is None:
             self.addrbuf = b""
-        elif isinstance(val, str):
-            self.addr = ip_address(val)
-        elif isinstance(val, IPv4Address):
-            self.addr = sockaddr_in(addr=val)
-        elif isinstance(val, IPv6Address):
-            self.addr = sockaddr_in6(addr=val)
-        elif (
-            isinstance(val, sockaddr_in)
-            or isinstance(val, sockaddr_in6)
-            or isinstance(val, sockaddr_storage)
-        ):
+        elif isinstance(val, sockaddr_base):
             self.addr = bytes(val)
         else:
-            raise TypeError(f"Can't handle addr {val}")
+            self.addr = sockaddr_convert(val)
         return self.addr
 
     @property

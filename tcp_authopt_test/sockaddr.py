@@ -2,6 +2,7 @@
 """pack/unpack wrappers for sockaddr"""
 import socket
 import struct
+import typing
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address, ip_address
 
@@ -99,7 +100,12 @@ def sockaddr_unpack(buffer: bytes):
         return sockaddr_storage.unpack(buffer)
 
 
-def sockaddr_convert(val):
+SockaddrConvertType = typing.Union[
+    sockaddr_in, sockaddr_in6, sockaddr_storage, IPv4Address, IPv6Address, str
+]
+
+
+def sockaddr_convert(val: SockaddrConvertType) -> sockaddr_base:
     """Try to convert address into some sort of sockaddr"""
     if (
         isinstance(val, sockaddr_in)
