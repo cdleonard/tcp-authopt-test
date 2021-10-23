@@ -1,6 +1,7 @@
 import logging
 import socket
 import subprocess
+import typing
 from contextlib import ExitStack
 
 import pytest
@@ -110,7 +111,7 @@ ip netns exec {nsfixture.server_netns_name} cat /proc/net/sockstat
             and server_nstat["TcpExtTCPAuthOptFailure"] == 0
         )
 
-    client_port_use_count = {}
+    client_port_use_count: typing.Dict[int, int] = {}
 
     fail_connect = False
     for iternum in range(iter_count):
