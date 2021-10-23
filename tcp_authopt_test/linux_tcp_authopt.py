@@ -88,13 +88,15 @@ class tcp_authopt_key:
         TCP_AUTHOPT_KEY_FLAG.BIND_ADDR automatically based on non-null values.
     """
 
+    KeyArgType = typing.Union[str, bytes]
+
     def __init__(
         self,
         flags: TCP_AUTHOPT_KEY_FLAG = 0,
         send_id: int = 0,
         recv_id: int = 0,
         alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
-        key: bytes = b"",
+        key: KeyArgType = b"",
         addr: bytes = b"",
         auto_flags: bool = True,
         ifindex: typing.Optional[int] = None,
@@ -149,7 +151,7 @@ class tcp_authopt_key:
         return self._key
 
     @key.setter
-    def key(self, val: typing.Union[bytes, str]) -> bytes:
+    def key(self, val: KeyArgType) -> bytes:
         if isinstance(val, str):
             val = val.encode("utf-8")
         if len(val) > TCP_AUTHOPT_MAXKEYLEN:
