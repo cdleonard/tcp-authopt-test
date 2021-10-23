@@ -45,7 +45,6 @@ def tcpdump_capture(namespace=None, interface=None, extra_args=None, filename=No
     popen = subprocess.Popen(cmd)
     yield popen
     subprocess_kill(popen)
-    logger.info("returncode=%d", popen.returncode)
 
 
 def symlink_force(src, dst, force=True):
