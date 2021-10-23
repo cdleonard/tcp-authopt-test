@@ -53,7 +53,6 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
     exit_stack.enter_context(server_thread)
 
     found = False
-
     client_socket = None
     for iternum in range(10000):
         try:
@@ -94,6 +93,7 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
             if not found and client_socket:
                 client_socket.close()
     assert found
+    assert client_socket is not None
 
     logger.debug("setup recv_seq %08x send_seq %08x", recv_seq, send_seq)
 
