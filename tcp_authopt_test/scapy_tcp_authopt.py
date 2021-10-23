@@ -1,20 +1,29 @@
 # SPDX-License-Identifier: GPL-2.0
 """Packet-processing utilities implementing RFC5925 and RFC2926"""
 
+import hmac
 import logging
+import struct
+
 from scapy.layers.inet import TCP
 from scapy.packet import Packet
-from .scapy_utils import TCPOPT_AUTHOPT, IPvXAddress, get_packet_ipvx_src, get_packet_ipvx_dst, get_tcp_pseudoheader, get_tcp_doff
-import struct
-import hmac
+
+from .scapy_utils import (
+    TCPOPT_AUTHOPT,
+    IPvXAddress,
+    get_packet_ipvx_dst,
+    get_packet_ipvx_src,
+    get_tcp_doff,
+    get_tcp_pseudoheader,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def _cmac_aes_digest(key: bytes, msg: bytes) -> bytes:
+    from cryptography.hazmat.backends import default_backend
     from cryptography.hazmat.primitives import cmac
     from cryptography.hazmat.primitives.ciphers import algorithms
-    from cryptography.hazmat.backends import default_backend
 
     backend = default_backend()
     c = cmac.CMAC(algorithms.AES(key), backend=backend)

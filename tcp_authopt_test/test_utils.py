@@ -2,6 +2,7 @@ import pytest
 from scapy.layers.inet import IP, TCP
 from scapy.layers.inet6 import IPv6
 from scapy.layers.l2 import Ether
+
 from .scapy_utils import tcp_seq_wrap
 
 
@@ -27,10 +28,12 @@ def test_tcp_seq_wrap():
 
 
 def test_sign_tcp_authopt():
-    from .scapy_tcp_authopt import TcpAuthOptAlg_HMAC_SHA1
-    from .scapy_tcp_authopt import add_tcp_authopt_signature
-    from .scapy_tcp_authopt import check_tcp_authopt_signature
-    from .scapy_tcp_authopt import break_tcp_authopt_signature
+    from .scapy_tcp_authopt import (
+        TcpAuthOptAlg_HMAC_SHA1,
+        add_tcp_authopt_signature,
+        break_tcp_authopt_signature,
+        check_tcp_authopt_signature,
+    )
 
     alg = TcpAuthOptAlg_HMAC_SHA1()
     master_key = b"secret"

@@ -1,18 +1,19 @@
 # SPDX-License-Identifier: GPL-2.0
-import typing
 import socket
-from .server import SimpleServerThread
+import typing
+from contextlib import ExitStack, contextmanager
+
+from .conftest import skipif_missing_tcp_authopt
 from .linux_tcp_authopt import (
     TCP_AUTHOPT_FLAG,
+    get_tcp_authopt,
+    set_tcp_authopt,
     set_tcp_authopt_key,
     tcp_authopt,
     tcp_authopt_key,
-    set_tcp_authopt,
-    get_tcp_authopt,
 )
-from .utils import DEFAULT_TCP_SERVER_PORT, create_listen_socket, check_socket_echo
-from contextlib import ExitStack, contextmanager
-from .conftest import skipif_missing_tcp_authopt
+from .server import SimpleServerThread
+from .utils import DEFAULT_TCP_SERVER_PORT, check_socket_echo, create_listen_socket
 
 pytestmark = skipif_missing_tcp_authopt
 

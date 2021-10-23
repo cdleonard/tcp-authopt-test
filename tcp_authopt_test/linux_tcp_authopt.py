@@ -1,15 +1,16 @@
 # SPDX-License-Identifier: GPL-2.0
 """Python wrapper around linux TCP_AUTHOPT ABI"""
 
-from dataclasses import dataclass
-from ipaddress import IPv4Address, IPv6Address, ip_address
-import socket
-from enum import IntEnum, IntFlag
 import errno
 import logging
-from .sockaddr import sockaddr_in, sockaddr_in6, sockaddr_storage, sockaddr_unpack
-import typing
+import socket
 import struct
+import typing
+from dataclasses import dataclass
+from enum import IntEnum, IntFlag
+from ipaddress import IPv4Address, IPv6Address, ip_address
+
+from .sockaddr import sockaddr_in, sockaddr_in6, sockaddr_storage, sockaddr_unpack
 
 logger = logging.getLogger(__name__)
 

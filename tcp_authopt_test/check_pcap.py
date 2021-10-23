@@ -2,8 +2,9 @@
 #! /usr/bin/env python
 
 """Check TCP Authentication Option signatures inside a packet capture"""
-import sys
 import logging
+import sys
+
 from scapy.packet import Packet
 from scapy.utils import rdpcap
 
@@ -49,8 +50,7 @@ def create_parser():
 def main(argv=None) -> int:
     opts = create_parser().parse_args(argv)
 
-    from .validator import TcpAuthValidator
-    from .validator import TcpAuthValidatorKey
+    from .validator import TcpAuthValidator, TcpAuthValidatorKey
 
     key = TcpAuthValidatorKey(
         key=opts.master_key.encode(), alg_name=opts.alg_name, include_options=False

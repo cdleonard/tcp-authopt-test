@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0
 import logging
 import os
-import typing
 import selectors
 import socket
+import typing
 from contextlib import ExitStack
 from threading import Thread
 

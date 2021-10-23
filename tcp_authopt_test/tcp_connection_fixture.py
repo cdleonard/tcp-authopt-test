@@ -3,7 +3,6 @@ import logging
 import socket
 import subprocess
 from contextlib import ExitStack
-from tcp_authopt_test.conftest import has_tcp_authopt_snmp
 
 import pytest
 from scapy.data import ETH_P_IP, ETH_P_IPV6
@@ -12,22 +11,24 @@ from scapy.layers.inet6 import IPv6
 from scapy.layers.l2 import Ether
 from scapy.packet import Packet
 
+from tcp_authopt_test.conftest import has_tcp_authopt_snmp
+
 from . import linux_tcp_authopt
 from .full_tcp_sniff_session import FullTCPSniffSession
 from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
 from .netns_fixture import NamespaceFixture
-from .server import SimpleServerThread
 from .scapy_utils import (
     AsyncSnifferContext,
-    create_l2socket,
     create_capture_socket,
+    create_l2socket,
     scapy_tcp_get_authopt_val,
     scapy_tcp_get_md5_sig,
 )
+from .server import SimpleServerThread
 from .utils import (
     DEFAULT_TCP_SERVER_PORT,
-    create_listen_socket,
     create_client_socket,
+    create_listen_socket,
     netns_context,
     nstat_json,
 )

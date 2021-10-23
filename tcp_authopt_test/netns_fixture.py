@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0
-import subprocess
 import socket
-from ipaddress import IPv4Address
-from ipaddress import IPv6Address
+import subprocess
+from ipaddress import IPv4Address, IPv6Address
+
 from .conftest import raise_skip_no_netns
 
 

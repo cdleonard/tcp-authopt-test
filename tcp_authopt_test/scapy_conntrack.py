@@ -2,9 +2,11 @@
 """Identify TCP connections inside a capture and collect per-connection information"""
 import typing
 from dataclasses import dataclass
-from scapy.packet import Packet
+
 from scapy.layers.inet import TCP
-from .scapy_utils import IPvXAddress, get_packet_ipvx_src, get_packet_ipvx_dst
+from scapy.packet import Packet
+
+from .scapy_utils import IPvXAddress, get_packet_ipvx_dst, get_packet_ipvx_src
 
 
 @dataclass(frozen=True)

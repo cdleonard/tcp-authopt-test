@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: GPL-2.0
+import logging
 import threading
+import typing
+
 import scapy.sessions
 from scapy.packet import Packet
-import typing
-import logging
-from .scapy_conntrack import TCPConnectionTracker, TCPConnectionInfo
+
+from .scapy_conntrack import TCPConnectionInfo, TCPConnectionTracker
 
 logger = logging.getLogger(__name__)
 

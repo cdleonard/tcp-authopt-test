@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: GPL-2.0
 """Python wrapper around linux TCP_MD5SIG ABI"""
 
-from enum import IntFlag
 import socket
-import typing
 import struct
+import typing
 from dataclasses import dataclass
+from enum import IntFlag
 
 from .sockaddr import sockaddr_convert, sockaddr_unpack
-
 
 TCP_MD5SIG = 14
 TCP_MD5SIG_EXT = 32
@@ -44,8 +43,9 @@ class tcp_md5sig:
         self.keylen = keylen
 
     def get_auto_flags(self):
-        return ((TCP_MD5SIG_FLAG.PREFIX if self.prefixlen is not None else 0) |
-                (TCP_MD5SIG_FLAG.IFINDEX if self.ifindex else 0))
+        return (TCP_MD5SIG_FLAG.PREFIX if self.prefixlen is not None else 0) | (
+            TCP_MD5SIG_FLAG.IFINDEX if self.ifindex else 0
+        )
 
     def get_real_flags(self):
         if self.flags is None:

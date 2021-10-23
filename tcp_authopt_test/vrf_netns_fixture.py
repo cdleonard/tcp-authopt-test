@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 import subprocess
-from ipaddress import IPv4Address
-from ipaddress import IPv6Address
+from ipaddress import IPv4Address, IPv6Address
 
 
 def ip_link_get_ifindex(dev: str, prefix: str = "") -> int:
@@ -50,7 +49,10 @@ class VrfNamespaceFixture:
     client_ipv6_addr = get_ipv6_addr(2, 1)
 
     def __init__(self, **kw):
-        import os, pytest
+        import os
+
+        import pytest
+
         from .conftest import raise_skip_no_netns
 
         raise_skip_no_netns()

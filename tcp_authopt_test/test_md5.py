@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: GPL-2.0
 import socket
-import pytest
-from ipaddress import IPv4Address
-from .sockaddr import sockaddr_in
 from contextlib import nullcontext
-from .server import SimpleServerThread
-from .utils import create_listen_socket, check_socket_echo, DEFAULT_TCP_SERVER_PORT
+from ipaddress import IPv4Address
+
+import pytest
+
 from .linux_tcp_md5sig import setsockopt_md5sig, tcp_md5sig
+from .server import SimpleServerThread
+from .sockaddr import sockaddr_in
+from .utils import DEFAULT_TCP_SERVER_PORT, check_socket_echo, create_listen_socket
 
 
 def test_md5sig_packunpack():
@@ -66,11 +68,14 @@ def test_md5_noaddr(exit_stack, goodkey: bool):
 
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
 def test_md5_validation(exit_stack, address_family):
-    from .tcp_connection_fixture import TCPConnectionFixture
-    from .scapy_utils import calc_tcp_md5_hash
-    from .scapy_utils import scapy_tcp_get_md5_sig
-    from .scapy_utils import scapy_sniffer_stop
     from scapy.layers.inet import TCP
+
+    from .scapy_utils import (
+        calc_tcp_md5_hash,
+        scapy_sniffer_stop,
+        scapy_tcp_get_md5_sig,
+    )
+    from .tcp_connection_fixture import TCPConnectionFixture
 
     con = TCPConnectionFixture(address_family=address_family)
     con.tcp_md5_key = b"12345"

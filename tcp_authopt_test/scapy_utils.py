@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: GPL-2.0
-import typing
-import struct
 import socket
+import struct
 import threading
+import typing
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address
 
-from scapy.packet import Packet
+from scapy.config import conf as scapy_conf
 from scapy.layers.inet import IP, TCP
 from scapy.layers.inet6 import IPv6
-from scapy.config import conf as scapy_conf
+from scapy.packet import Packet
 from scapy.sendrecv import AsyncSniffer
 
 from .utils import netns_context

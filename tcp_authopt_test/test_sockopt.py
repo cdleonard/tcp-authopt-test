@@ -7,21 +7,21 @@ from ipaddress import IPv4Address, IPv6Address
 
 import pytest
 
+from .conftest import skipif_missing_tcp_authopt
 from .linux_tcp_authopt import (
     TCP_AUTHOPT,
-    TCP_AUTHOPT_KEY,
     TCP_AUTHOPT_ALG,
     TCP_AUTHOPT_FLAG,
+    TCP_AUTHOPT_KEY,
     TCP_AUTHOPT_KEY_FLAG,
-    set_tcp_authopt,
-    get_tcp_authopt,
-    set_tcp_authopt_key,
     del_tcp_authopt_key,
+    get_tcp_authopt,
+    set_tcp_authopt,
+    set_tcp_authopt_key,
     tcp_authopt,
     tcp_authopt_key,
 )
 from .sockaddr import sockaddr_in, sockaddr_in6, sockaddr_unpack
-from .conftest import skipif_missing_tcp_authopt
 
 pytestmark = skipif_missing_tcp_authopt
 
@@ -136,7 +136,7 @@ def test_authopt_key_badflags():
     """Don't pretend to handle unknown flags"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         with pytest.raises(OSError):
-            set_tcp_authopt_key(sock, tcp_authopt_key(flags=0xabcdef))
+            set_tcp_authopt_key(sock, tcp_authopt_key(flags=0xABCDEF))
 
 
 def test_authopt_key_longer_bad():

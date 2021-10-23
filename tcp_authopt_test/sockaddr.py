@@ -103,7 +103,11 @@ def sockaddr_unpack(buffer: bytes):
 
 def sockaddr_convert(val):
     """Try to convert address into some sort of sockaddr"""
-    if isinstance(val, sockaddr_in) or isinstance(val, sockaddr_in6) or isinstance(val, sockaddr_storage):
+    if (
+        isinstance(val, sockaddr_in)
+        or isinstance(val, sockaddr_in6)
+        or isinstance(val, sockaddr_storage)
+    ):
         return val
     if isinstance(val, IPv4Address):
         return sockaddr_in(addr=val)

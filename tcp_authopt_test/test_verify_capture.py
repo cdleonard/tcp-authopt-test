@@ -12,9 +12,9 @@ import waiting
 from scapy.layers.inet import TCP
 
 from .conftest import (
+    has_tcp_authopt_snmp,
     skipif_cant_capture,
     skipif_missing_tcp_authopt,
-    has_tcp_authopt_snmp,
 )
 from .full_tcp_sniff_session import FullTCPSniffSession
 from .linux_tcp_authopt import (
