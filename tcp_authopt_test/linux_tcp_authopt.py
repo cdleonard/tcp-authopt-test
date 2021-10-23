@@ -148,7 +148,7 @@ class tcp_authopt_key:
         return self.pack()
 
     @property
-    def key(self) -> bytes:
+    def key(self) -> KeyArgType:
         return self._key
 
     @key.setter
