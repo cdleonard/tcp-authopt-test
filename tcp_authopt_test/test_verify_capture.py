@@ -12,7 +12,6 @@ import waiting
 from scapy.layers.inet import TCP
 
 from .conftest import (
-    has_tcp_authopt_snmp,
     raises_optional_exception,
     skipif_cant_capture,
     skipif_missing_tcp_authopt,
@@ -132,11 +131,8 @@ def test_verify_capture(
         validator.handle_packet(p)
     validator.raise_errors()
 
-    if has_tcp_authopt_snmp():
-        new_nstat = nstat_json()
-        assert (
-            old_nstat["TcpExtTCPAuthOptFailure"] == new_nstat["TcpExtTCPAuthOptFailure"]
-        )
+    new_nstat = nstat_json()
+    assert old_nstat["TcpExtTCPAuthOptFailure"] == new_nstat["TcpExtTCPAuthOptFailure"]
 
 
 @pytest.mark.parametrize(
@@ -368,11 +364,10 @@ def test_tw_ack(exit_stack: ExitStack, address_family):
         val.handle_packet(p)
     val.raise_errors()
 
-    if has_tcp_authopt_snmp():
-        # The server does not have enough state to validate the ACK from TIME-WAIT
-        # so it reports a failure.
-        assert con.server_nstat_json()["TcpExtTCPAuthOptFailure"] == 1
-        assert con.client_nstat_json()["TcpExtTCPAuthOptFailure"] == 0
+    # The server does not have enough state to validate the ACK from TIME-WAIT
+    # so it reports a failure.
+    assert con.server_nstat_json()["TcpExtTCPAuthOptFailure"] == 1
+    assert con.client_nstat_json()["TcpExtTCPAuthOptFailure"] == 0
 
 
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
@@ -541,16 +536,13 @@ ip netns exec {con.nsfixture.server_netns_name} ip neigh add {con.client_addr} l
     if mode == "fakesign":
         break_tcp_authopt_signature(p3)
 
-    if has_tcp_authopt_snmp():
-        assert con.server_nstat_json()["TcpExtTCPAuthOptFailure"] == 0
+    assert con.server_nstat_json()["TcpExtTCPAuthOptFailure"] == 0
     client_l2socket.send(p3)
 
     def confirm_good():
         return len(con.server_thread.server_socket) > 0
 
     def confirm_fail():
-        if not has_tcp_authopt_snmp():
-            pytest.skip("Test relies on SNMP to confirm failure")
         return con.server_nstat_json()["TcpExtTCPAuthOptFailure"] == 1
 
     def wait_good():

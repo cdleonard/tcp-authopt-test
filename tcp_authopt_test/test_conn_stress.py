@@ -100,10 +100,6 @@ ip netns exec {nsfixture.server_netns_name} cat /proc/net/sockstat
     exit_stack.enter_context(server_thread)
 
     def assert_no_snmp_failures():
-        from .conftest import has_tcp_authopt_snmp
-
-        if not has_tcp_authopt_snmp():
-            return None
         client_nstat = nstat_json(namespace=nsfixture.client_netns_name)
         server_nstat = nstat_json(namespace=nsfixture.server_netns_name)
         assert (

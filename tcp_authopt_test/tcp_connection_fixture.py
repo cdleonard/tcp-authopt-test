@@ -11,8 +11,6 @@ from scapy.layers.inet6 import IPv6
 from scapy.layers.l2 import Ether
 from scapy.packet import Packet
 
-from tcp_authopt_test.conftest import has_tcp_authopt_snmp
-
 from . import linux_tcp_authopt
 from .full_tcp_sniff_session import FullTCPSniffSession
 from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
@@ -215,13 +213,10 @@ class TCPConnectionFixture:
             return nstat_json()
 
     def assert_no_snmp_output_failures(self):
-        from .conftest import has_tcp_authopt_snmp
-
-        if has_tcp_authopt_snmp():
-            client_nstat_dict = self.client_nstat_json()
-            assert client_nstat_dict["TcpExtTCPAuthOptFailure"] == 0
-            server_nstat_dict = self.server_nstat_json()
-            assert server_nstat_dict["TcpExtTCPAuthOptFailure"] == 0
+        client_nstat_dict = self.client_nstat_json()
+        assert client_nstat_dict["TcpExtTCPAuthOptFailure"] == 0
+        server_nstat_dict = self.server_nstat_json()
+        assert server_nstat_dict["TcpExtTCPAuthOptFailure"] == 0
 
     def _get_state_via_ss(self, command_prefix: str):
         # Every namespace should have at most one socket
