@@ -90,8 +90,7 @@ def get_tcp_authopt(sock: socket.socket) -> tcp_authopt:
 class tcp_authopt_key:
     """Like linux struct tcp_authopt_key
 
-    :ivar auto_flags: If true(default) then set TCP_AUTHOPT_KEY_FLAG.IFINDEX and
-        TCP_AUTHOPT_KEY_FLAG.BIND_ADDR automatically based on non-null values.
+    :ivar auto_flags: If true(default) then set "binding" flags based on non-null values attributes.
     """
 
     KeyArgType = typing.Union[str, bytes]
