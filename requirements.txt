@@ -31,9 +31,15 @@ pycparser==2.20
 pyparsing==2.4.7
     # via packaging
 pytest==6.2.4
+    # via
+    #   pytest-tap
+    #   tcp-authopt-test (setup.py)
+pytest-tap==3.2
     # via tcp-authopt-test (setup.py)
 scapy==2.4.5
     # via tcp-authopt-test (setup.py)
+tap.py==3.0
+    # via pytest-tap
 toml==0.10.2
     # via pytest
 waiting==1.4.1
