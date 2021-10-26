@@ -11,7 +11,11 @@ import pytest
 
 from . import linux_tcp_md5sig
 from .conftest import parametrize_product, skipif_missing_tcp_authopt
-from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
+from .linux_tcp_authopt import (
+    set_tcp_authopt_key,
+    set_tcp_authopt_key_kwargs,
+    tcp_authopt_key,
+)
 from .server import SimpleServerThread
 from .utils import (
     DEFAULT_TCP_SERVER_PORT,
@@ -239,6 +243,33 @@ def test_vrf_overlap_md5_prefix(exit_stack: ExitStack, address_family):
     # connect via VRF
     client_socket = fix.create_client_socket(fix.nsfixture.client1_netns_name)
     set_client_md5_key(fix, client_socket, b"pass")
+    client_socket.connect(fix.server_addr_port)
+
+
+@pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
+def test_vrf_overlap_ao_bound_keys_precedence(exit_stack: ExitStack, address_family):
+    """Keys bound to VRF should take precedence over unbound keys."""
+    fix = VrfFixture(address_family)
+    exit_stack.enter_context(fix)
+    set_tcp_authopt_key_kwargs(
+        fix.listen_socket,
+        key=KEY0,
+        ifindex=None,
+    )
+    set_tcp_authopt_key_kwargs(
+        fix.listen_socket,
+        key=KEY1,
+        ifindex=fix.vrf1_ifindex,
+    )
+
+    # connect from VRF1 with VRF-bound key
+    client_socket = fix.create_client_socket(fix.nsfixture.client1_netns_name)
+    set_tcp_authopt_key_kwargs(client_socket, key=KEY1)
+    client_socket.connect(fix.server_addr_port)
+
+    # connect from VRF2 with unbound key
+    client_socket = fix.create_client_socket(fix.nsfixture.client2_netns_name)
+    set_tcp_authopt_key_kwargs(client_socket, key=KEY0)
     client_socket.connect(fix.server_addr_port)
 
 
