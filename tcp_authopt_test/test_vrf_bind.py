@@ -4,6 +4,7 @@ With tcp_l3mdev_accept single server should be able to differentiate multiple
 clients with same IP coming from different VRFs.
 """
 import errno
+import logging
 import socket
 from contextlib import ExitStack
 
@@ -24,6 +25,8 @@ from .utils import (
     create_listen_socket,
 )
 from .vrf_netns_fixture import VrfNamespaceFixture
+
+logger = logging.getLogger(__name__)
 
 
 class VrfFixture:
@@ -246,31 +249,68 @@ def test_vrf_overlap_md5_prefix(exit_stack: ExitStack, address_family):
     client_socket.connect(fix.server_addr_port)
 
 
-@pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
-def test_vrf_overlap_ao_bound_keys_precedence(exit_stack: ExitStack, address_family):
-    """Keys bound to VRF should take precedence over unbound keys."""
-    fix = VrfFixture(address_family)
-    exit_stack.enter_context(fix)
-    set_tcp_authopt_key_kwargs(
-        fix.listen_socket,
-        key=KEY0,
-        ifindex=None,
-    )
-    set_tcp_authopt_key_kwargs(
-        fix.listen_socket,
-        key=KEY1,
-        ifindex=fix.vrf1_ifindex,
-    )
+class TestVRFOverlapAOBoundKeyPrecedence:
+    """Keys bound to VRF should take precedence over unbound keys.
 
-    # connect from VRF1 with VRF-bound key
-    client_socket = fix.create_client_socket(fix.nsfixture.client1_netns_name)
-    set_tcp_authopt_key_kwargs(client_socket, key=KEY1)
-    client_socket.connect(fix.server_addr_port)
+    KEY0 is unbound (accepts all vrfs)
+    KEY1 is bound to vrf1
+    """
 
-    # connect from VRF2 with unbound key
-    client_socket = fix.create_client_socket(fix.nsfixture.client2_netns_name)
-    set_tcp_authopt_key_kwargs(client_socket, key=KEY0)
-    client_socket.connect(fix.server_addr_port)
+    fix: VrfFixture
+
+    @pytest.fixture(
+        autouse=True,
+        scope="class",
+        params=[socket.AF_INET, socket.AF_INET6],
+    )
+    def init(self, request: pytest.FixtureRequest):
+        address_family = request.param
+        logger.info("init address_family=%s", address_family)
+        with ExitStack() as exit_stack:
+            fix = exit_stack.enter_context(VrfFixture(address_family))
+            set_tcp_authopt_key_kwargs(
+                fix.listen_socket,
+                key=KEY0,
+                ifindex=None,
+            )
+            set_tcp_authopt_key_kwargs(
+                fix.listen_socket,
+                key=KEY1,
+                ifindex=fix.vrf1_ifindex,
+            )
+            self.__class__.fix = fix
+            yield
+        logger.info("done address_family=%s", address_family)
+
+    def test_vrf1_key0(self):
+        client_socket = self.fix.create_client_socket(
+            self.fix.nsfixture.client1_netns_name
+        )
+        set_tcp_authopt_key_kwargs(client_socket, key=KEY0)
+        with pytest.raises(socket.timeout):
+            client_socket.connect(self.fix.server_addr_port)
+
+    def test_vrf1_key1(self):
+        client_socket = self.fix.create_client_socket(
+            self.fix.nsfixture.client1_netns_name
+        )
+        set_tcp_authopt_key_kwargs(client_socket, key=KEY1)
+        client_socket.connect(self.fix.server_addr_port)
+
+    def test_vrf2_key0(self):
+        client_socket = self.fix.create_client_socket(
+            self.fix.nsfixture.client2_netns_name
+        )
+        set_tcp_authopt_key_kwargs(client_socket, key=KEY0)
+        client_socket.connect(self.fix.server_addr_port)
+
+    def test_vrf2_key1(self):
+        client_socket = self.fix.create_client_socket(
+            self.fix.nsfixture.client2_netns_name
+        )
+        set_tcp_authopt_key_kwargs(client_socket, key=KEY1)
+        with pytest.raises(socket.timeout):
+            client_socket.connect(self.fix.server_addr_port)
 
 
 def assert_raises_enoent(func):
