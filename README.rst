@@ -9,4 +9,5 @@ mostly self-contained as a python package.
 
 The recommended way to run this is the included `run.sh` script as root, this
 will automatically create a virtual environment with the correct dependencies
-using `tox`.
+using `pip`. If not running under root it will automatically attempt to elevate
+using `sudo` after the virtualenv is created.
