@@ -1,10 +1,10 @@
 #! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
 #
-# Create virtualenv using tox and run pytest
+# Create virtualenv using pip and run pytest
 # Accepts all args that pytest does
 #
 set -e
-
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 if [[ -d venv ]]; then
