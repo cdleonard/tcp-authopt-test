@@ -13,4 +13,4 @@ if [[ $(id -u) -ne 0 ]]; then
 	echo >&2 "warning: running as non-root user is unlikely to work"
 fi
 cd "$(dirname "${BASH_SOURCE[0]}")"
-exec tox -- -s --log-cli-level=DEBUG "$@"
+exec tox -- -s --log-cli-level=DEBUG --tap-stream "$@"
