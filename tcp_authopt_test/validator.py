@@ -95,11 +95,11 @@ class TcpAuthValidator:
             )
 
         if not conn.found_syn:
-            logger.warning("missing SYN for %s", p)
+            logger.warning("missing SYN for packet %s", p.summary())
             self.any_incomplete = True
             return
         if not conn.found_synack and not p[TCP].flags.S:
-            logger.warning("missing SYNACK for %s", p)
+            logger.warning("missing SYNACK for packet %s", p.summary())
             self.any_incomplete = True
             return
 
