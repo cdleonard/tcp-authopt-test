@@ -37,6 +37,8 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
     bufsize = 0x10000
     secret_key = b"12345"
     mode = "echo"
+    tcp_repair_authopt_enabled = True
+
     nsfixture = exit_stack.enter_context(NamespaceFixture())
     server_addr = nsfixture.get_addr(socket.AF_INET, 1)
     client_addr = nsfixture.get_addr(socket.AF_INET, 2)
@@ -97,7 +99,8 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
 
     logger.debug("setup recv_seq %08x send_seq %08x", recv_seq, send_seq)
 
-    if signed:
+    # Init tcp_repair_authopt
+    if signed and tcp_repair_authopt_enabled:
         with tcp_repair_toggle(client_socket):
             init_tcp_repair_authopt = get_tcp_repair_authopt(client_socket)
         assert init_tcp_repair_authopt.src_isn + 1 == send_seq
@@ -124,8 +127,10 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
 
     new_recv_seq, new_send_seq = get_tcp_repair_recv_send_queue_seq(client_socket)
     logger.debug("final recv_seq %08x send_seq %08x", new_recv_seq, new_send_seq)
+    assert new_recv_seq < recv_seq or new_send_seq < send_seq
 
-    if signed:
+    # Validate SNE as read via TCP_REPAIR_AUTHOPT
+    if signed and tcp_repair_authopt_enabled:
         with tcp_repair_toggle(client_socket):
             exit_tcp_repair_authopt = get_tcp_repair_authopt(client_socket)
         logger.debug("exit tcp repair authopt: %r", exit_tcp_repair_authopt)
@@ -135,5 +140,4 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
             exit_tcp_repair_authopt.snd_sne != 0 or exit_tcp_repair_authopt.rcv_sne != 0
         )
 
-    assert new_recv_seq < recv_seq or new_send_seq < send_seq
     assert not fail_transfer
