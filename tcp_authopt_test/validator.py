@@ -50,7 +50,7 @@ class TcpAuthValidator:
     """Validate TCP Authentication Option signatures inside a capture
 
     This can track multiple connections, determine their initial sequence numbers
-    and verify their signatues independently.
+    and verify their signatures independently.
 
     Keys are provided as a collection of `.TcpAuthValidatorKey`
     """
