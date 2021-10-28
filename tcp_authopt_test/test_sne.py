@@ -54,7 +54,7 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
 
     found = False
     client_socket = None
-    for iternum in range(10000):
+    for iternum in range(50000):
         try:
             # Manually assign increasing client ports
             #
