@@ -41,7 +41,7 @@ def test_many_conns(exit_stack: ExitStack, sign_mode: str):
     listen_depth = 1024
     address_family = socket.AF_INET
     client_timeout = 10
-    run_tcpdump = True
+    run_tcpdump = False
 
     # Reproduce issue with few ports:
     if True:
