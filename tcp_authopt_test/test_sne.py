@@ -36,7 +36,7 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
     overflow = 0x200000
     bufsize = 0x10000
     secret_key = b"12345"
-    mode = "recv"
+    mode = "echo"
     nsfixture = exit_stack.enter_context(NamespaceFixture())
     server_addr = nsfixture.get_addr(socket.AF_INET, 1)
     client_addr = nsfixture.get_addr(socket.AF_INET, 2)
