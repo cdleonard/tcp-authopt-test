@@ -92,6 +92,10 @@ class SequenceNumberExtenderLinux:
     sne: int = 0
     prev_seq: int = 0
 
+    def reset(self, seq, sne=0):
+        self.prev_seq = seq
+        self.sne = sne
+
     def calc(self, seq, update=True):
         sne = self.sne
         if tcp_seq_before(seq, self.prev_seq):

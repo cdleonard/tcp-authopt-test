@@ -60,6 +60,7 @@ class TcpAuthValidator:
     any_incomplete: bool = False
     any_unsigned: bool = False
     any_fail: bool = False
+    debug_sne: bool = False
 
     def __init__(self, keys=None):
         self.keys = keys or []
@@ -108,8 +109,13 @@ class TcpAuthValidator:
             p, conn.sisn or 0, conn.disn or 0
         )
         traffic_key = alg.kdf(key.key, context_bytes)
+        sne = conn.snd_sne.calc(p[TCP].seq, update=False)
+        if self.debug_sne:
+            logger.debug("sne %08x seq %08x for %s", sne, p[TCP].seq, p[TCP].summary())
         message_bytes = scapy_tcp_authopt.build_message_from_packet(
-            p, include_options=key.include_options
+            p,
+            include_options=key.include_options,
+            sne=sne,
         )
         computed_mac = alg.mac(traffic_key, message_bytes)
         captured_mac = authopt.mac

@@ -7,6 +7,7 @@ from scapy.layers.inet import TCP
 from scapy.packet import Packet
 
 from .scapy_utils import IPvXAddress, get_packet_ipvx_dst, get_packet_ipvx_src
+from .sne_alg import SequenceNumberExtenderLinux
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,8 @@ class TCPConnectionInfo:
     dport: int = 0
     sisn: typing.Optional[int] = None
     disn: typing.Optional[int] = None
+    rcv_sne: SequenceNumberExtenderLinux
+    snd_sne: SequenceNumberExtenderLinux
 
     found_syn = False
     found_synack = False
@@ -44,6 +47,10 @@ class TCPConnectionInfo:
     found_send_finack = False
     found_recv_fin = False
     found_recv_finack = False
+
+    def __init__(self):
+        self.rcv_sne = SequenceNumberExtenderLinux()
+        self.snd_sne = SequenceNumberExtenderLinux()
 
     def get_key(self):
         return TCPConnectionKey(self.saddr, self.daddr, self.sport, self.dport)
@@ -66,9 +73,11 @@ class TCPConnectionInfo:
             assert th.ack == 0
             self.found_syn = True
             self.sisn = th.seq
+            self.snd_sne.reset(th.seq)
         elif th.flags.S and th.flags.A:
             self.found_synack = True
             self.sisn = th.seq
+            self.snd_sne.reset(th.seq)
             assert self.disn == th.ack - 1
 
         # Should track seq numbers instead
@@ -76,6 +85,9 @@ class TCPConnectionInfo:
             self.found_send_fin = True
         if th.flags.A and self.found_recv_fin:
             self.found_send_finack = True
+
+        # Should only take valid packets into account
+        self.snd_sne.calc(th.seq)
 
     def handle_recv(self, p: Packet):
         th = p[TCP]
@@ -86,9 +98,11 @@ class TCPConnectionInfo:
             assert th.ack == 0
             self.found_syn = True
             self.disn = th.seq
+            self.rcv_sne.reset(th.seq)
         elif th.flags.S and th.flags.A:
             self.found_synack = True
             self.disn = th.seq
+            self.rcv_sne.reset(th.seq)
             assert self.sisn == th.ack - 1
 
         # Should track seq numbers instead
@@ -96,6 +110,9 @@ class TCPConnectionInfo:
             self.found_recv_fin = True
         if th.flags.A and self.found_send_fin:
             self.found_recv_finack = True
+
+        # Should only take valid packets into account
+        self.rcv_sne.calc(th.seq)
 
 
 class TCPConnectionTracker:
