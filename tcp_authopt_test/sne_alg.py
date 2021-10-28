@@ -87,7 +87,7 @@ def tcp_seq_after(a, b) -> bool:
 
 
 class SequenceNumberExtenderLinux:
-    """Based on sample code in original RFC5925 document"""
+    """Based on linux implementation and with no extra flags"""
 
     sne: int = 0
     prev_seq: int = 0
