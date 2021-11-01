@@ -11,7 +11,7 @@ if [[ -d venv ]]; then
 	echo >&2 "Using existing $(readlink -f venv)"
 else
 	echo >&2 "Creating $(readlink -f venv)"
-	python3 -m venv venv
+	python3 -m venv ./venv
 	(
 		. venv/bin/activate
 		pip install wheel
