@@ -1,10 +1,28 @@
 #! /bin/bash
 # SPDX-License-Identifier: GPL-2.0
-#
-# Create virtualenv using pip and run pytest
-# Accepts all args that pytest does
-#
+
+print_help()
+{
+    cat >&2 <<MSG
+$(basename "$0"): Create virtualenv using pip and run pytest
+
+Accepts all options that pytest does, run \`\`$(basename $0) --pytest-help\`\` to
+see help from pytest itself.
+
+If current user is not already root this script with attempt sudo.
+MSG
+}
+
 set -e
+if [[ $1 == -h || $1 == --help ]]; then
+    print_help
+    exit 64
+fi
+if [[ $1 == --pytest-help ]]; then
+	shift
+	set -- --help "$@"
+fi
+
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 if [[ -d venv ]]; then
