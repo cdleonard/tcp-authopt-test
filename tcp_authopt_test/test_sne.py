@@ -3,23 +3,42 @@
 
 import logging
 import socket
+import subprocess
 from contextlib import ExitStack
 from ipaddress import ip_address
+from os import wait
 
 import pytest
+import waiting
+from scapy.layers.inet import TCP
+from scapy.packet import Raw
 
-from .linux_tcp_authopt import set_tcp_authopt_key_kwargs
+from tcp_authopt_test import scapy_conntrack
+
+from .linux_tcp_authopt import (
+    TCP_AUTHOPT_ALG,
+    set_tcp_authopt_key_kwargs,
+    tcp_authopt_key,
+)
 from .linux_tcp_repair import get_tcp_repair_recv_send_queue_seq, tcp_repair_toggle
 from .linux_tcp_repair_authopt import get_tcp_repair_authopt
 from .netns_fixture import NamespaceFixture
 from .scapy_conntrack import TCPConnectionKey, TCPConnectionTracker
+from .scapy_tcp_authopt import (
+    TcpAuthOptAlg_HMAC_SHA1,
+    add_tcp_authopt_signature,
+    check_tcp_authopt_signature,
+)
 from .scapy_utils import AsyncSnifferContext, create_capture_socket, tcp_seq_wrap
 from .server import SimpleServerThread
+from .tcp_connection_fixture import TCPConnectionFixture
 from .utils import (
     DEFAULT_TCP_SERVER_PORT,
     check_socket_echo,
     create_client_socket,
     create_listen_socket,
+    netns_context,
+    randbytes,
     socket_set_linger,
 )
 from .validator import TcpAuthValidator, TcpAuthValidatorKey
@@ -223,3 +242,105 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
         )
 
     assert not fail_transfer
+
+
+def _block_client_tcp(nsfixture: NamespaceFixture, address_family=socket.AF_INET):
+    """Prevent TCP in client namespace from sending RST
+
+    Do this by removing the client address and inserting a static ARP on server side.
+    """
+    client_prefix_length = nsfixture.get_prefix_length(address_family)
+    client_addr = nsfixture.get_ipv4_addr(2, 1)
+    script = (
+        f"""
+set -e
+ip netns exec {nsfixture.client_netns_name} ip addr del {client_addr}/{client_prefix_length} dev veth0
+ip netns exec {nsfixture.server_netns_name} ip neigh add {client_addr} lladdr {nsfixture.client_mac_addr} dev veth0
+""",
+    )
+    subprocess.run(script, shell=True, check=True)
+
+
+@pytest.mark.parametrize("client_isn", [0xFFFF0000, 0xFFFFFFFF])
+def test_syn_seq_ffffffff(exit_stack: ExitStack, client_isn):
+    """Test SYN with seq=0xffffffff"""
+    con = TCPConnectionFixture()
+    con.tcp_authopt_key = tcp_authopt_key(
+        alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
+        key=b"hello",
+    )
+    exit_stack.enter_context(con)
+
+    client_l2socket = con.client_l2socket
+    server_isn = 0
+    DEFAULT_BUFSIZE = 1000
+
+    def sign(packet, sne=0):
+        add_tcp_authopt_signature(
+            packet,
+            TcpAuthOptAlg_HMAC_SHA1(),
+            con.tcp_authopt_key.key,
+            client_isn,
+            server_isn,
+            sne=sne,
+        )
+
+    _block_client_tcp(con.nsfixture)
+
+    # send SYN
+    p = con.create_client2server_packet()
+    p[TCP].flags = "S"
+    p[TCP].seq = client_isn
+    p[TCP].ack = 0
+    sign(p)
+    client_l2socket.send(p)
+
+    # wait SYN/ACK
+    def has_synack():
+        return (
+            con.sniffer_session.client_info is not None
+            and con.sniffer_session.client_info.disn is not None
+        )
+
+    waiting.wait(has_synack, timeout_seconds=5, sleep_seconds=0.1)
+    server_isn = con.sniffer_session.client_info.disn
+
+    # send ACK to SYN/ACK
+    p = con.create_client2server_packet()
+    p[TCP].flags = "A"
+    p[TCP].seq = tcp_seq_wrap(client_isn + 1)
+    p[TCP].ack = tcp_seq_wrap(server_isn + 1)
+    sign(p, sne=(client_isn + 1) >> 32)
+    client_l2socket.send(p)
+
+    # send data
+    p = con.create_client2server_packet()
+    p[TCP].flags = "PA"
+    p[TCP].seq = tcp_seq_wrap(client_isn + 1)
+    p[TCP].ack = tcp_seq_wrap(server_isn + 1)
+    p /= Raw(randbytes(DEFAULT_BUFSIZE))
+    sign(p, sne=(client_isn + 1) >> 32)
+    client_l2socket.send(p)
+
+    def has_response():
+        con.assert_no_snmp_output_failures()
+        plist = con.sniffer_session.toPacketList()
+        logger.info("sniffer list:\n%s", plist)
+        for p in plist:
+            logger.info("p %s len %d", p.summary(), len(p))
+            th = p.getlayer(TCP)
+            if not th:
+                continue
+            logger.info("th %s len %d", p.summary(), len(th.payload))
+            if th.sport != DEFAULT_TCP_SERVER_PORT:
+                continue
+            th_end_seq = th.seq + len(th.payload)
+            logger.info(
+                "th_end_seq %08x versus server_isn %08x", th_end_seq, server_isn
+            )
+            if th_end_seq - server_isn >= DEFAULT_BUFSIZE:
+                logger.info("packet %s looks like a server response", th.summary())
+                return True
+        return False
+
+    waiting.wait(has_response, timeout_seconds=5, sleep_seconds=1)
