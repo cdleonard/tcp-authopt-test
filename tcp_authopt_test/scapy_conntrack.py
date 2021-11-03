@@ -6,7 +6,12 @@ from dataclasses import dataclass
 from scapy.layers.inet import TCP
 from scapy.packet import Packet
 
-from .scapy_utils import IPvXAddress, get_packet_ipvx_dst, get_packet_ipvx_src
+from .scapy_utils import (
+    IPvXAddress,
+    get_packet_ipvx_dst,
+    get_packet_ipvx_src,
+    tcp_seq_wrap,
+)
 from .sne_alg import SequenceNumberExtenderLinux
 
 
@@ -78,7 +83,7 @@ class TCPConnectionInfo:
             self.found_synack = True
             self.sisn = th.seq
             self.snd_sne.reset(th.seq)
-            assert self.disn == th.ack - 1
+            assert self.disn == tcp_seq_wrap(th.ack - 1)
 
         # Should track seq numbers instead
         if th.flags.F:
@@ -103,7 +108,7 @@ class TCPConnectionInfo:
             self.found_synack = True
             self.disn = th.seq
             self.rcv_sne.reset(th.seq)
-            assert self.sisn == th.ack - 1
+            assert self.sisn == tcp_seq_wrap(th.ack - 1)
 
         # Should track seq numbers instead
         if th.flags.F:
