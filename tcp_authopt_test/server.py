@@ -102,6 +102,11 @@ class SimpleServerThread(Thread):
         if self.sel:
             self.sel.register(sock, selectors.EVENT_READ, self._accept)
 
+    def del_listen_socket(self, sock):
+        self._listen_socket_list.remove(sock)
+        if self.sel:
+            self.sel.unregister(sock)
+
     def run(self):
         # logger.debug("loop init")
         while self.should_loop:
