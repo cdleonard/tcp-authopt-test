@@ -53,6 +53,14 @@ class FullTCPSniffSession(scapy.sessions.DefaultSession):
 
     def on_packet_received(self, p: Packet):
         super().on_packet_received(p)
+        try:
+            self._on_packet_received(p)
+        except Exception:
+            # Print because scapy can otherwise hide such errors
+            logger.error("exception on packet %r", p, exc_info=True)
+            raise
+
+    def _on_packet_received(self, p: Packet):
         self.tracker.handle_packet(p)
 
         # check events:
