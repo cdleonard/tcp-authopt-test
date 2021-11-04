@@ -5,13 +5,14 @@ from contextlib import ExitStack
 
 import pytest
 
-from .conftest import skipif_missing_tcp_authopt
+from .conftest import raises_optional_exception, skipif_missing_tcp_authopt
 from .linux_tcp_authopt import (
     TCP_AUTHOPT_ALG,
     TCP_AUTHOPT_FLAG,
     TCP_AUTHOPT_KEY_FLAG,
     set_tcp_authopt,
     set_tcp_authopt_key,
+    set_tcp_authopt_key_kwargs,
     tcp_authopt,
     tcp_authopt_key,
 )
@@ -20,6 +21,7 @@ from .server import SimpleServerThread
 from .utils import (
     DEFAULT_TCP_SERVER_PORT,
     check_socket_echo,
+    create_client_socket,
     create_listen_socket,
     netns_context,
 )
@@ -153,3 +155,27 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
     with create_client_socket() as client_socket2:
         client_socket2.connect((server_addr2, DEFAULT_TCP_SERVER_PORT))
         check_socket_echo(client_socket2)
+
+
+@pytest.mark.parametrize("samekeyid", [True, False])
+def test_sign_bad_keyid(exit_stack: ExitStack, samekeyid: bool):
+    """Client and server have different keyid, should fail"""
+    nsfixture = exit_stack.enter_context(NamespaceFixture())
+    server_addr = str(nsfixture.get_addr(socket.AF_INET, 1, 1))
+
+    # create server:
+    listen_socket = create_listen_socket(ns=nsfixture.server_netns_name)
+    listen_socket = exit_stack.enter_context(listen_socket)
+    set_tcp_authopt_key_kwargs(listen_socket, key="11111", send_id=1, recv_id=1)
+    exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
+
+    # create client socket:
+    client_socket = create_client_socket(ns=nsfixture.client_netns_name)
+    client_socket = exit_stack.enter_context(client_socket)
+    client_keyid = 1 if samekeyid else 2
+    set_tcp_authopt_key_kwargs(
+        client_socket, key="11111", send_id=client_keyid, recv_id=client_keyid
+    )
+
+    with raises_optional_exception(None if samekeyid else socket.error):
+        client_socket.connect((server_addr, DEFAULT_TCP_SERVER_PORT))
