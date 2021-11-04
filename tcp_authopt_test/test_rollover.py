@@ -58,11 +58,10 @@ def make_tcp_authopt_socket_pair(
 def test_get_keyids(exit_stack: ExitStack):
     """Check reading key ids"""
     sk1 = tcp_authopt_key(send_id=11, recv_id=12, key="111")
-    sk2 = tcp_authopt_key(send_id=21, recv_id=22, key="222")
     ck1 = tcp_authopt_key(send_id=12, recv_id=11, key="111")
     client_socket, server_socket = exit_stack.enter_context(
         make_tcp_authopt_socket_pair(
-            server_key_list=[sk1, sk2],
+            server_key_list=[sk1],
             client_key_list=[ck1],
         )
     )
