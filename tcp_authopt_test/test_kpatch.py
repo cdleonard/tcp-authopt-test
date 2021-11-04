@@ -34,7 +34,7 @@ def do_kpatch_unload():
 def test_kpatch_reload(exit_stack: ExitStack):
     """Test reloading for kpatch version of TCP_AUTHOPT"""
     if not os.path.exists(KPATCH_PATH):
-        pytest.skip("kpatch module %r not found", KPATCH_PATH)
+        pytest.skip(f"kpatch module {KPATCH_PATH} not found")
     if not is_kpatch_loaded():
         do_kpatch_load()
     assert has_tcp_authopt()
