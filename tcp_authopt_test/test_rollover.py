@@ -3,6 +3,8 @@ import socket
 import typing
 from contextlib import ExitStack, contextmanager
 
+import pytest
+
 from .conftest import skipif_missing_tcp_authopt
 from .linux_tcp_authopt import (
     TCP_AUTHOPT_FLAG,
@@ -178,3 +180,26 @@ def test_rollover_delkey(exit_stack: ExitStack):
     assert get_tcp_authopt(server_socket).send_keyid == 21
     assert get_tcp_authopt(server_socket).recv_keyid == 22
     assert get_tcp_authopt(client_socket).recv_keyid == 21
+
+
+@pytest.mark.xfail()
+def test_synack_with_syn_rnextkeyid(exit_stack: ExitStack):
+    """Server has more keys than client but it responds based on rnextkeyid in SYN
+
+    Responding with any other key will cause the client to drop the synack
+    """
+    sk1 = tcp_authopt_key(send_id=11, recv_id=12, key="111")
+    sk2 = tcp_authopt_key(send_id=21, recv_id=32, key="222")
+    sk3 = tcp_authopt_key(send_id=31, recv_id=32, key="333")
+    ck = tcp_authopt_key(send_id=22, recv_id=21, key="222")
+    client_socket, server_socket = exit_stack.enter_context(
+        make_tcp_authopt_socket_pair(
+            server_key_list=[sk1, sk2, sk3],
+            client_key_list=[ck],
+        )
+    )
+
+    check_socket_echo(client_socket)
+    server_tcp_authopt = get_tcp_authopt(server_socket)
+    assert server_tcp_authopt.send_keyid == ck.recv_id
+    assert server_tcp_authopt.recv_rnextkeyid == ck.send_id
