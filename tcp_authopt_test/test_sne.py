@@ -6,14 +6,12 @@ import socket
 import subprocess
 from contextlib import ExitStack
 from ipaddress import ip_address
-from os import wait
+from threading import Thread
 
 import pytest
 import waiting
 from scapy.layers.inet import TCP
-from scapy.packet import Raw
-
-from tcp_authopt_test import scapy_conntrack
+from scapy.packet import Packet, Raw
 
 from .linux_tcp_authopt import (
     TCP_AUTHOPT_ALG,
@@ -344,3 +342,114 @@ def test_syn_seq_ffffffff(exit_stack: ExitStack, client_isn):
         return False
 
     waiting.wait(has_response, timeout_seconds=5, sleep_seconds=1)
+
+
+def _block_server_tcp(nsfixture: NamespaceFixture, address_family=socket.AF_INET):
+    splen = nsfixture.get_prefix_length(address_family)
+    saddr = nsfixture.get_ipv4_addr(1, 1)
+    script = (
+        f"""
+set -e
+ip netns exec {nsfixture.server_netns_name} ip addr del {saddr}/{splen} dev veth0
+ip netns exec {nsfixture.client_netns_name} ip neigh add {saddr} lladdr {nsfixture.server_mac_addr} dev veth0
+""",
+    )
+    subprocess.run(script, shell=True, check=True)
+
+
+@pytest.mark.parametrize("server_isn", [0xFFFF0000, 0xFFFFFFFF])
+def test_synack_seq_ffffffff(exit_stack: ExitStack, server_isn: int):
+    """Test SYNACK with seq=0xffffffff
+
+    Verifies linux client behavior against a server that sends SYNACK with seq=0xffffffff
+    """
+    con = TCPConnectionFixture(capture_on_client=True)
+    con.tcp_authopt_key = tcp_authopt_key(
+        alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
+        key=b"hello",
+    )
+    exit_stack.enter_context(con)
+    sniffer_session = con.sniffer_session
+
+    server_l2socket = con.server_l2socket
+    client_isn = 0
+
+    def sign(packet, sne=0):
+        add_tcp_authopt_signature(
+            packet,
+            TcpAuthOptAlg_HMAC_SHA1(),
+            con.tcp_authopt_key.key,
+            server_isn,
+            client_isn,
+            sne=sne,
+        )
+
+    _block_server_tcp(con.nsfixture)
+
+    def run_client_thread():
+        try:
+            # If this fails it will likely be with a timeout
+            logger.info("client connect call")
+            con.client_socket.connect(con.server_addr_port)
+            logger.info("client connect done")
+            con.client_thread_failed = False
+        except:
+            logger.error("client thread failed", exc_info=True)
+            con.client_thread_failed = True
+            raise
+
+    client_thread = Thread(target=run_client_thread)
+    client_thread.start()
+
+    # wait SYN
+    def has_recv_syn():
+        return (
+            con.sniffer_session.server_info is not None
+            and con.sniffer_session.server_info.disn is not None
+        )
+
+    waiting.wait(has_recv_syn, timeout_seconds=5, sleep_seconds=0.1)
+    client_isn = sniffer_session.server_info.disn
+    logger.info("Received SYN with SEQ=%d", client_isn)
+
+    # craft SYN/ACK
+    p = con.create_server2client_packet()
+    p[TCP].flags = "SA"
+    p[TCP].seq = server_isn
+    p[TCP].ack = tcp_seq_wrap(client_isn + 1)
+    sign(p)
+    server_l2socket.send(p)
+
+    def is_client_ack(p: Packet):
+        th = p.getlayer(TCP)
+        if not th:
+            return False
+        if not sniffer_session.server_info.is_recv_match(p):
+            return False
+        if th.flags.A and th.ack == tcp_seq_wrap(server_isn + 1):
+            check_tcp_authopt_signature(
+                p,
+                TcpAuthOptAlg_HMAC_SHA1(),
+                con.tcp_authopt_key.key,
+                client_isn,
+                server_isn,
+                sne=(server_isn + 1) >> 32,
+            )
+            return True
+        return False
+
+    def sniffer_has_packet(pred):
+        for p in sniffer_session.lst:
+            if pred(p):
+                return True
+        return False
+
+    def has_client_ack():
+        return sniffer_has_packet(is_client_ack)
+
+    waiting.wait(has_client_ack, timeout_seconds=5, sleep_seconds=0.1)
+
+    # No attempt is made to transfer data
+
+    client_thread.join()
+    assert not con.client_thread_failed
