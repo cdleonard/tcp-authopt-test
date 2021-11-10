@@ -69,9 +69,12 @@ class TCPConnectionInfo:
         obj.dport = key.dport
         return obj
 
+    def is_send_match(self, p: Packet):
+        return self.get_key() == get_packet_tcp_connection_key(p)
+
     def handle_send(self, p: Packet):
         th = p[TCP]
-        if self.get_key() != get_packet_tcp_connection_key(p):
+        if not self.is_send_match(p):
             raise ValueError("Packet not for this connection")
 
         if th.flags.S and not th.flags.A:
@@ -94,9 +97,12 @@ class TCPConnectionInfo:
         # Should only take valid packets into account
         self.snd_sne.calc(th.seq)
 
+    def is_recv_match(self, p: Packet):
+        return self.get_key().rev() == get_packet_tcp_connection_key(p)
+
     def handle_recv(self, p: Packet):
         th = p[TCP]
-        if self.get_key().rev() != get_packet_tcp_connection_key(p):
+        if not self.is_recv_match(p):
             raise ValueError("Packet not for this connection")
 
         if th.flags.S and not th.flags.A:
