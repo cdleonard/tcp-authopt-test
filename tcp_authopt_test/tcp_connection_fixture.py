@@ -58,6 +58,7 @@ class TCPConnectionFixture:
         tcp_authopt_key: tcp_authopt_key = None,
         server_thread_kwargs=None,
         tcp_md5_key=None,
+        capture_on_client=False,
     ):
         self.address_family = address_family
         self.server_port = DEFAULT_TCP_SERVER_PORT
@@ -71,6 +72,7 @@ class TCPConnectionFixture:
             mode="echo", **(server_thread_kwargs or {})
         )
         self.tcp_md5_key = tcp_md5_key
+        self.capture_on_client = capture_on_client
 
     def _set_tcp_md5(self):
         from . import linux_tcp_md5sig
@@ -128,8 +130,14 @@ class TCPConnectionFixture:
             self._set_tcp_md5()
 
         capture_filter = f"tcp port {self.server_port}"
+        if self.capture_on_client:
+            capture_netns = self.nsfixture.server_netns_name
+        else:
+            capture_netns = self.nsfixture.client_netns_name
         self.capture_socket = create_capture_socket(
-            ns=self.nsfixture.server_netns_name, iface="veth0", filter=capture_filter
+            ns=capture_netns,
+            iface="veth0",
+            filter=capture_filter,
         )
         self.exit_stack.enter_context(self.capture_socket)
 
