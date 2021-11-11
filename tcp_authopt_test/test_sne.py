@@ -259,7 +259,7 @@ ip netns exec {nsfixture.server_netns_name} ip neigh add {client_addr} lladdr {n
     subprocess.run(script, shell=True, check=True)
 
 
-@pytest.mark.parametrize("client_isn", [0xFFFF0000, 0xFFFFFFFF])
+@pytest.mark.parametrize("client_isn", [0xFFFF0000, 0xFFFFFFFF], ids=hex)
 def test_syn_seq_ffffffff(exit_stack: ExitStack, client_isn):
     """Test SYN with seq=0xffffffff"""
     con = TCPConnectionFixture()
@@ -357,7 +357,7 @@ ip netns exec {nsfixture.client_netns_name} ip neigh add {saddr} lladdr {nsfixtu
     subprocess.run(script, shell=True, check=True)
 
 
-@pytest.mark.parametrize("server_isn", [0xFFFF0000, 0xFFFFFFFF])
+@pytest.mark.parametrize("server_isn", [0xFFFF0000, 0xFFFFFFFF], ids=hex)
 def test_synack_seq_ffffffff(exit_stack: ExitStack, server_isn: int):
     """Test SYNACK with seq=0xffffffff
 
