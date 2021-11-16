@@ -85,6 +85,7 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
     A side effect of this approach is that this stresses connection
     establishment.
     """
+    address_family = socket.AF_INET
     overflow = 0x200000
     bufsize = 0x10000
     secret_key = b"12345"
@@ -93,11 +94,12 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
     tcp_repair_authopt_enabled = True
 
     nsfixture = exit_stack.enter_context(NamespaceFixture())
-    server_addr = nsfixture.get_addr(socket.AF_INET, 1)
-    client_addr = nsfixture.get_addr(socket.AF_INET, 2)
+    server_addr = nsfixture.get_addr(address_family, 1)
+    client_addr = nsfixture.get_addr(address_family, 2)
     server_addr_port = (str(server_addr), DEFAULT_TCP_SERVER_PORT)
     listen_socket = create_listen_socket(
         ns=nsfixture.server_netns_name,
+        family=address_family,
         bind_addr=server_addr,
         listen_depth=1024,
     )
@@ -121,6 +123,7 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
             # This issue is not related to SNE so a workaround is acceptable.
             client_socket = create_client_socket(
                 ns=nsfixture.client_netns_name,
+                family=address_family,
                 bind_addr=client_addr,
                 bind_port=10000 + iternum,
             )
