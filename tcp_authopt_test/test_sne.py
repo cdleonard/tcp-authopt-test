@@ -264,7 +264,10 @@ ip netns exec {nsfixture.server_netns_name} ip neigh add {client_addr} lladdr {n
 
 @pytest.mark.parametrize("client_isn", [0xFFFF0000, 0xFFFFFFFF], ids=hex)
 def test_syn_seq_ffffffff(exit_stack: ExitStack, client_isn):
-    """Test SYN with seq=0xffffffff"""
+    """Test SYN with seq=0xffffffff
+
+    Client is pytest, server is linux.
+    """
     con = TCPConnectionFixture()
     con.tcp_authopt_key = tcp_authopt_key(
         alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
