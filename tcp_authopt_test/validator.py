@@ -60,7 +60,10 @@ class TcpAuthValidator:
     any_incomplete: bool = False
     any_unsigned: bool = False
     any_fail: bool = False
+
     debug_sne: bool = False
+    log_traffic_key: bool = False
+    log_mac: bool = False
 
     def __init__(self, keys=None):
         self.keys = keys or []
@@ -109,6 +112,8 @@ class TcpAuthValidator:
             p, conn.sisn or 0, conn.disn or 0
         )
         traffic_key = alg.kdf(key.key, context_bytes)
+        if self.log_traffic_key:
+            logger.debug("traffic_key %s", traffic_key.hex())
         sne = conn.snd_sne.calc(p[TCP].seq, update=False)
         if self.debug_sne:
             logger.debug("sne %08x seq %08x for %s", sne, p[TCP].seq, p[TCP].summary())
@@ -120,7 +125,8 @@ class TcpAuthValidator:
         computed_mac = alg.mac(traffic_key, message_bytes)
         captured_mac = authopt.mac
         if computed_mac == captured_mac:
-            logger.debug("ok - mac %s", computed_mac.hex())
+            if self.log_mac:
+                logger.debug("ok - mac %s", computed_mac.hex())
         else:
             self.any_fail = True
             logger.error(
