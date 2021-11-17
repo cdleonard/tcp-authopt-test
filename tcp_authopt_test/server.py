@@ -24,6 +24,7 @@ class SimpleServerThread(Thread):
     _listen_socket_list: typing.List[socket.socket]
     server_socket: typing.List[socket.socket]
     sel: typing.Optional[selectors.BaseSelector]
+    _exception = None
 
     def __init__(
         self,
@@ -112,10 +113,14 @@ class SimpleServerThread(Thread):
 
     def run(self):
         # logger.debug("loop init")
-        while self.should_loop:
-            for key, events in self.sel.select(timeout=1):
-                callback = key.data
-                callback(key.fileobj, events)
+        try:
+            while self.should_loop:
+                for key, events in self.sel.select(timeout=1):
+                    callback = key.data
+                    callback(key.fileobj, events)
+        except Exception as e:
+            logger.error("exception in server loop: %r", e, exc_info=True)
+            self._exception = e
         # logger.debug("loop done")
 
     def stop(self):
@@ -130,3 +135,5 @@ class SimpleServerThread(Thread):
 
     def __exit__(self, *args):
         self.stop()
+        if self._exception is not None:
+            raise self._exception
