@@ -92,6 +92,7 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
     mode = "echo"
     validator_enabled = True
     tcp_repair_authopt_enabled = True
+    fail = False
 
     nsfixture = exit_stack.enter_context(NamespaceFixture())
     server_addr = nsfixture.get_addr(address_family, 1)
@@ -180,6 +181,9 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
         validator.keys.append(
             TcpAuthValidatorKey(key=secret_key, alg_name="HMAC-SHA-1-96")
         )
+        # validator.debug_sne = True
+        # validator.log_traffic_key = True
+        # validator.log_mac = True
 
         # SYN+SYNACK is not captured so initialize connection info manually
         add_connection_info(
@@ -192,9 +196,13 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
             disn=tcp_seq_wrap(recv_seq - 1),
         )
 
-    logger.info("transfer %d bytes", 2 * overflow)
-    fail_transfer = False
-    for iternum in range(2 * overflow // bufsize):
+    transfer_iter_count = 2 * overflow // bufsize
+    logger.info(
+        "transfer %d bytes in %d iterations",
+        2 * overflow,
+        transfer_iter_count,
+    )
+    for iternum in range(transfer_iter_count):
         try:
             if mode == "recv":
                 from .utils import randbytes
@@ -205,21 +213,27 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
                 check_socket_echo(client_socket, bufsize)
         except:
             logger.error("failed traffic on iteration %d", iternum, exc_info=True)
-            fail_transfer = True
+            fail = True
             break
 
     new_recv_seq, new_send_seq = get_tcp_repair_recv_send_queue_seq(client_socket)
     logger.debug("final recv_seq %08x send_seq %08x", new_recv_seq, new_send_seq)
-    assert new_recv_seq < recv_seq or new_send_seq < send_seq
+    if not (new_recv_seq < recv_seq or new_send_seq < send_seq):
+        fail = True
 
     # Validate capture
     if signed and validator_enabled:
+        import time
+
+        time.sleep(1)
         sniffer.stop()
         for p in sniffer.results:
             validator.handle_packet(p)
         # Allow incomplete connections from FIN/ACK of connections dropped
         # because of low seq/ack
-        validator.raise_errors(allow_incomplete=True)
+        # validator.raise_errors(allow_incomplete=True)
+        if validator.any_fail or validator.any_unsigned:
+            fail = True
         client_scappy_key = TCPConnectionKey(
             saddr=ip_address(client_addr),
             daddr=ip_address(server_addr),
@@ -229,7 +243,9 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
         client_scappy_conn = validator.tracker.get(client_scappy_key)
         snd_sne_rollover = client_scappy_conn.snd_sne.sne != 0
         rcv_sne_rollover = client_scappy_conn.rcv_sne.sne != 0
-        assert snd_sne_rollover or rcv_sne_rollover
+        if not (snd_sne_rollover or rcv_sne_rollover):
+            logger.error("expected either snd_snd or rcv_sne to rollover")
+            fail = True
 
     # Validate SNE as read via TCP_REPAIR_AUTHOPT
     if signed and tcp_repair_authopt_enabled:
@@ -238,11 +254,11 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
         logger.debug("exit tcp repair authopt: %r", exit_tcp_repair_authopt)
         assert exit_tcp_repair_authopt.src_isn == init_tcp_repair_authopt.src_isn
         assert exit_tcp_repair_authopt.dst_isn == init_tcp_repair_authopt.dst_isn
-        assert (
-            exit_tcp_repair_authopt.snd_sne != 0 or exit_tcp_repair_authopt.rcv_sne != 0
-        )
+        if not (exit_tcp_repair_authopt.snd_sne or exit_tcp_repair_authopt.rcv_sne):
+            logger.error("expected either snd_snd or rcv_sne to rollover")
+            fail = True
 
-    assert not fail_transfer
+    assert not fail
 
 
 def _block_client_tcp(nsfixture: NamespaceFixture, address_family=socket.AF_INET):
