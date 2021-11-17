@@ -64,7 +64,10 @@ class SimpleServerThread(Thread):
                 self.sel.unregister(conn)
         else:
             if self.mode == "echo":
+                # Instead of bothering with a queue force blocking mode for reply.
+                conn.setblocking(True)
                 conn.sendall(data)
+                conn.setblocking(False)
             elif self.mode == "recv":
                 pass
             else:
