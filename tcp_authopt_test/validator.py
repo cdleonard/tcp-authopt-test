@@ -8,7 +8,7 @@ from scapy.packet import Packet
 
 from . import scapy_tcp_authopt
 from .scapy_conntrack import TCPConnectionTracker, get_packet_tcp_connection_key
-from .scapy_utils import scapy_tcp_get_authopt_val
+from .scapy_utils import format_tcp_authopt_packet, scapy_tcp_get_authopt_val
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,9 @@ class TcpAuthValidator:
                 return k
         return None
 
+    def _format_packet(self, p: Packet) -> str:
+        return format_tcp_authopt_packet(p, include_seq=True, include_md5=False)
+
     def handle_packet(self, p: Packet):
         if not TCP in p:
             return
@@ -99,11 +102,11 @@ class TcpAuthValidator:
             )
 
         if not conn.found_syn:
-            logger.warning("missing SYN for packet %s", p.summary())
+            logger.warning("missing SYN for packet %s", self._format_packet(p))
             self.any_incomplete = True
             return
         if not conn.found_synack and not p[TCP].flags.S:
-            logger.warning("missing SYNACK for packet %s", p.summary())
+            logger.warning("missing SYNACK for packet %s", self._format_packet(p))
             self.any_incomplete = True
             return
 
@@ -113,10 +116,19 @@ class TcpAuthValidator:
         )
         traffic_key = alg.kdf(key.key, context_bytes)
         if self.log_traffic_key:
-            logger.debug("traffic_key %s", traffic_key.hex())
+            logger.debug(
+                "traffic_key %s packet %s",
+                traffic_key.hex(),
+                self._format_packet(p),
+            )
         sne = conn.snd_sne.calc(p[TCP].seq, update=False)
         if self.debug_sne:
-            logger.debug("sne %08x seq %08x for %s", sne, p[TCP].seq, p[TCP].summary())
+            logger.debug(
+                "sne %08x seq %08x for %s",
+                sne,
+                p[TCP].seq,
+                self._format_packet(p),
+            )
         message_bytes = scapy_tcp_authopt.build_message_from_packet(
             p,
             include_options=key.include_options,
@@ -126,13 +138,19 @@ class TcpAuthValidator:
         captured_mac = authopt.mac
         if computed_mac == captured_mac:
             if self.log_mac:
-                logger.debug("ok - mac %s", computed_mac.hex())
+                logger.debug(
+                    "ok - mac %s on packet %s",
+                    computed_mac.hex(),
+                    self._format_packet(p),
+                )
         else:
             self.any_fail = True
             logger.error(
-                "not ok - captured %s computed %s",
+                "not ok - captured %s computed %s on packet %s traffic_key %s",
                 captured_mac.hex(),
                 computed_mac.hex(),
+                self._format_packet(p),
+                traffic_key.hex(),
             )
 
     def raise_errors(self, allow_unsigned=False, allow_incomplete=False):
