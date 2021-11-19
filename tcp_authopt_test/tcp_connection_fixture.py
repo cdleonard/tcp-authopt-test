@@ -19,8 +19,7 @@ from .scapy_utils import (
     AsyncSnifferContext,
     create_capture_socket,
     create_l2socket,
-    scapy_tcp_get_authopt_val,
-    scapy_tcp_get_md5_sig,
+    format_tcp_authopt_packet,
 )
 from .server import SimpleServerThread
 from .utils import (
@@ -244,40 +243,6 @@ class TCPConnectionFixture:
 
     def get_server_tcp_state(self):
         return self._get_state_via_ss(f"ip netns exec {self.server_netns_name} ")
-
-
-def format_tcp_authopt_packet(
-    p: Packet, include_ethernet=False, include_seq=False, include_md5=True
-) -> str:
-    """Format a TCP packet in a way that is useful for TCP-AO testing"""
-    if not TCP in p:
-        return p.summary()
-    th = p[TCP]
-    if isinstance(th.underlayer, IP):
-        result = p.sprintf(r"%IP.src%:%TCP.sport% > %IP.dst%:%TCP.dport%")
-    elif isinstance(th.underlayer, IPv6):
-        result = p.sprintf(r"%IPv6.src%:%TCP.sport% > %IPv6.dst%:%TCP.dport%")
-    else:
-        raise ValueError(f"Unknown TCP underlayer {th.underlayer}")
-    result += p.sprintf(r" Flags %-2s,TCP.flags%")
-    if include_ethernet:
-        result = p.sprintf(r"ethertype %Ether.type% ") + result
-        result = p.sprintf(r"%Ether.src% > %Ether.dst% ") + result
-    if include_seq:
-        result += p.sprintf(r" seq %08xr,TCP.seq% ack %08xr,TCP.ack%")
-        result += f" len {len(p[TCP].payload)}"
-    authopt = scapy_tcp_get_authopt_val(p[TCP])
-    if authopt:
-        result += f" AO keyid={authopt.keyid} rnextkeyid={authopt.rnextkeyid} mac={authopt.mac.hex()}"
-    else:
-        result += " no AO"
-    if include_md5:
-        md5sig = scapy_tcp_get_md5_sig(p[TCP])
-        if md5sig:
-            result += f" MD5 {md5sig.hex()}"
-        else:
-            result += " no MD5"
-    return result
 
 
 def log_tcp_authopt_packet(p):
