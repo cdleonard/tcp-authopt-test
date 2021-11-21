@@ -9,6 +9,7 @@ import typing
 from dataclasses import dataclass
 from enum import IntEnum, IntFlag
 
+from .flag_property import FlagProperty
 from .sockaddr import (
     SockaddrConvertType,
     sockaddr_base,
@@ -186,29 +187,8 @@ class tcp_authopt_key:
             self.addr = sockaddr_convert(val)
         return self.addr
 
-    @property
-    def include_options(self) -> bool:
-        return not self.flags & TCP_AUTHOPT_KEY_FLAG.EXCLUDE_OPTS
-
-    @include_options.setter
-    def include_options(self, value) -> bool:
-        if value:
-            self.flags &= ~TCP_AUTHOPT_KEY_FLAG.EXCLUDE_OPTS
-        else:
-            self.flags |= TCP_AUTHOPT_KEY_FLAG.EXCLUDE_OPTS
-        return value
-
-    @property
-    def delete_flag(self) -> bool:
-        return bool(self.flags & TCP_AUTHOPT_KEY_FLAG.DEL)
-
-    @delete_flag.setter
-    def delete_flag(self, value) -> bool:
-        if value:
-            self.flags |= TCP_AUTHOPT_KEY_FLAG.DEL
-        else:
-            self.flags &= ~TCP_AUTHOPT_KEY_FLAG.DEL
-        return value
+    include_options = FlagProperty("flags", TCP_AUTHOPT_KEY_FLAG.EXCLUDE_OPTS, rev=True)
+    delete_flag = FlagProperty("flags", TCP_AUTHOPT_KEY_FLAG.DEL)
 
 
 def set_tcp_authopt_key(sock, keyopt: tcp_authopt_key):
