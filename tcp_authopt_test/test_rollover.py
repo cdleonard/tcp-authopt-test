@@ -15,8 +15,15 @@ from .linux_tcp_authopt import (
     tcp_authopt,
     tcp_authopt_key,
 )
+from .netns_fixture import NamespaceFixture
 from .server import SimpleServerThread
-from .utils import DEFAULT_TCP_SERVER_PORT, check_socket_echo, create_listen_socket
+from .utils import (
+    DEFAULT_TCP_SERVER_PORT,
+    check_socket_echo,
+    create_client_socket,
+    create_listen_socket,
+    nstat_json,
+)
 
 pytestmark = skipif_missing_tcp_authopt
 logger = logging.getLogger(__name__)
@@ -25,23 +32,28 @@ logger = logging.getLogger(__name__)
 @contextmanager
 def make_tcp_authopt_socket_pair(
     server_addr="127.0.0.1",
+    server_port=DEFAULT_TCP_SERVER_PORT,
     server_authopt: tcp_authopt = None,
     server_key_list: typing.Iterable[tcp_authopt_key] = [],
+    server_netns: str = "",
     client_authopt: tcp_authopt = None,
     client_key_list: typing.Iterable[tcp_authopt_key] = [],
+    client_netns: str = "",
 ) -> typing.Iterator[typing.Tuple[socket.socket, socket.socket]]:
     """Make a pair for connected sockets for key switching tests
 
     Server runs in a background thread implementing echo protocol"""
     with ExitStack() as exit_stack:
-        listen_socket = exit_stack.enter_context(
-            create_listen_socket(bind_addr=server_addr)
+        listen_socket = create_listen_socket(
+            bind_addr=server_addr,
+            bind_port=server_port,
+            ns=server_netns,
         )
-        server_thread = exit_stack.enter_context(
-            SimpleServerThread(listen_socket, mode="echo")
-        )
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.settimeout(1.0)
+        exit_stack.enter_context(listen_socket)
+        server_thread = SimpleServerThread(listen_socket, mode="echo")
+        exit_stack.enter_context(server_thread)
+        client_socket = create_client_socket(ns=client_netns)
+        exit_stack.enter_context(client_socket)
 
         if server_authopt:
             set_tcp_authopt(listen_socket, server_authopt)
@@ -52,7 +64,7 @@ def make_tcp_authopt_socket_pair(
         for k in client_key_list:
             set_tcp_authopt_key(client_socket, k)
 
-        client_socket.connect((server_addr, DEFAULT_TCP_SERVER_PORT))
+        client_socket.connect((str(server_addr), server_port))
         check_socket_echo(client_socket)
         server_socket = server_thread.server_socket[0]
 
@@ -219,9 +231,9 @@ def test_norecv_reject():
         ],
         client_authopt=tcp_authopt(send_keyid=1, flags=TCP_AUTHOPT_FLAG.LOCK_KEYID),
     )
-    with pytest.raises(OSError):
+    with pytest.raises(socket.timeout):
         with context:
-            logger.info("unexpected success")
+            logger.error("unexpected success")
 
 
 def test_nosend_accept_recv():
@@ -297,9 +309,13 @@ def test_nosend_reject_send():
         )
 
 
-def test_nosend_norecv_reject():
+def test_nosend_norecv_reject(exit_stack: ExitStack):
     """Marking a key as NOSEND+NORECV rejects all incoming packets from the peer"""
+    nsfixture = exit_stack.enter_context(NamespaceFixture())
     context = make_tcp_authopt_socket_pair(
+        server_netns=nsfixture.server_netns_name,
+        client_netns=nsfixture.client_netns_name,
+        server_addr=nsfixture.get_server_addr(),
         server_key_list=[
             tcp_authopt_key(send_id=1, recv_id=1, key="111", nosend=True, norecv=True),
         ],
@@ -307,6 +323,8 @@ def test_nosend_norecv_reject():
             tcp_authopt_key(send_id=1, recv_id=1, key="111"),
         ],
     )
-    with pytest.raises(OSError):
+    with pytest.raises(socket.timeout):
         with context:
-            logger.info("unexpected success")
+            logger.error("unexpected success")
+    server_nstat = nstat_json(namespace=nsfixture.server_netns_name)
+    assert server_nstat["TcpExtTCPAuthOptFailure"] > 0

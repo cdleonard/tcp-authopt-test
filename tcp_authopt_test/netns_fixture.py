@@ -32,6 +32,12 @@ class NamespaceFixture:
         else:
             raise ValueError(f"Bad address_family={address_family}")
 
+    def get_server_addr(cls, address_family=socket.AF_INET, index=1):
+        return cls.get_addr(ns=1, address_family=address_family, index=index)
+
+    def get_client_addr(cls, address_family=socket.AF_INET, index=1):
+        return cls.get_addr(ns=2, address_family=address_family, index=index)
+
     # 02:* means "locally administered"
     server_mac_addr = "02:00:00:00:00:01"
     client_mac_addr = "02:00:00:00:00:02"
