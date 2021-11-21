@@ -3,6 +3,7 @@ import logging
 import os
 from contextlib import ExitStack, nullcontext
 from typing import ContextManager
+import typing
 
 import pytest
 
@@ -15,14 +16,22 @@ skipif_missing_tcp_authopt = pytest.mark.skipif(
 )
 
 
-def get_effective_capabilities():
-    for line in open("/proc/self/status", "r"):
-        if line.startswith("CapEff:"):
-            return int(line.split(":")[1], 16)
+def get_effective_capabilities() -> typing.Optional[int]:
+    """Read CapEff from /proc/self/status
+
+    Returns None if file is missing, for example non-linux systems.
+    """
+    try:
+        for line in open("/proc/self/status", "r"):
+            if line.startswith("CapEff:"):
+                return int(line.split(":")[1], 16)
+        raise Exception("Missing CapEff: line in /proc/self/status")
+    except FileNotFoundError:
+        return None
 
 
 def has_effective_capability(bit) -> bool:
-    return get_effective_capabilities() & (1 << bit) != 0
+    return (get_effective_capabilities() or 0) & (1 << bit) != 0
 
 
 def can_capture() -> bool:
