@@ -42,6 +42,8 @@ class TCP_AUTHOPT_KEY_FLAG(IntFlag):
     EXCLUDE_OPTS = BIT(1)
     BIND_ADDR = BIT(2)
     IFINDEX = BIT(3)
+    NOSEND = BIT(4)
+    NORECV = BIT(5)
 
 
 class TCP_AUTHOPT_ALG(IntEnum):
@@ -108,6 +110,8 @@ class tcp_authopt_key:
         auto_flags: bool = True,
         ifindex: typing.Optional[int] = None,
         include_options=None,
+        nosend: bool = False,
+        norecv: bool = False,
     ):
         self.flags = flags
         self.send_id = send_id
@@ -117,6 +121,8 @@ class tcp_authopt_key:
         self.ifindex = ifindex
         self.addr = addr
         self.auto_flags = auto_flags
+        self.nosend = nosend
+        self.norecv = norecv
         if include_options is not None:
             self.include_options = include_options
 
@@ -189,6 +195,8 @@ class tcp_authopt_key:
 
     include_options = FlagProperty("flags", TCP_AUTHOPT_KEY_FLAG.EXCLUDE_OPTS, rev=True)
     delete_flag = FlagProperty("flags", TCP_AUTHOPT_KEY_FLAG.DEL)
+    nosend = FlagProperty("flags", TCP_AUTHOPT_KEY_FLAG.NOSEND)
+    norecv = FlagProperty("flags", TCP_AUTHOPT_KEY_FLAG.NORECV)
 
 
 def set_tcp_authopt_key(sock, keyopt: tcp_authopt_key):
