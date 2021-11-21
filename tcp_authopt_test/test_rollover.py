@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
+import logging
 import socket
 import typing
 from contextlib import ExitStack, contextmanager
@@ -18,6 +19,7 @@ from .server import SimpleServerThread
 from .utils import DEFAULT_TCP_SERVER_PORT, check_socket_echo, create_listen_socket
 
 pytestmark = skipif_missing_tcp_authopt
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -203,3 +205,108 @@ def test_synack_with_syn_rnextkeyid(exit_stack: ExitStack):
     server_tcp_authopt = get_tcp_authopt(server_socket)
     assert server_tcp_authopt.send_keyid == ck.recv_id
     assert server_tcp_authopt.recv_rnextkeyid == ck.send_id
+
+
+def test_norecv_reject():
+    context = make_tcp_authopt_socket_pair(
+        server_key_list=[
+            tcp_authopt_key(send_id=1, recv_id=1, key="111", norecv=True),
+            tcp_authopt_key(send_id=2, recv_id=2, key="222"),
+        ],
+        client_key_list=[
+            tcp_authopt_key(send_id=1, recv_id=1, key="111"),
+            tcp_authopt_key(send_id=2, recv_id=2, key="222"),
+        ],
+        client_authopt=tcp_authopt(send_keyid=1, flags=TCP_AUTHOPT_FLAG.LOCK_KEYID),
+    )
+    with pytest.raises(OSError):
+        with context:
+            logger.info("unexpected success")
+
+
+def test_nosend_accept_recv():
+    """Client sends key 1, server accepts it but because of "nosend" flag it responds with key 2"""
+    context = make_tcp_authopt_socket_pair(
+        server_key_list=[
+            tcp_authopt_key(send_id=1, recv_id=1, key="111", nosend=True),
+            tcp_authopt_key(send_id=2, recv_id=2, key="222"),
+        ],
+        client_key_list=[
+            tcp_authopt_key(send_id=1, recv_id=1, key="111"),
+            tcp_authopt_key(send_id=2, recv_id=2, key="222"),
+        ],
+        client_authopt=tcp_authopt(send_keyid=1, flags=TCP_AUTHOPT_FLAG.LOCK_KEYID),
+    )
+    with context as (client_socket, server_socket):
+        check_socket_echo(client_socket)
+        assert get_tcp_authopt(server_socket).send_keyid == 2
+        # client still sends key1 because it is locked
+        assert get_tcp_authopt(client_socket).recv_rnextkeyid == 2
+        assert get_tcp_authopt(client_socket).send_keyid == 1
+
+
+def test_norecv_accept_send():
+    """Server accepts switch to key2 which is marked norecv"""
+    context = make_tcp_authopt_socket_pair(
+        server_key_list=[
+            tcp_authopt_key(send_id=1, recv_id=1, key="111"),
+            tcp_authopt_key(send_id=2, recv_id=2, key="222", norecv=True),
+        ],
+        client_key_list=[
+            tcp_authopt_key(send_id=1, recv_id=1, key="111"),
+            tcp_authopt_key(send_id=2, recv_id=2, key="222"),
+        ],
+        client_authopt=tcp_authopt(
+            flags=TCP_AUTHOPT_FLAG.LOCK_KEYID | TCP_AUTHOPT_FLAG.LOCK_RNEXTKEYID,
+            send_keyid=1,
+            send_rnextkeyid=2,
+        ),
+    )
+    with context as (client_socket, server_socket):
+        check_socket_echo(client_socket)
+        server_info = get_tcp_authopt(server_socket)
+        client_info = get_tcp_authopt(client_socket)
+        assert server_info.send_keyid == 2 and client_info.send_keyid == 1
+
+
+def test_nosend_reject_send():
+    """Server rejects switch to key2 which is marked nosend, it keeps sending with key1"""
+    context = make_tcp_authopt_socket_pair(
+        server_key_list=[
+            tcp_authopt_key(send_id=1, recv_id=1, key="111"),
+            tcp_authopt_key(send_id=2, recv_id=2, key="222", nosend=True),
+        ],
+        client_key_list=[
+            tcp_authopt_key(send_id=1, recv_id=1, key="111"),
+            tcp_authopt_key(send_id=2, recv_id=2, key="222"),
+        ],
+        client_authopt=tcp_authopt(
+            flags=TCP_AUTHOPT_FLAG.LOCK_KEYID | TCP_AUTHOPT_FLAG.LOCK_RNEXTKEYID,
+            send_keyid=1,
+            send_rnextkeyid=2,
+        ),
+    )
+    with context as (client_socket, server_socket):
+        check_socket_echo(client_socket)
+        server_info = get_tcp_authopt(server_socket)
+        client_info = get_tcp_authopt(client_socket)
+        assert (
+            server_info.send_keyid == 1
+            and server_info.recv_rnextkeyid == 2
+            and client_info.recv_keyid == 1
+        )
+
+
+def test_nosend_norecv_reject():
+    """Marking a key as NOSEND+NORECV rejects all incoming packets from the peer"""
+    context = make_tcp_authopt_socket_pair(
+        server_key_list=[
+            tcp_authopt_key(send_id=1, recv_id=1, key="111", nosend=True, norecv=True),
+        ],
+        client_key_list=[
+            tcp_authopt_key(send_id=1, recv_id=1, key="111"),
+        ],
+    )
+    with pytest.raises(OSError):
+        with context:
+            logger.info("unexpected success")
