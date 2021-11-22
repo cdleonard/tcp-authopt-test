@@ -70,39 +70,49 @@ class VrfNamespaceFixture:
         self._del_netns()
         script = f"""
 set -e
-ip netns add {self.server_netns_name}
-ip netns add {self.client0_netns_name}
-ip netns add {self.client1_netns_name}
-ip netns add {self.client2_netns_name}
+ip -batch - <<IP
+    netns add {self.server_netns_name}
+    netns add {self.client0_netns_name}
+    netns add {self.client1_netns_name}
+    netns add {self.client2_netns_name}
+    link add veth0 netns {self.server_netns_name} type veth peer name veth0 netns {self.client0_netns_name}
+    link add veth1 netns {self.server_netns_name} type veth peer name veth0 netns {self.client1_netns_name}
+    link add veth2 netns {self.server_netns_name} type veth peer name veth0 netns {self.client2_netns_name}
+    link add vrf1 netns {self.server_netns_name} type vrf table 1000
+    link add vrf2 netns {self.server_netns_name} type vrf table 2000
+IP
 # Enable tcp_l3mdev unconditionally
 ip netns exec {self.server_netns_name} sysctl -q net.ipv4.tcp_l3mdev_accept={int(self.tcp_l3mdev_accept)}
-ip link add veth0 netns {self.server_netns_name} type veth peer name veth0 netns {self.client0_netns_name}
-ip link add veth1 netns {self.server_netns_name} type veth peer name veth0 netns {self.client1_netns_name}
-ip link add veth2 netns {self.server_netns_name} type veth peer name veth0 netns {self.client2_netns_name}
-ip link add vrf1 netns {self.server_netns_name} type vrf table 1000
-ip link add vrf2 netns {self.server_netns_name} type vrf table 2000
-ip -n {self.server_netns_name} link set vrf1 up
-ip -n {self.server_netns_name} link set vrf2 up
-ip -n {self.server_netns_name} link set veth1 vrf vrf1
-ip -n {self.server_netns_name} link set veth2 vrf vrf2
-ip -n {self.server_netns_name} link set veth0 up addr {self.server_veth0_mac_addr}
-ip -n {self.server_netns_name} link set veth1 up addr {self.server_veth1_mac_addr}
-ip -n {self.server_netns_name} link set veth2 up addr {self.server_veth2_mac_addr}
-ip -n {self.server_netns_name} addr add {self.server_ipv4_addr}/16 dev veth0
-ip -n {self.server_netns_name} addr add {self.server_ipv6_addr}/64 dev veth0 nodad
-ip -n {self.server_netns_name} addr add {self.server_ipv4_addr}/16 dev veth1
-ip -n {self.server_netns_name} addr add {self.server_ipv6_addr}/64 dev veth1 nodad
-ip -n {self.server_netns_name} addr add {self.server_ipv4_addr}/16 dev veth2
-ip -n {self.server_netns_name} addr add {self.server_ipv6_addr}/64 dev veth2 nodad
-ip -n {self.client0_netns_name} link set veth0 up addr {self.client0_mac_addr}
-ip -n {self.client0_netns_name} addr add {self.client_ipv4_addr}/16 dev veth0
-ip -n {self.client0_netns_name} addr add {self.client_ipv6_addr}/64 dev veth0 nodad
-ip -n {self.client1_netns_name} link set veth0 up addr {self.client1_mac_addr}
-ip -n {self.client1_netns_name} addr add {self.client_ipv4_addr}/16 dev veth0
-ip -n {self.client1_netns_name} addr add {self.client_ipv6_addr}/64 dev veth0 nodad
-ip -n {self.client2_netns_name} link set veth0 up addr {self.client2_mac_addr}
-ip -n {self.client2_netns_name} addr add {self.client_ipv4_addr}/16 dev veth0
-ip -n {self.client2_netns_name} addr add {self.client_ipv6_addr}/64 dev veth0 nodad
+ip -n {self.server_netns_name} -batch - <<IP
+    link set vrf1 up
+    link set vrf2 up
+    link set veth1 vrf vrf1
+    link set veth2 vrf vrf2
+    link set veth0 up addr {self.server_veth0_mac_addr}
+    link set veth1 up addr {self.server_veth1_mac_addr}
+    link set veth2 up addr {self.server_veth2_mac_addr}
+    addr add {self.server_ipv4_addr}/16 dev veth0
+    addr add {self.server_ipv6_addr}/64 dev veth0 nodad
+    addr add {self.server_ipv4_addr}/16 dev veth1
+    addr add {self.server_ipv6_addr}/64 dev veth1 nodad
+    addr add {self.server_ipv4_addr}/16 dev veth2
+    addr add {self.server_ipv6_addr}/64 dev veth2 nodad
+IP
+ip -n {self.client0_netns_name} -batch - <<IP
+    link set veth0 up addr {self.client0_mac_addr}
+    addr add {self.client_ipv4_addr}/16 dev veth0
+    addr add {self.client_ipv6_addr}/64 dev veth0 nodad
+IP
+ip -n {self.client1_netns_name} -batch - <<IP
+    link set veth0 up addr {self.client1_mac_addr}
+    addr add {self.client_ipv4_addr}/16 dev veth0
+    addr add {self.client_ipv6_addr}/64 dev veth0 nodad
+IP
+ip -n {self.client2_netns_name} -batch - << IP
+    link set veth0 up addr {self.client2_mac_addr}
+    addr add {self.client_ipv4_addr}/16 dev veth0
+    addr add {self.client_ipv6_addr}/64 dev veth0 nodad
+IP
 """
         subprocess.run(script, shell=True, check=True)
         self.server_veth0_ifindex = self.get_server_ifindex("veth0")
