@@ -286,9 +286,10 @@ def test_syn_seq_ffffffff(exit_stack: ExitStack, client_isn):
     Client is pytest, server is linux.
     """
     con = TCPConnectionFixture()
+    secret_key = b"hello"
     con.tcp_authopt_key = tcp_authopt_key(
         alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
-        key=b"hello",
+        key=secret_key,
     )
     exit_stack.enter_context(con)
 
@@ -300,7 +301,7 @@ def test_syn_seq_ffffffff(exit_stack: ExitStack, client_isn):
         add_tcp_authopt_signature(
             packet,
             TcpAuthOptAlg_HMAC_SHA1(),
-            con.tcp_authopt_key.key,
+            secret_key,
             client_isn,
             server_isn,
             sne=sne,
@@ -386,10 +387,11 @@ def test_synack_seq_ffffffff(exit_stack: ExitStack, server_isn: int):
 
     Verifies linux client behavior against a server that sends SYNACK with seq=0xffffffff
     """
+    secret_key = b"hello"
     con = TCPConnectionFixture(capture_on_client=True)
     con.tcp_authopt_key = tcp_authopt_key(
         alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
-        key=b"hello",
+        key=secret_key,
     )
     exit_stack.enter_context(con)
     sniffer_session = con.sniffer_session
@@ -401,7 +403,7 @@ def test_synack_seq_ffffffff(exit_stack: ExitStack, server_isn: int):
         add_tcp_authopt_signature(
             packet,
             TcpAuthOptAlg_HMAC_SHA1(),
-            con.tcp_authopt_key.key,
+            secret_key,
             server_isn,
             client_isn,
             sne=sne,
@@ -447,7 +449,7 @@ def test_synack_seq_ffffffff(exit_stack: ExitStack, server_isn: int):
             check_tcp_authopt_signature(
                 p,
                 TcpAuthOptAlg_HMAC_SHA1(),
-                con.tcp_authopt_key.key,
+                secret_key,
                 client_isn,
                 server_isn,
                 sne=(server_isn + 1) >> 32,
