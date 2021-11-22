@@ -49,6 +49,7 @@ class SimpleServerThread(Thread):
         super().__init__()
 
     def _read(self, conn, events):
+        assert self.sel is not None
         # logger.debug("events=%r", events)
         try:
             data = conn.recv(self.bufsize)
@@ -95,6 +96,7 @@ class SimpleServerThread(Thread):
 
     def _accept(self, sock, events):
         # logger.info("accept on %r", sock)
+        assert self.sel is not None
         conn, _addr = sock.accept()
         conn = self.exit_stack.enter_context(conn)
         conn.setblocking(False)
@@ -113,6 +115,7 @@ class SimpleServerThread(Thread):
 
     def run(self):
         # logger.debug("loop init")
+        assert self.sel is not None
         try:
             while self.should_loop:
                 for key, events in self.sel.select(timeout=1):
