@@ -61,17 +61,25 @@ class NamespaceFixture:
         self._del_netns()
         script = f"""
 set -e
-ip netns add {self.server_netns_name}
-ip netns add {self.client_netns_name}
-ip link add veth0 netns {self.server_netns_name} type veth peer name veth0 netns {self.client_netns_name}
-ip netns exec {self.server_netns_name} ip link set veth0 up addr {self.server_mac_addr}
-ip netns exec {self.client_netns_name} ip link set veth0 up addr {self.client_mac_addr}
+ip -b - <<IP
+    netns add {self.server_netns_name}
+    netns add {self.client_netns_name}
+    link add veth0 netns {self.server_netns_name} type veth peer name veth0 netns {self.client_netns_name}
+IP
 """
+        client_script = f"link set veth0 up addr {self.client_mac_addr}\n"
+        server_script = f"link set veth0 up addr {self.server_mac_addr}\n"
         for index in [1, 2, 3]:
-            script += f"ip -n {self.server_netns_name} addr add {self.get_ipv4_addr(1, index)}/16 dev veth0\n"
-            script += f"ip -n {self.client_netns_name} addr add {self.get_ipv4_addr(2, index)}/16 dev veth0\n"
-            script += f"ip -n {self.server_netns_name} addr add {self.get_ipv6_addr(1, index)}/64 dev veth0 nodad\n"
-            script += f"ip -n {self.client_netns_name} addr add {self.get_ipv6_addr(2, index)}/64 dev veth0 nodad\n"
+            server_script += f"""
+                addr add {self.get_ipv4_addr(1, index)}/16 dev veth0
+                addr add {self.get_ipv6_addr(1, index)}/64 dev veth0 nodad
+"""
+            client_script += f"""
+                addr add {self.get_ipv4_addr(2, index)}/16 dev veth0
+                addr add {self.get_ipv6_addr(2, index)}/64 dev veth0 nodad
+"""
+        script += f"ip -n {self.server_netns_name} -b - <<IP\n{server_script}\nIP\n"
+        script += f"ip -n {self.client_netns_name} -b - <<IP\n{client_script}\nIP\n"
         subprocess.run(script, shell=True, check=True)
         return self
 
