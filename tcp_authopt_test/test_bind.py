@@ -31,7 +31,7 @@ pytestmark = skipif_missing_tcp_authopt
 
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
 def test_addr_server_bind(exit_stack: ExitStack, address_family):
-    """ "Server only accept client2, check client1 fails"""
+    """Server has key bound to client_addr2 so client1 fails and client2 works"""
     nsfixture = exit_stack.enter_context(NamespaceFixture())
     server_addr = str(nsfixture.get_addr(address_family, 1, 1))
     client_addr = str(nsfixture.get_addr(address_family, 2, 1))
@@ -68,10 +68,10 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
         return client_socket
 
     # addr match:
-    # with create_client_socket() as client_socket2:
-    #    client_socket2.bind((client_addr2, 0))
-    #    client_socket2.settimeout(1.0)
-    #    client_socket2.connect((server_addr, TCP_SERVER_PORT))
+    with create_client_socket() as client_socket2:
+        client_socket2.bind((client_addr2, 0))
+        client_socket2.settimeout(1.0)
+        client_socket2.connect((server_addr, DEFAULT_TCP_SERVER_PORT))
 
     # addr mismatch:
     with create_client_socket() as client_socket1:
