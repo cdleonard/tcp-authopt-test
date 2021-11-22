@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0
+import os
 import socket
 import subprocess
 from ipaddress import IPv4Address, IPv6Address
+from tempfile import NamedTemporaryFile
 
 from .conftest import raise_skip_no_netns
 
@@ -12,8 +14,20 @@ class NamespaceFixture:
     Each end of the pair has multiple addresses but everything is in the same subnet
     """
 
-    server_netns_name = "tcp_authopt_test_server"
-    client_netns_name = "tcp_authopt_test_client"
+    _tmp = None
+
+    def _get_name_prefix(self):
+        if self._tmp is None:
+            raise RuntimeError("not yet setup")
+        return os.path.basename(self._tmp.name)
+
+    @property
+    def server_netns_name(self):
+        return self._get_name_prefix() + "_server"
+
+    @property
+    def client_netns_name(self):
+        return self._get_name_prefix() + "_client"
 
     @classmethod
     def get_ipv4_addr(cls, ns=1, index=1) -> IPv4Address:
@@ -58,7 +72,7 @@ class NamespaceFixture:
             setattr(self, k, v)
 
     def __enter__(self):
-        self._del_netns()
+        self._tmp = NamedTemporaryFile(prefix="tcp_authopt_test_")
         script = f"""
 set -e
 ip -b - <<IP
@@ -84,16 +98,16 @@ IP
         return self
 
     def _del_netns(self):
+        if not self._tmp:
+            return
         script = f"""\
 set -e
-if ip netns list | grep -q {self.server_netns_name}; then
-    ip netns del {self.server_netns_name}
-fi
-if ip netns list | grep -q {self.client_netns_name}; then
-    ip netns del {self.client_netns_name}
-fi
+ip netns del {self.server_netns_name} || true
+ip netns del {self.client_netns_name} || true
 """
         subprocess.run(script, shell=True, check=True)
+        self._tmp.close()
+        self._tmp = None
 
     def __exit__(self, *a):
         self._del_netns()
