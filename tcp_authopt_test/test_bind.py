@@ -57,7 +57,7 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
     set_tcp_authopt_key(listen_socket, server_key)
 
     # create client socket:
-    def create_client_socket():
+    def _create_client_socket():
         with netns_context(nsfixture.client_netns_name):
             client_socket = socket.socket(address_family, socket.SOCK_STREAM)
         client_key = tcp_authopt_key(
@@ -68,13 +68,13 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
         return client_socket
 
     # addr match:
-    with create_client_socket() as client_socket2:
+    with _create_client_socket() as client_socket2:
         client_socket2.bind((client_addr2, 0))
         client_socket2.settimeout(1.0)
         client_socket2.connect((server_addr, DEFAULT_TCP_SERVER_PORT))
 
     # addr mismatch:
-    with create_client_socket() as client_socket1:
+    with _create_client_socket() as client_socket1:
         client_socket1.bind((client_addr, 0))
         with pytest.raises(socket.timeout):
             client_socket1.settimeout(1.0)
@@ -124,7 +124,7 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
     )
 
     # create client socket:
-    def create_client_socket():
+    def _create_client_socket():
         with netns_context(nsfixture.client_netns_name):
             client_socket = socket.socket(address_family, socket.SOCK_STREAM)
         set_tcp_authopt_key(
@@ -149,10 +149,10 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
         client_socket.bind((client_addr, 0))
         return client_socket
 
-    with create_client_socket() as client_socket1:
+    with _create_client_socket() as client_socket1:
         client_socket1.connect((server_addr1, DEFAULT_TCP_SERVER_PORT))
         check_socket_echo(client_socket1)
-    with create_client_socket() as client_socket2:
+    with _create_client_socket() as client_socket2:
         client_socket2.connect((server_addr2, DEFAULT_TCP_SERVER_PORT))
         check_socket_echo(client_socket2)
 
