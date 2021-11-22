@@ -11,3 +11,7 @@ The recommended way to run this is the included `run.sh` script as root, this
 will automatically create a virtual environment with the correct dependencies
 using `pip`. If not running under root it will automatically attempt to elevate
 using `sudo` after the virtualenv is created.
+
+Dependency version are locked in requirements.txt so will not change over time,
+in order to update them run ``pip-compile --upgrade``. This is also required in
+order to add new dependencies.
