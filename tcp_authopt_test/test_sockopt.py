@@ -136,7 +136,10 @@ def test_authopt_key_badflags():
     """Don't pretend to handle unknown flags"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         with pytest.raises(OSError):
-            set_tcp_authopt_key(sock, tcp_authopt_key(flags=0xABCDEF))
+            set_tcp_authopt_key(
+                sock,
+                tcp_authopt_key(flags=TCP_AUTHOPT_KEY_FLAG(0xABCDEF)),
+            )
 
 
 def test_authopt_key_longer_bad():
