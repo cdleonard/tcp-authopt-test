@@ -44,6 +44,7 @@ class TCP_AUTHOPT_KEY_FLAG(IntFlag):
     IFINDEX = BIT(3)
     NOSEND = BIT(4)
     NORECV = BIT(5)
+    PREFIXLEN = BIT(6)
 
 
 class TCP_AUTHOPT_ALG(IntEnum):
@@ -100,6 +101,7 @@ class tcp_authopt_key:
     AddrArgType = typing.Union[None, str, bytes, SockaddrConvertType]
     send_id: int
     recv_id: int
+    prefixlen: int
 
     def __init__(
         self,
@@ -110,6 +112,7 @@ class tcp_authopt_key:
         key: KeyArgType = b"",
         addr: AddrArgType = None,
         auto_flags: bool = True,
+        prefixlen: typing.Optional[int] = None,
         ifindex: typing.Optional[int] = None,
         include_options=None,
         nosend: bool = False,
@@ -122,6 +125,7 @@ class tcp_authopt_key:
         self.key = key
         self.ifindex = ifindex
         self.addr = addr
+        self.prefixlen = prefixlen
         self.auto_flags = auto_flags
         self.nosend = nosend
         self.norecv = norecv
@@ -139,6 +143,10 @@ class tcp_authopt_key:
                 result |= TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
             else:
                 result &= ~TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
+            if self.prefixlen is not None:
+                result |= TCP_AUTHOPT_KEY_FLAG.PREFIXLEN
+            else:
+                result &= ~TCP_AUTHOPT_KEY_FLAG.PREFIXLEN
         return result
 
     def pack(self):
@@ -154,8 +162,10 @@ class tcp_authopt_key:
             self.key,
         )
         data += bytes(self.addrbuf.ljust(sockaddr_storage.sizeof, b"\x00"))
-        if self.ifindex is not None:
-            data += bytes(struct.pack("I", self.ifindex))
+        if self.ifindex is not None or self.prefixlen is not None:
+            data += bytes(struct.pack("I", self.ifindex or 0))
+        if self.prefixlen is not None:
+            data += bytes(struct.pack("I", self.prefixlen))
         return data
 
     def __bytes__(self):
