@@ -482,10 +482,11 @@ def test_badack_to_synack(exit_stack, address_family, mode: str):
     This is handled by a minisocket in the TCP_SYN_RECV state on a separate code path
     """
     con = TCPConnectionFixture(address_family=address_family)
+    secret_key = b"hello"
     if mode != "unsigned":
         con.tcp_authopt_key = tcp_authopt_key(
             alg=TCP_AUTHOPT_ALG.HMAC_SHA_1_96,
-            key=b"hello",
+            key=secret_key,
         )
     exit_stack.enter_context(con)
 
@@ -499,7 +500,7 @@ def test_badack_to_synack(exit_stack, address_family, mode: str):
         add_tcp_authopt_signature(
             packet,
             TcpAuthOptAlg_HMAC_SHA1(),
-            con.tcp_authopt_key.key,
+            secret_key,
             client_isn,
             server_isn,
         )
