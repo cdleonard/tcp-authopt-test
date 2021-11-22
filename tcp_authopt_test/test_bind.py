@@ -30,7 +30,7 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
     """Server has key bound to client_addr2 so client1 fails and client2 works"""
     nsfixture = exit_stack.enter_context(NamespaceFixture())
     server_addr = str(nsfixture.get_addr(address_family, 1, 1))
-    client_addr = str(nsfixture.get_addr(address_family, 2, 1))
+    client_addr1 = str(nsfixture.get_addr(address_family, 2, 1))
     client_addr2 = str(nsfixture.get_addr(address_family, 2, 2))
 
     # create server:
@@ -69,7 +69,7 @@ def test_addr_server_bind(exit_stack: ExitStack, address_family):
         client_socket2.connect((server_addr, DEFAULT_TCP_SERVER_PORT))
 
     # addr mismatch:
-    with _create_client_socket(client_addr) as client_socket1:
+    with _create_client_socket(client_addr1) as client_socket1:
         with pytest.raises(socket.timeout):
             client_socket1.connect((server_addr, DEFAULT_TCP_SERVER_PORT))
 
