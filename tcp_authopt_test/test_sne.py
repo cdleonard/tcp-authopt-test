@@ -13,6 +13,7 @@ import waiting
 from scapy.layers.inet import TCP
 from scapy.packet import Packet, Raw
 
+from .exthread import ExThread
 from .linux_tcp_authopt import (
     TCP_AUTHOPT_ALG,
     set_tcp_authopt_key_kwargs,
@@ -409,18 +410,12 @@ def test_synack_seq_ffffffff(exit_stack: ExitStack, server_isn: int):
     _block_server_tcp(con.nsfixture)
 
     def run_client_thread():
-        try:
-            # If this fails it will likely be with a timeout
-            logger.info("client connect call")
-            con.client_socket.connect(con.server_addr_port)
-            logger.info("client connect done")
-            con.client_thread_failed = False
-        except:
-            logger.error("client thread failed", exc_info=True)
-            con.client_thread_failed = True
-            raise
+        # If this fails it will likely be with a timeout
+        logger.info("client connect call")
+        con.client_socket.connect(con.server_addr_port)
+        logger.info("client connect done")
 
-    client_thread = Thread(target=run_client_thread)
+    client_thread = ExThread(target=run_client_thread)
     client_thread.start()
 
     # wait SYN
@@ -473,5 +468,5 @@ def test_synack_seq_ffffffff(exit_stack: ExitStack, server_isn: int):
 
     # No attempt is made to transfer data
 
+    # Will raise any errors from client_thread_run
     client_thread.join()
-    assert not con.client_thread_failed
