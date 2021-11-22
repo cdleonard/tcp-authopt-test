@@ -98,6 +98,8 @@ class tcp_authopt_key:
 
     KeyArgType = typing.Union[str, bytes]
     AddrArgType = typing.Union[None, str, bytes, SockaddrConvertType]
+    send_id: int
+    recv_id: int
 
     def __init__(
         self,
