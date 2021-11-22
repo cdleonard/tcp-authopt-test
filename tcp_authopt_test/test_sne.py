@@ -242,6 +242,7 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
             sport=client_socket.getsockname()[1],
         )
         client_scappy_conn = validator.tracker.get(client_scappy_key)
+        assert client_scappy_conn
         snd_sne_rollover = client_scappy_conn.snd_sne.sne != 0
         rcv_sne_rollover = client_scappy_conn.rcv_sne.sne != 0
         if not (snd_sne_rollover or rcv_sne_rollover):
@@ -325,6 +326,7 @@ def test_syn_seq_ffffffff(exit_stack: ExitStack, client_isn):
         )
 
     waiting.wait(has_synack, timeout_seconds=5, sleep_seconds=0.1)
+    assert con.sniffer_session.client_info.disn
     server_isn = con.sniffer_session.client_info.disn
 
     # send ACK to SYN/ACK
@@ -428,6 +430,7 @@ def test_synack_seq_ffffffff(exit_stack: ExitStack, server_isn: int):
         )
 
     waiting.wait(has_recv_syn, timeout_seconds=5, sleep_seconds=0.1)
+    assert sniffer_session.server_info.disn is not None
     client_isn = sniffer_session.server_info.disn
     logger.info("Received SYN with SEQ=%d", client_isn)
 
