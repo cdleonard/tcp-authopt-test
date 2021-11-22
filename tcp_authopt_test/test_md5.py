@@ -91,5 +91,6 @@ def test_md5_validation(exit_stack, address_family):
 
     for p in con.sniffer.results:
         captured = scapy_tcp_get_md5_sig(p[TCP])
+        assert captured is not None
         computed = calc_tcp_md5_hash(p, con.tcp_md5_key)
         assert captured.hex() == computed.hex()
