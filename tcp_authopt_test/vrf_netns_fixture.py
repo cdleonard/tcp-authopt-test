@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0
+import os
 import subprocess
 from ipaddress import IPv4Address, IPv6Address
+from tempfile import NamedTemporaryFile
 
 
 def ip_link_get_ifindex(dev: str, prefix: str = "") -> int:
@@ -30,10 +32,28 @@ class VrfNamespaceFixture:
 
     tcp_l3mdev_accept = 1
 
-    server_netns_name = "tcp_authopt_test_server"
-    client0_netns_name = "tcp_authopt_test_client0"
-    client1_netns_name = "tcp_authopt_test_client1"
-    client2_netns_name = "tcp_authopt_test_client2"
+    _tmp = None
+
+    def _get_name_prefix(self):
+        if self._tmp is None:
+            raise RuntimeError("not yet setup")
+        return os.path.basename(self._tmp.name)
+
+    @property
+    def server_netns_name(self):
+        return self._get_name_prefix() + "_server"
+
+    @property
+    def client0_netns_name(self):
+        return self._get_name_prefix() + "_client0"
+
+    @property
+    def client1_netns_name(self):
+        return self._get_name_prefix() + "_client1"
+
+    @property
+    def client2_netns_name(self):
+        return self._get_name_prefix() + "_client2"
 
     # 02:* means "locally administered"
     server_veth0_mac_addr = "02:00:00:01:00:00"
@@ -67,7 +87,7 @@ class VrfNamespaceFixture:
         return ip_link_get_ifindex(dev, f"ip netns exec {self.server_netns_name} ")
 
     def __enter__(self):
-        self._del_netns()
+        self._tmp = NamedTemporaryFile(prefix="tcp_authopt_test_")
         script = f"""
 set -e
 ip -batch - <<IP
@@ -123,15 +143,17 @@ IP
         return self
 
     def _del_netns(self):
+        if not self._tmp:
+            return
         script = f"""\
 set -e
 for ns in {self.server_netns_name} {self.client0_netns_name} {self.client1_netns_name} {self.client2_netns_name}; do
-    if ip netns list | grep -q "$ns"; then
-        ip netns del "$ns"
-    fi
+    ip netns del "$ns" || true
 done
 """
         subprocess.run(script, shell=True, check=True)
+        self._tmp.close()
+        self._tmp = None
 
     def __exit__(self, *a):
         self._del_netns()
