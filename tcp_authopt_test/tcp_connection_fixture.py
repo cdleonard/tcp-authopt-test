@@ -165,6 +165,7 @@ class TCPConnectionFixture:
             ns=self.nsfixture.server_netns_name, iface="veth0"
         )
         self.exit_stack.enter_context(self.server_l2socket)
+        return self
 
     def __exit__(self, *args):
         self.exit_stack.__exit__(*args)
