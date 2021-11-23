@@ -98,6 +98,27 @@ class TCPConnectionFixture:
             bind_port=bind_port,
         )
 
+    def _setup_capture(self):
+        capture_filter = f"tcp port {self.server_port}"
+        if self.capture_on_client:
+            capture_netns = self.nsfixture.server_netns_name
+        else:
+            capture_netns = self.nsfixture.client_netns_name
+        self.capture_socket = create_capture_socket(
+            ns=capture_netns,
+            iface="veth0",
+            filter=capture_filter,
+        )
+        self.exit_stack.enter_context(self.capture_socket)
+
+        self.sniffer = AsyncSnifferContext(
+            opened_socket=self.capture_socket,
+            session=self.sniffer_session,
+            prn=log_tcp_authopt_packet,
+            **self.sniffer_kwargs,
+        )
+        self.exit_stack.enter_context(self.sniffer)
+
     def __enter__(self):
         if self.tcp_authopt_key and not linux_tcp_authopt.has_tcp_authopt():
             pytest.skip("Need TCP_AUTHOPT")
@@ -128,25 +149,7 @@ class TCPConnectionFixture:
         if self.tcp_md5_key:
             self._set_tcp_md5()
 
-        capture_filter = f"tcp port {self.server_port}"
-        if self.capture_on_client:
-            capture_netns = self.nsfixture.server_netns_name
-        else:
-            capture_netns = self.nsfixture.client_netns_name
-        self.capture_socket = create_capture_socket(
-            ns=capture_netns,
-            iface="veth0",
-            filter=capture_filter,
-        )
-        self.exit_stack.enter_context(self.capture_socket)
-
-        self.sniffer = AsyncSnifferContext(
-            opened_socket=self.capture_socket,
-            session=self.sniffer_session,
-            prn=log_tcp_authopt_packet,
-            **self.sniffer_kwargs,
-        )
-        self.exit_stack.enter_context(self.sniffer)
+        self._setup_capture()
 
         self.client_l2socket = create_l2socket(
             ns=self.nsfixture.client_netns_name, iface="veth0"
