@@ -46,6 +46,7 @@ class TCPConnectionFixture:
     * l2socket allowing packet injection from client
 
     :ivar tcp_md5_key: Secret key for md5 (addr is implicit)
+    :ivar enable_sniffer: Enable the sniffer (default)
     """
 
     sniffer_session: FullTCPSniffSession
@@ -53,24 +54,26 @@ class TCPConnectionFixture:
     def __init__(
         self,
         address_family=socket.AF_INET,
-        sniffer_kwargs=None,
         tcp_authopt_key: tcp_authopt_key = None,
         server_thread_kwargs=None,
         tcp_md5_key=None,
+        enable_sniffer=True,
+        sniffer_kwargs=None,
         capture_on_client=False,
     ):
         self.address_family = address_family
         self.server_port = DEFAULT_TCP_SERVER_PORT
         self.client_port = 27972
-        self.sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
-        if sniffer_kwargs is None:
-            sniffer_kwargs = {}
-        self.sniffer_kwargs = sniffer_kwargs
-        self.tcp_authopt_key = tcp_authopt_key
         self.server_thread = SimpleServerThread(
             mode="echo", **(server_thread_kwargs or {})
         )
+
+        self.tcp_authopt_key = tcp_authopt_key
         self.tcp_md5_key = tcp_md5_key
+
+        self.enable_sniffer = enable_sniffer
+        self.sniffer_session = FullTCPSniffSession(DEFAULT_TCP_SERVER_PORT)
+        self.sniffer_kwargs = sniffer_kwargs or {}
         self.capture_on_client = capture_on_client
 
     def _set_tcp_md5(self):
@@ -99,6 +102,9 @@ class TCPConnectionFixture:
         )
 
     def _setup_capture(self):
+        if not self.enable_sniffer:
+            return
+
         capture_filter = f"tcp port {self.server_port}"
         if self.capture_on_client:
             capture_netns = self.nsfixture.server_netns_name
