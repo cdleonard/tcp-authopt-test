@@ -6,8 +6,6 @@ from contextlib import ExitStack, contextmanager
 
 import pytest
 
-from .tcp_connection_fixture import TCPConnectionFixture
-
 from .conftest import skipif_missing_tcp_authopt
 from .linux_tcp_authopt import (
     TCP_AUTHOPT_FLAG,
@@ -17,15 +15,8 @@ from .linux_tcp_authopt import (
     tcp_authopt,
     tcp_authopt_key,
 )
-from .netns_fixture import NamespaceFixture
-from .server import SimpleServerThread
-from .utils import (
-    DEFAULT_TCP_SERVER_PORT,
-    check_socket_echo,
-    create_client_socket,
-    create_listen_socket,
-    nstat_json,
-)
+from .tcp_connection_fixture import TCPConnectionFixture
+from .utils import check_socket_echo, nstat_json
 
 pytestmark = skipif_missing_tcp_authopt
 logger = logging.getLogger(__name__)
@@ -33,29 +24,19 @@ logger = logging.getLogger(__name__)
 
 @contextmanager
 def make_tcp_authopt_socket_pair(
-    server_addr="127.0.0.1",
-    server_port=DEFAULT_TCP_SERVER_PORT,
     server_authopt: tcp_authopt = None,
     server_key_list: typing.Iterable[tcp_authopt_key] = [],
-    server_netns: str = "",
     client_authopt: tcp_authopt = None,
     client_key_list: typing.Iterable[tcp_authopt_key] = [],
-    client_netns: str = "",
 ) -> typing.Iterator[typing.Tuple[socket.socket, socket.socket]]:
     """Make a pair for connected sockets for key switching tests
 
     Server runs in a background thread implementing echo protocol"""
     with ExitStack() as exit_stack:
-        listen_socket = create_listen_socket(
-            bind_addr=server_addr,
-            bind_port=server_port,
-            ns=server_netns,
-        )
-        exit_stack.enter_context(listen_socket)
-        server_thread = SimpleServerThread(listen_socket, mode="echo")
-        exit_stack.enter_context(server_thread)
-        client_socket = create_client_socket(ns=client_netns)
-        exit_stack.enter_context(client_socket)
+        con = TCPConnectionFixture(enable_sniffer=False)
+        exit_stack.enter_context(con)
+        listen_socket = con.listen_socket
+        client_socket = con.client_socket
 
         if server_authopt:
             set_tcp_authopt(listen_socket, server_authopt)
@@ -66,9 +47,9 @@ def make_tcp_authopt_socket_pair(
         for k in client_key_list:
             set_tcp_authopt_key(client_socket, k)
 
-        client_socket.connect((str(server_addr), server_port))
-        check_socket_echo(client_socket)
-        server_socket = server_thread.server_socket[0]
+        client_socket.connect(con.server_addr_port)
+        check_socket_echo(con.client_socket)
+        server_socket = con.server_thread.server_socket[0]
 
         yield client_socket, server_socket
 
