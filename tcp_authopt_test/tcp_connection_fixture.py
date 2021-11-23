@@ -127,8 +127,8 @@ class TCPConnectionFixture:
         self.exit_stack.__enter__()
 
         self.nsfixture = self.exit_stack.enter_context(NamespaceFixture())
-        self.server_addr = self.nsfixture.get_addr(self.address_family, 1)
-        self.client_addr = self.nsfixture.get_addr(self.address_family, 2)
+        self.server_addr = self.nsfixture.get_server_addr(self.address_family)
+        self.client_addr = self.nsfixture.get_client_addr(self.address_family)
 
         self.listen_socket = create_listen_socket(
             ns=self.nsfixture.server_netns_name,
