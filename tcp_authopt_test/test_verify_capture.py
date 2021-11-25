@@ -2,10 +2,9 @@
 """Capture packets with TCP-AO and verify signatures"""
 
 import logging
-import os
 import socket
 import subprocess
-from contextlib import ExitStack, nullcontext
+from contextlib import ExitStack
 
 import pytest
 import waiting
@@ -16,7 +15,6 @@ from .conftest import (
     skipif_cant_capture,
     skipif_missing_tcp_authopt,
 )
-from .full_tcp_sniff_session import FullTCPSniffSession
 from .linux_tcp_authopt import (
     TCP_AUTHOPT_ALG,
     TCP_AUTHOPT_KEY_FLAG,
@@ -30,7 +28,6 @@ from .scapy_tcp_authopt import (
     break_tcp_authopt_signature,
 )
 from .scapy_utils import (
-    AsyncSnifferContext,
     scapy_sniffer_stop,
     scapy_tcp_get_authopt_val,
     scapy_tcp_get_md5_sig,
@@ -79,26 +76,20 @@ def get_alg_id(alg_name) -> int:
     ],
 )
 def test_verify_capture(
-    exit_stack, address_family, alg_name, include_options, transfer_data
+    exit_stack: ExitStack,
+    address_family,
+    alg_name,
+    include_options,
+    transfer_data,
 ):
     master_key = b"testvector"
     alg_id = get_alg_id(alg_name)
 
-    session = FullTCPSniffSession(server_port=DEFAULT_TCP_SERVER_PORT)
-    sniffer = exit_stack.enter_context(
-        AsyncSnifferContext(
-            filter=f"inbound and tcp port {DEFAULT_TCP_SERVER_PORT}",
-            iface="lo",
-            session=session,
-        )
-    )
-
-    listen_socket = create_listen_socket(family=address_family)
-    listen_socket = exit_stack.enter_context(listen_socket)
-    exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
-
-    client_socket = socket.socket(address_family, socket.SOCK_STREAM)
-    client_socket = exit_stack.push(client_socket)
+    con = TCPConnectionFixture(address_family=address_family)
+    exit_stack.enter_context(con)
+    listen_socket = con.listen_socket
+    client_socket = con.client_socket
+    sniffer = con.sniffer
 
     key = tcp_authopt_key(alg=alg_id, key=master_key, include_options=include_options)
     set_tcp_authopt_key(listen_socket, key)
@@ -107,18 +98,19 @@ def test_verify_capture(
     # even if one signature is incorrect keep processing the capture
     old_nstat = nstat_json()
     valkey = TcpAuthValidatorKey(
-        key=master_key, alg_name=alg_name, include_options=include_options
+        key=master_key,
+        alg_name=alg_name,
+        include_options=include_options,
     )
     validator = TcpAuthValidator(keys=[valkey])
 
     try:
-        client_socket.settimeout(1.0)
-        client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
+        client_socket.connect(con.server_addr_port)
         if transfer_data:
             for _ in range(5):
                 check_socket_echo(client_socket)
         client_socket.close()
-        session.wait_close()
+        con.sniffer_session.wait_close()
     except socket.timeout:
         # If invalid packets are sent let the validator run
         logger.warning("socket timeout", exc_info=True)
