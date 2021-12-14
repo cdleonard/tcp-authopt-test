@@ -20,7 +20,10 @@ from .linux_tcp_authopt import (
     tcp_authopt_key,
 )
 from .linux_tcp_repair import get_tcp_repair_recv_send_queue_seq, tcp_repair_toggle
-from .linux_tcp_repair_authopt import get_tcp_repair_authopt
+from .linux_tcp_repair_authopt import (
+    get_tcp_repair_authopt,
+    has_tcp_repair_authopt_on_sock,
+)
 from .netns_fixture import NamespaceFixture
 from .scapy_conntrack import TCPConnectionKey, TCPConnectionTracker
 from .scapy_tcp_authopt import (
@@ -92,7 +95,6 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
     secret_key = b"12345"
     mode = "echo"
     validator_enabled = True
-    tcp_repair_authopt_enabled = True
     fail = False
 
     nsfixture = exit_stack.enter_context(NamespaceFixture())
@@ -106,6 +108,7 @@ def test_high_seq_rollover(exit_stack: ExitStack, signed: bool):
         listen_depth=1024,
     )
     exit_stack.enter_context(listen_socket)
+    tcp_repair_authopt_enabled = has_tcp_repair_authopt_on_sock(listen_socket)
     if signed:
         set_tcp_authopt_key_kwargs(listen_socket, key=secret_key)
     server_thread = SimpleServerThread(listen_socket, mode=mode, bufsize=bufsize)

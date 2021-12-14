@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
+import errno
 import socket
 import struct
 from dataclasses import dataclass
@@ -39,3 +40,18 @@ class tcp_repair_authopt:
 def get_tcp_repair_authopt(sock: socket.socket) -> tcp_repair_authopt:
     b = sock.getsockopt(socket.SOL_TCP, TCP_REPAIR_AUTHOPT, tcp_repair_authopt.sizeof)
     return tcp_repair_authopt.unpack(b)
+
+
+def has_tcp_repair_authopt_on_sock(sock: socket.socket) -> bool:
+    try:
+        get_tcp_repair_authopt(sock)
+        return True
+    except OSError as e:
+        if e.errno == errno.ENOPROTOOPT:
+            return False
+        raise
+
+
+def has_tcp_repair_authopt() -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        return has_tcp_repair_authopt_on_sock(sock)
