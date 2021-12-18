@@ -80,7 +80,8 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
     nsfixture = exit_stack.enter_context(NamespaceFixture())
     server_addr1 = str(nsfixture.get_addr(address_family, 1, 1))
     server_addr2 = str(nsfixture.get_addr(address_family, 1, 2))
-    client_addr = str(nsfixture.get_addr(address_family, 2, 1))
+    client_addr1 = str(nsfixture.get_addr(address_family, 2, 1))
+    client_addr2 = str(nsfixture.get_addr(address_family, 2, 2))
 
     # create servers:
     listen_socket1 = exit_stack.enter_context(
@@ -101,11 +102,11 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
     exit_stack.enter_context(SimpleServerThread(listen_socket2, mode="echo"))
 
     # set keys:
-    set_tcp_authopt_key_kwargs(listen_socket1, key="11111")
-    set_tcp_authopt_key_kwargs(listen_socket2, key="22222")
+    set_tcp_authopt_key_kwargs(listen_socket1, key="11111", addr=client_addr1)
+    set_tcp_authopt_key_kwargs(listen_socket2, key="22222", addr=client_addr2)
 
     # create client socket:
-    def _create_client_socket():
+    def _create_client_socket(client_addr):
         client_socket = create_client_socket(
             ns=nsfixture.client_netns_name,
             family=address_family,
@@ -123,10 +124,10 @@ def test_addr_client_bind(exit_stack: ExitStack, address_family):
         )
         return client_socket
 
-    with _create_client_socket() as client_socket1:
+    with _create_client_socket(client_addr1) as client_socket1:
         client_socket1.connect((server_addr1, DEFAULT_TCP_SERVER_PORT))
         check_socket_echo(client_socket1)
-    with _create_client_socket() as client_socket2:
+    with _create_client_socket(client_addr2) as client_socket2:
         client_socket2.connect((server_addr2, DEFAULT_TCP_SERVER_PORT))
         check_socket_echo(client_socket2)
 
