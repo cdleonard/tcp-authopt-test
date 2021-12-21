@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0
 import logging
-import os
+import typing
 from contextlib import ExitStack, nullcontext
 from typing import ContextManager
-import typing
 
 import pytest
 
@@ -78,3 +77,11 @@ def raises_optional_exception(expected_exception, **kw) -> ContextManager:
         return nullcontext()
     else:
         return pytest.raises(expected_exception, **kw)
+
+
+@pytest.fixture(autouse=True)
+def verify_global_key_leak_fixture():
+    from .linux_tcp_authopt_proc import verify_global_key_leak
+
+    with verify_global_key_leak():
+        yield
