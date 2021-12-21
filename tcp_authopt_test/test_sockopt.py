@@ -21,7 +21,7 @@ from .linux_tcp_authopt import (
     tcp_authopt,
     tcp_authopt_key,
 )
-from .sockaddr import sockaddr_in, sockaddr_in6, sockaddr_unpack
+from .sockaddr import sockaddr_unpack
 
 pytestmark = skipif_missing_tcp_authopt
 
@@ -45,6 +45,7 @@ def test_authopt_key_pack_addr6():
 
 
 def test_tcp_authopt_key_del_without_active(exit_stack):
+    """Test attempting to delete a missing key"""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     exit_stack.push(sock)
 
@@ -59,6 +60,7 @@ def test_tcp_authopt_key_del_without_active(exit_stack):
 
 
 def test_tcp_authopt_key_setdel(exit_stack):
+    """Test adding and then removing a key"""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     exit_stack.push(sock)
     set_tcp_authopt(sock, tcp_authopt())
@@ -82,6 +84,7 @@ def test_tcp_authopt_key_setdel(exit_stack):
 
 
 def test_get_tcp_authopt():
+    """Doing getsockopt TCP_AUTHOPT on a new socket returns ENOENT by default"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         with pytest.raises(OSError) as e:
             sock.getsockopt(socket.SOL_TCP, TCP_AUTHOPT, 4)
@@ -89,6 +92,7 @@ def test_get_tcp_authopt():
 
 
 def test_set_get_tcp_authopt_flags():
+    """Check read/write to tcp_authopt.flags"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         # No flags by default
         set_tcp_authopt(sock, tcp_authopt())
@@ -101,7 +105,7 @@ def test_set_get_tcp_authopt_flags():
         opt = get_tcp_authopt(sock)
         assert opt.flags == goodflag
 
-        # attempting to set a badflag returns an error and has no effect
+        # attempting to set a bad flag returns an error and has no effect
         badflag = 1 << 27
         with pytest.raises(OSError) as e:
             set_tcp_authopt(sock, tcp_authopt(flags=badflag))
@@ -110,7 +114,7 @@ def test_set_get_tcp_authopt_flags():
 
 
 def test_set_ipv6_key_on_ipv4():
-    """Binding a key to an ipv6 address on an ipv4 socket makes no sense"""
+    """Binding a key to an ipv6 address on an ipv4 socket is an error"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         key = tcp_authopt_key(key="abc")
         key.flags = TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
@@ -133,7 +137,7 @@ def test_set_ipv4_key_on_ipv6():
 
 
 def test_authopt_key_badflags():
-    """Don't pretend to handle unknown flags"""
+    """Unknown flags on tcp_authopt_key produce errors"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         with pytest.raises(OSError):
             set_tcp_authopt_key(
@@ -143,7 +147,7 @@ def test_authopt_key_badflags():
 
 
 def test_authopt_key_longer_bad():
-    """Test that pass a longer sockopt with unknown data fails
+    """Test that passing a longer sockopt with unknown data fails
 
     Old kernels won't pretend to handle features they don't know about
     """
@@ -172,6 +176,7 @@ def test_authopt_key_longer_zeros():
 
 
 def test_authopt_longer_baddata():
+    """Test passing a long tcp_authopt sockopt with unknown data fails"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         opt = tcp_authopt()
         optbuf = bytes(opt)
@@ -181,6 +186,7 @@ def test_authopt_longer_baddata():
 
 
 def test_authopt_longer_zeros():
+    """Test passing a long tcp_authopt sockopt with zeros fails"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         opt = tcp_authopt()
         optbuf = bytes(opt)
@@ -189,6 +195,7 @@ def test_authopt_longer_zeros():
 
 
 def test_authopt_setdel_addrbind():
+    """Test matching address on key delete"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         key = tcp_authopt_key(addr="1.1.1.1", recv_id=1, send_id=1)
         key2 = tcp_authopt_key(addr="1.1.1.2", recv_id=1, send_id=1)
@@ -199,6 +206,7 @@ def test_authopt_setdel_addrbind():
 
 
 def test_authopt_include_options():
+    """Test the treatment of `tcp_authopt_key.include_options`"""
     key = tcp_authopt_key()
     assert key.include_options
     key.include_options = False
