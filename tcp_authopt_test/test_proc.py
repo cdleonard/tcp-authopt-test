@@ -44,18 +44,18 @@ def test_one_proc_key(exit_stack: ExitStack):
     set_tcp_authopt_key(sock, tcp_authopt_key(send_id=12, recv_id=23))
     proc_lines = read_proc_tcp_authopt_keys_as_lines(netns_name)
     assert len(proc_lines) == 1
-    assert proc_lines[0] == "0\t12\t23\t*"
+    assert proc_lines[0] == "0x0\t12\t23\t1\t*\t0"
 
     set_tcp_authopt_key(sock, tcp_authopt_key(send_id=100, recv_id=100))
     proc_lines = sorted(read_proc_tcp_authopt_keys_as_lines(netns_name))
     assert len(proc_lines) == 2
-    assert proc_lines[0] == "0\t100\t100\t*"
-    assert proc_lines[1] == "0\t12\t23\t*"
+    assert proc_lines[0].startswith("0x0\t100\t100\t1\t*")
+    assert proc_lines[1].startswith("0x0\t12\t23\t1\t*")
 
     del_tcp_authopt_key(sock, tcp_authopt_key(send_id=12, recv_id=23))
     proc_lines = sorted(read_proc_tcp_authopt_keys_as_lines(netns_name))
     assert len(proc_lines) == 1
-    assert proc_lines[0] == "0\t100\t100\t*"
+    assert proc_lines[0].startswith("0x0\t100\t100\t1\t*")
 
 
 @skipif_missing_proc_tcp_authopt
