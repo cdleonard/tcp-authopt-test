@@ -5,7 +5,13 @@ from contextlib import ExitStack, suppress
 
 import pytest
 
-from .linux_tcp_authopt import has_tcp_authopt, set_tcp_authopt_key, tcp_authopt_key
+from .linux_tcp_authopt import (
+    del_tcp_authopt_key,
+    has_tcp_authopt,
+    set_tcp_authopt_key,
+    tcp_authopt_key,
+)
+from .linux_tcp_authopt_proc import read_proc_tcp_authopt_keys_as_lines
 from .server import SimpleServerThread
 from .utils import (
     DEFAULT_TCP_SERVER_PORT,
@@ -84,4 +90,7 @@ def test_kpatch_reload(exit_stack: ExitStack):
     client_socket.connect(("localhost", DEFAULT_TCP_SERVER_PORT))
     for _ in range(5):
         check_socket_echo(client_socket)
-    client_socket.close()
+    assert len(read_proc_tcp_authopt_keys_as_lines()) == 1
+    del_tcp_authopt_key(client_socket, key)
+    del_tcp_authopt_key(listen_socket, key)
+    assert len(read_proc_tcp_authopt_keys_as_lines()) == 0
