@@ -28,12 +28,16 @@ def make_tcp_authopt_socket_pair(
     server_key_list: typing.Iterable[tcp_authopt_key] = [],
     client_authopt: tcp_authopt = None,
     client_key_list: typing.Iterable[tcp_authopt_key] = [],
+    address_family=socket.AF_INET,
 ) -> typing.Iterator[typing.Tuple[socket.socket, socket.socket]]:
     """Make a pair for connected sockets for key switching tests
 
     Server runs in a background thread implementing echo protocol"""
     with ExitStack() as exit_stack:
-        con = TCPConnectionFixture(enable_sniffer=False)
+        con = TCPConnectionFixture(
+            enable_sniffer=False,
+            address_family=address_family,
+        )
         exit_stack.enter_context(con)
         listen_socket = con.listen_socket
         client_socket = con.client_socket
@@ -180,7 +184,8 @@ def test_rollover_delkey(exit_stack: ExitStack):
 
 
 @pytest.mark.xfail()
-def test_synack_with_syn_rnextkeyid(exit_stack: ExitStack):
+@pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
+def test_synack_with_syn_rnextkeyid(exit_stack: ExitStack, address_family):
     """Server has more keys than client but it responds based on rnextkeyid in SYN
 
     Responding with any other key will cause the client to drop the synack
@@ -193,6 +198,7 @@ def test_synack_with_syn_rnextkeyid(exit_stack: ExitStack):
         make_tcp_authopt_socket_pair(
             server_key_list=[sk1, sk2, sk3],
             client_key_list=[ck],
+            address_family=address_family,
         )
     )
 
