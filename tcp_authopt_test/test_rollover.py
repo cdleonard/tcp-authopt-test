@@ -183,7 +183,6 @@ def test_rollover_delkey(exit_stack: ExitStack):
     assert get_tcp_authopt(client_socket).recv_keyid == 21
 
 
-@pytest.mark.xfail()
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
 def test_synack_with_syn_rnextkeyid(exit_stack: ExitStack, address_family):
     """Server has more keys than client but it responds based on rnextkeyid in SYN
