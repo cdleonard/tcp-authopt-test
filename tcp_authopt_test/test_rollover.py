@@ -191,7 +191,7 @@ def test_synack_with_syn_rnextkeyid(exit_stack: ExitStack, address_family):
     Responding with any other key will cause the client to drop the synack
     """
     sk1 = tcp_authopt_key(send_id=11, recv_id=12, key="111")
-    sk2 = tcp_authopt_key(send_id=21, recv_id=32, key="222")
+    sk2 = tcp_authopt_key(send_id=21, recv_id=22, key="222")
     sk3 = tcp_authopt_key(send_id=31, recv_id=32, key="333")
     ck = tcp_authopt_key(send_id=22, recv_id=21, key="222")
     client_socket, server_socket = exit_stack.enter_context(
