@@ -45,7 +45,7 @@ def get_tcp_queue_seq(sock) -> int:
 
 
 def set_tcp_queue_seq(sock, val: int) -> None:
-    return sock.setsockopt(socket.SOL_TCP, TCP_QUEUE_SEQ, val)[0]
+    return sock.setsockopt(socket.SOL_TCP, TCP_QUEUE_SEQ, struct.pack("I", val))
 
 
 @contextmanager
