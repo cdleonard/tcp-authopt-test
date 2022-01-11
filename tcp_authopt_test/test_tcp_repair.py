@@ -1,13 +1,42 @@
+import logging
 import os
 import socket
 import subprocess
+import time
 from contextlib import ExitStack
 from ipaddress import IPv4Address, IPv6Address
 from tempfile import NamedTemporaryFile
 
+from .linux_tcp_info import get_tcp_info
+from .tcpdump import tcpdump_capture
+
+logger = logging.getLogger(__name__)
+
 import pytest
 
 from .conftest import raise_skip_no_netns
+from .linux_tcp_repair import (
+    TCP_REPAIR_QUEUE_ID,
+    TCP_REPAIR_VAL,
+    TCPOPT_WINDOW,
+    get_tcp_queue_seq,
+    get_tcp_repair_queue,
+    get_tcp_repair_window_buf,
+    set_tcp_queue_seq,
+    set_tcp_repair,
+    set_tcp_repair_option,
+    set_tcp_repair_queue,
+    set_tcp_repair_window_buf,
+    set_tcp_repair_window_option,
+    tcp_repair_window,
+)
+from .server import SimpleServerThread
+from .utils import (
+    DEFAULT_TCP_SERVER_PORT,
+    check_socket_echo,
+    create_client_socket,
+    create_listen_socket,
+)
 
 
 class TCPRepairNamespaceFixture:
@@ -182,3 +211,80 @@ def test_bond_switch(exit_stack: ExitStack, address_family):
     assert 0 == subprocess.call(cmd_ping_from_server, shell=True)
     assert 0 == subprocess.call(cmd_ping_from_client1, shell=True)
     assert 0 != subprocess.call(cmd_ping_from_client2, shell=True)
+
+
+@pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
+def test_tcp_repair_noauth(exit_stack: ExitStack, address_family):
+    logger.info("hello")
+    nsfixture = exit_stack.enter_context(TCPRepairNamespaceFixture())
+    server_addr = nsfixture.get_server_addr(address_family)
+
+    # create server:
+    listen_socket = exit_stack.push(
+        create_listen_socket(
+            family=address_family,
+            ns=nsfixture.server_netns_name,
+        )
+    )
+    exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
+    server_addrport = (str(server_addr), DEFAULT_TCP_SERVER_PORT)
+    client_port = 27972
+
+    # create client socket:
+    client1_socket = create_client_socket(
+        ns=nsfixture.client1_netns_name,
+        bind_port=client_port,
+        family=address_family,
+    )
+    client2_socket = create_client_socket(
+        ns=nsfixture.client2_netns_name,
+        bind_port=client_port,
+        family=address_family,
+    )
+
+    # Suffers from some sort of DAD issue:
+    if address_family == socket.AF_INET6:
+        time.sleep(2)
+    client1_socket.connect(server_addrport)
+    check_socket_echo(client1_socket)
+
+    set_tcp_repair(client1_socket, TCP_REPAIR_VAL.ON)
+    set_tcp_repair_queue(client1_socket, TCP_REPAIR_QUEUE_ID.RECV_QUEUE)
+    c1_recv_seq = get_tcp_queue_seq(client1_socket)
+    set_tcp_repair_queue(client1_socket, TCP_REPAIR_QUEUE_ID.SEND_QUEUE)
+    c1_send_seq = get_tcp_queue_seq(client1_socket)
+    client_tcp_repair_window = get_tcp_repair_window_buf(client1_socket)
+    client1_tcp_info = get_tcp_info(client1_socket)
+    # client1 is kept in the repair state
+
+    logger.info("tcp repair recv queue: %d", c1_recv_seq)
+    logger.info("tcp repair send queue: %d", c1_send_seq)
+    logger.info("%s", tcp_repair_window.unpack(client_tcp_repair_window))
+    client1_wscale_ok = (client1_tcp_info.tcpi_options & 4) != 0
+    logger.info(
+        "wscale_ok=%d snd_wscale=%s rcv_wscale=%s",
+        client1_wscale_ok,
+        client1_tcp_info.tcpi_snd_wscale,
+        client1_tcp_info.tcpi_rcv_wscale,
+    )
+
+    set_tcp_repair(client2_socket, TCP_REPAIR_VAL.ON)
+    set_tcp_repair_queue(client2_socket, TCP_REPAIR_QUEUE_ID.RECV_QUEUE)
+    set_tcp_queue_seq(client2_socket, c1_recv_seq)
+    set_tcp_repair_queue(client2_socket, TCP_REPAIR_QUEUE_ID.SEND_QUEUE)
+    set_tcp_queue_seq(client2_socket, c1_send_seq)
+    client2_socket.connect(server_addrport)
+    assert get_tcp_info(client2_socket).tcpi_state == 1
+    set_tcp_repair_window_buf(client2_socket, client_tcp_repair_window)
+    if client1_wscale_ok:
+        set_tcp_repair_window_option(
+            client2_socket,
+            client1_tcp_info.tcpi_rcv_wscale,
+            client1_tcp_info.tcpi_snd_wscale,
+        )
+
+    # Switch and release from the repair state:
+    nsfixture.set_active_client(2)
+    set_tcp_repair(client2_socket, TCP_REPAIR_VAL.OFF_NO_WP)
+
+    check_socket_echo(client2_socket)
