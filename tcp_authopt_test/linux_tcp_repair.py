@@ -12,6 +12,12 @@ TCP_QUEUE_SEQ = 21
 TCP_REPAIR_OPTIONS = 22
 TCP_REPAIR_WINDOW = 29
 
+# For TCP_REPAIR_OPTIONS
+TCPOPT_MSS = 2
+TCPOPT_WINDOW = 3
+TCPOPT_SACK_PERM = 4
+TCPOPT_TIMESTAMP = 8
+
 
 class TCP_REPAIR_VAL(IntEnum):
     OFF = 0
@@ -82,6 +88,19 @@ def set_tcp_repair_window_buf(sock, buf: bytes) -> None:
     if len(buf) != tcp_repair_window.SIZEOF:
         raise ValueError("Wrong buffer size")
     return sock.setsockopt(socket.SOL_TCP, TCP_REPAIR_WINDOW, buf)
+
+
+def set_tcp_repair_option(sock, opt: int, val: int) -> None:
+    return sock.setsockopt(
+        socket.SOL_TCP,
+        TCP_REPAIR_OPTIONS,
+        struct.pack("II", opt, val),
+    )
+
+
+def set_tcp_repair_window_option(sock, rcv_wscale: int, snd_wscale: int) -> None:
+    val = rcv_wscale << 16 | snd_wscale
+    return set_tcp_repair_option(sock, TCPOPT_WINDOW, val)
 
 
 @contextmanager
