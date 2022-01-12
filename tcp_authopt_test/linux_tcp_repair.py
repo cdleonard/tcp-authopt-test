@@ -2,6 +2,7 @@
 import socket
 import struct
 from contextlib import contextmanager
+from dataclasses import dataclass
 from enum import IntEnum
 
 # Extra sockopts not present in python stdlib
@@ -46,6 +47,41 @@ def get_tcp_queue_seq(sock) -> int:
 
 def set_tcp_queue_seq(sock, val: int) -> None:
     return sock.setsockopt(socket.SOL_TCP, TCP_QUEUE_SEQ, struct.pack("I", val))
+
+
+@dataclass
+class tcp_repair_window:
+    snd_wl1: int
+    snd_wnd: int
+    max_window: int
+    rcv_wnd: int
+    rcv_wup: int
+
+    SIZEOF = 20
+
+    def pack(self) -> bytes:
+        return struct.pack(
+            "IIIII",
+            self.snd_wl1,
+            self.snd_wnd,
+            self.max_window,
+            self.rcv_wnd,
+            self.rcv_wup,
+        )
+
+    @classmethod
+    def unpack(cls, buf: bytes) -> "tcp_repair_window":
+        return tcp_repair_window(*struct.unpack("IIIII", buf))
+
+
+def get_tcp_repair_window_buf(sock) -> bytes:
+    return sock.getsockopt(socket.SOL_TCP, TCP_REPAIR_WINDOW, tcp_repair_window.SIZEOF)
+
+
+def set_tcp_repair_window_buf(sock, buf: bytes) -> None:
+    if len(buf) != tcp_repair_window.SIZEOF:
+        raise ValueError("Wrong buffer size")
+    return sock.setsockopt(socket.SOL_TCP, TCP_REPAIR_WINDOW, buf)
 
 
 @contextmanager
