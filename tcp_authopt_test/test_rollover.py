@@ -162,7 +162,14 @@ def test_lock_invalid_key(exit_stack: ExitStack):
 
     check_socket_echo(client_socket)
     assert get_tcp_authopt(server_socket).recv_keyid in [12, 22]
-    set_tcp_authopt(client_socket, tcp_authopt(send_keyid=7))
+    set_tcp_authopt(
+        client_socket,
+        tcp_authopt(
+            send_keyid=7,
+            flags=TCP_AUTHOPT_FLAG.LOCK_KEYID,
+        ),
+    )
+    assert get_tcp_authopt(client_socket).flags & TCP_AUTHOPT_FLAG.LOCK_KEYID
     check_socket_echo(client_socket)
     assert get_tcp_authopt(server_socket).recv_keyid in [12, 22]
 
