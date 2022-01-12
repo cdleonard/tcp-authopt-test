@@ -147,7 +147,31 @@ def test_rollover_rnextkeyid(exit_stack: ExitStack):
     assert get_tcp_authopt(server_socket).send_keyid == 21
 
 
+def test_lock_invalid_key(exit_stack: ExitStack):
+    """Attempting lock an invalid send_keyid is just ignored"""
+    sk1 = tcp_authopt_key(send_id=11, recv_id=12, key="111")
+    sk2 = tcp_authopt_key(send_id=21, recv_id=22, key="222")
+    ck1 = tcp_authopt_key(send_id=12, recv_id=11, key="111")
+    ck2 = tcp_authopt_key(send_id=22, recv_id=21, key="222")
+    client_socket, server_socket = exit_stack.enter_context(
+        make_tcp_authopt_socket_pair(
+            server_key_list=[sk1, sk2],
+            client_key_list=[ck1, ck2],
+        )
+    )
+
+    check_socket_echo(client_socket)
+    assert get_tcp_authopt(server_socket).recv_keyid in [12, 22]
+    set_tcp_authopt(client_socket, tcp_authopt(send_keyid=7))
+    check_socket_echo(client_socket)
+    assert get_tcp_authopt(server_socket).recv_keyid in [12, 22]
+
+
 def test_rollover_delkey(exit_stack: ExitStack):
+    """Check delete active key
+
+    If a key is removed it is replaced by anything that matches
+    """
     sk1 = tcp_authopt_key(send_id=11, recv_id=12, key="111")
     sk2 = tcp_authopt_key(send_id=21, recv_id=22, key="222")
     ck1 = tcp_authopt_key(send_id=12, recv_id=11, key="111")
@@ -163,19 +187,11 @@ def test_rollover_delkey(exit_stack: ExitStack):
     )
 
     check_socket_echo(client_socket)
-    assert get_tcp_authopt(server_socket).recv_keyid == 12
-
-    # invalid send_keyid is just ignored
-    set_tcp_authopt(client_socket, tcp_authopt(send_keyid=7))
-    check_socket_echo(client_socket)
     assert get_tcp_authopt(client_socket).send_keyid == 12
     assert get_tcp_authopt(server_socket).recv_keyid == 12
-    assert get_tcp_authopt(client_socket).recv_keyid == 11
 
-    # If a key is removed it is replaced by anything that matches
     ck1.delete_flag = True
     set_tcp_authopt_key(client_socket, ck1)
-    check_socket_echo(client_socket)
     check_socket_echo(client_socket)
     assert get_tcp_authopt(client_socket).send_keyid == 22
     assert get_tcp_authopt(server_socket).send_keyid == 21
