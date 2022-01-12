@@ -20,7 +20,6 @@ from .tcp_connection_fixture import TCPConnectionFixture
 logger = logging.getLogger(__name__)
 
 
-@pytest.mark.xfail()
 def test_accept_race(exit_stack: ExitStack):
     """Check what happens if key is deleted between connect and accept
 
