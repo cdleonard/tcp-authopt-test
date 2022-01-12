@@ -6,6 +6,8 @@ from contextlib import ExitStack, contextmanager
 
 import pytest
 
+from tcp_authopt_test.sockaddr import sockaddr_convert
+
 from .conftest import skipif_missing_tcp_authopt
 from .linux_tcp_authopt import (
     TCP_AUTHOPT_FLAG,
@@ -29,10 +31,15 @@ def make_tcp_authopt_socket_pair(
     client_authopt: tcp_authopt = None,
     client_key_list: typing.Iterable[tcp_authopt_key] = [],
     address_family=socket.AF_INET,
+    bind_addr: bool = False,
 ) -> typing.Iterator[typing.Tuple[socket.socket, socket.socket]]:
     """Make a pair for connected sockets for key switching tests
 
-    Server runs in a background thread implementing echo protocol"""
+    Server runs in a background thread implementing echo protocol
+
+    :param bind_addr: If set to True, bind the keys to the peer. This modifies
+            keys in-place.
+    """
     with ExitStack() as exit_stack:
         con = TCPConnectionFixture(
             enable_sniffer=False,
@@ -45,10 +52,14 @@ def make_tcp_authopt_socket_pair(
         if server_authopt:
             set_tcp_authopt(listen_socket, server_authopt)
         for k in server_key_list:
+            if bind_addr:
+                k.addr = con.client_addr
             set_tcp_authopt_key(listen_socket, k)
         if client_authopt:
             set_tcp_authopt(client_socket, client_authopt)
         for k in client_key_list:
+            if bind_addr:
+                k.addr = con.server_addr
             set_tcp_authopt_key(client_socket, k)
 
         client_socket.connect(con.server_addr_port)
@@ -174,7 +185,8 @@ def test_lock_invalid_key(exit_stack: ExitStack):
     assert get_tcp_authopt(server_socket).recv_keyid in [12, 22]
 
 
-def test_rollover_delkey(exit_stack: ExitStack):
+@pytest.mark.parametrize("bind_addr", [True, False])
+def test_rollover_delkey(exit_stack: ExitStack, bind_addr: bool):
     """Check delete active key
 
     If a key is removed it is replaced by anything that matches
@@ -190,6 +202,7 @@ def test_rollover_delkey(exit_stack: ExitStack):
             client_authopt=tcp_authopt(
                 send_keyid=12, flags=TCP_AUTHOPT_FLAG.LOCK_KEYID
             ),
+            bind_addr=bind_addr,
         )
     )
 
@@ -198,6 +211,10 @@ def test_rollover_delkey(exit_stack: ExitStack):
     assert get_tcp_authopt(server_socket).recv_keyid == 12
 
     ck1.delete_flag = True
+    if bind_addr:
+        assert bytes(ck1.addr) == bytes(
+            sockaddr_convert(server_socket.getsockname()[0])
+        )
     set_tcp_authopt_key(client_socket, ck1)
     check_socket_echo(client_socket)
     assert get_tcp_authopt(client_socket).send_keyid == 22
