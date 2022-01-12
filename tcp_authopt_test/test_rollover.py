@@ -14,6 +14,7 @@ from .linux_tcp_authopt import (
     get_tcp_authopt,
     set_tcp_authopt,
     set_tcp_authopt_key,
+    set_tcp_authopt_key_kwargs,
     tcp_authopt,
     tcp_authopt_key,
 )
@@ -354,3 +355,44 @@ def test_nosend_norecv_reject(exit_stack: ExitStack):
         con.client_socket.connect(con.server_addr_port)
     server_nstat = nstat_json(namespace=con.server_netns_name)
     assert server_nstat["TcpExtTCPAuthOptFailure"] > 0
+
+
+def test_norecv_reject_unsigned(exit_stack: ExitStack):
+    """Marking the single key as norecv still rejects the connection"""
+    con = exit_stack.enter_context(TCPConnectionFixture())
+    set_tcp_authopt_key_kwargs(
+        con.listen_socket,
+        send_id=1,
+        recv_id=1,
+        key="111",
+        norecv=True,
+    )
+    with pytest.raises(socket.timeout):
+        con.client_socket.connect(con.server_addr_port)
+    server_nstat = nstat_json(namespace=con.server_netns_name)
+    assert server_nstat["TcpExtTCPAuthOptFailure"] > 0
+
+
+def test_validkey_reject_unsigned(exit_stack: ExitStack):
+    con = exit_stack.enter_context(TCPConnectionFixture())
+    set_tcp_authopt_key_kwargs(
+        con.listen_socket,
+        send_id=1,
+        recv_id=1,
+        key="111",
+    )
+    with pytest.raises(socket.timeout):
+        con.client_socket.connect(con.server_addr_port)
+
+
+def test_diffaddr_accept_unsigned(exit_stack: ExitStack):
+    """Marking the single key as norecv still rejects the connection"""
+    con = exit_stack.enter_context(TCPConnectionFixture())
+    set_tcp_authopt_key_kwargs(
+        con.listen_socket,
+        key="111",
+        norecv=True,
+        addr=con.client_addr + 1,
+    )
+    con.client_socket.connect(con.server_addr_port)
+    check_socket_echo(con.client_socket)
