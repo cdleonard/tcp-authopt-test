@@ -64,7 +64,7 @@ def test_accept_race(exit_stack: ExitStack):
     # Ensure that listen happens after key1 is deleted
     assert not has_server_socket()
     server_thread.add_listen_socket(listen_socket)
-    waiting.wait(has_server_socket, sleep_seconds=0.1)
+    waiting.wait(has_server_socket, sleep_seconds=0.1, timeout_seconds=5)
 
     # Should fail:
     with pytest.raises(socket.timeout):
