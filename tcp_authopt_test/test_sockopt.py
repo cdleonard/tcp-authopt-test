@@ -212,3 +212,12 @@ def test_authopt_include_options():
     key.include_options = False
     assert key.flags & TCP_AUTHOPT_KEY_FLAG.EXCLUDE_OPTS
     assert not key.include_options
+
+
+def test_optmem():
+    """Test the treatment of `tcp_authopt_key.include_options`"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        for _ in range(10000):
+            key = tcp_authopt_key(addr="1.1.1.1", recv_id=1, send_id=1)
+            set_tcp_authopt_key(sock, key)
+            assert del_tcp_authopt_key(sock, key) == True
