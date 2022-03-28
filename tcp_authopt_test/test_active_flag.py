@@ -42,7 +42,7 @@ def test_active_on(exit_stack: ExitStack):
     client_info = get_tcp_authopt(client_socket)
     assert client_info.flags & TCP_AUTHOPT_FLAG.ACTIVE != 0
     server_info = get_tcp_authopt(server_socket)
-    assert server_info.flags & TCP_AUTHOPT_FLAG.ACTIVE == 0
+    assert server_info.flags & TCP_AUTHOPT_FLAG.ACTIVE != 0
 
 
 def test_active_off(exit_stack: ExitStack):
@@ -54,13 +54,15 @@ def test_active_off(exit_stack: ExitStack):
         con.client_socket,
         tcp_authopt_key(send_id=1, recv_id=1, key=b"111", addr="1.2.3.4"),
     )
+    set_tcp_authopt_key(
+        con.listen_socket,
+        tcp_authopt_key(send_id=1, recv_id=1, key=b"111", addr="1.2.3.4"),
+    )
 
     client_socket.connect(con.server_addr_port)
     wait_server_sock(con.server_thread)
     server_socket = con.server_thread.server_socket[0]
     client_info = get_tcp_authopt(client_socket)
-    assert client_info is not None
     assert client_info.flags & TCP_AUTHOPT_FLAG.ACTIVE == 0
     server_info = get_tcp_authopt(server_socket)
-    assert server_info is not None
     assert server_info.flags & TCP_AUTHOPT_FLAG.ACTIVE == 0
