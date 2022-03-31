@@ -1,3 +1,4 @@
+import pytest
 import logging
 import waiting
 from contextlib import ExitStack
@@ -21,18 +22,26 @@ def wait_server_sock(server_thread: SimpleServerThread):
 
     waiting.wait(has_server_socket, sleep_seconds=0.1, timeout_seconds=5)
 
-def test_active_on(exit_stack: ExitStack):
+
+@pytest.mark.parametrize("addrbind", [True, False])
+def test_active_on(exit_stack: ExitStack, addrbind: bool):
     con = TCPConnectionFixture(enable_sniffer=False)
     exit_stack.enter_context(con)
     client_socket = con.client_socket
 
+    if addrbind:
+        client_key_addr = con.server_addr
+        server_key_addr = con.client_addr
+    else:
+        client_key_addr = None
+        server_key_addr = None
     set_tcp_authopt_key(
         con.client_socket,
-        tcp_authopt_key(send_id=1, recv_id=1, key=b"111"),
+        tcp_authopt_key(send_id=1, recv_id=1, key=b"111", addr=client_key_addr),
     )
     set_tcp_authopt_key(
         con.listen_socket,
-        tcp_authopt_key(send_id=1, recv_id=1, key=b"111"),
+        tcp_authopt_key(send_id=1, recv_id=1, key=b"111", addr=server_key_addr),
     )
 
     client_socket.connect(con.server_addr_port)
