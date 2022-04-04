@@ -9,6 +9,7 @@ from tcp_authopt_test.server import SimpleServerThread
 from .linux_tcp_authopt import (
     TCP_AUTHOPT_FLAG,
     get_tcp_authopt,
+    set_tcp_authopt,
     set_tcp_authopt_key,
     tcp_authopt_key,
 )
@@ -53,6 +54,8 @@ def test_active_on(exit_stack: ExitStack, addrbind: bool):
     assert client_info.flags & TCP_AUTHOPT_FLAG.ACTIVE != 0
     server_info = get_tcp_authopt(server_socket)
     assert server_info.flags & TCP_AUTHOPT_FLAG.ACTIVE != 0
+    # set is allowed and has no effect:
+    set_tcp_authopt(client_socket, client_info)
 
 
 def test_active_off(exit_stack: ExitStack):
