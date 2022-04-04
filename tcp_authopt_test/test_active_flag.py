@@ -1,7 +1,8 @@
-import pytest
 import logging
-import waiting
 from contextlib import ExitStack
+
+import pytest
+import waiting
 
 from tcp_authopt_test.server import SimpleServerThread
 
