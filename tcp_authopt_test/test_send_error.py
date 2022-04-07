@@ -22,8 +22,11 @@ from .linux_tcp_authopt import (
 from .tcp_connection_fixture import TCPConnectionFixture
 
 
-@pytest.mark.xfail
 def test_connect(exit_stack: ExitStack):
+    """Test connect() with an expired key
+
+    It should return an error without sending any packets.
+    """
     master_key = b"123"
     con = TCPConnectionFixture()
     exit_stack.enter_context(con)
@@ -45,8 +48,11 @@ def test_connect(exit_stack: ExitStack):
     assert not any(is_tcp_syn(p) for p in sniffer.results)
 
 
-@pytest.mark.xfail
 def test_client_key_expires(exit_stack: ExitStack):
+    """Test key expires after succesful client connect
+
+    It should return an error without sending any additional packets.
+    """
     master_key = b"123"
     con = TCPConnectionFixture()
     exit_stack.enter_context(con)
@@ -68,9 +74,13 @@ def test_client_key_expires(exit_stack: ExitStack):
     assert_all_packets_have_ao(sniffer.results)
 
 
-@pytest.mark.xfail
-def test_server_key_badaddr(exit_stack: ExitStack):
-    """Server has two keys and the matching one is deleted"""
+def test_server_key_expires(exit_stack: ExitStack):
+    """Test key expires after succesful server accept
+
+    It should return an error without sending any additional packets.
+
+    Unlike the client test an additional key for a different destination is also present.
+    """
     master_key = b"123"
     con = TCPConnectionFixture()
     exit_stack.enter_context(con)
@@ -101,16 +111,21 @@ def test_server_key_badaddr(exit_stack: ExitStack):
     )
     assert str(client_addr) in table
     assert str(client_addr2) in table
-    del_tcp_authopt_key(con.listen_socket, server_key1)
+
+    server_key1.nosend = True
+    set_tcp_authopt_key(con.listen_socket, server_key1)
+
     table = subprocess.check_output(
         f"ip netns exec {con.server_netns_name} cat /proc/net/tcp_authopt",
         shell=True,
         text=True,
     )
-    assert str(client_addr) not in table
+    assert str(client_addr) in table
     assert str(client_addr2) in table
 
     with pytest.raises(Exception):
+        check_socket_echo(con.client_socket)
+        check_socket_echo(con.client_socket)
         check_socket_echo(con.client_socket)
 
     con.sniffer.stop()
