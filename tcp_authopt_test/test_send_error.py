@@ -2,6 +2,7 @@
 If no valid keys are found then an error should be reported on connect or send.
 """
 
+import errno
 import subprocess
 from contextlib import ExitStack
 
@@ -66,12 +67,19 @@ def test_client_key_expires(exit_stack: ExitStack):
     set_tcp_authopt_key(con.client_socket, client_key)
     set_tcp_authopt_key(con.listen_socket, server_key)
 
+    # Establish connection and check traffic works
     con.client_socket.connect(con.server_addr_port)
     check_socket_echo(con.client_socket)
+
+    # Mark the key as "nosend/expired"
     client_key.nosend = True
     set_tcp_authopt_key(con.client_socket, client_key)
-    with pytest.raises(Exception):
-        check_socket_echo(con.client_socket)
+
+    # Check sending again results in an error
+    with pytest.raises(IOError) as ei:
+        check_socket_echo(con.client_socket, 10, checked=True)
+    assert ei.type == IOError
+    assert ei.value.errno == errno.ENOKEY
 
     con.sniffer.stop()
     assert_all_packets_have_ao(sniffer.results)
