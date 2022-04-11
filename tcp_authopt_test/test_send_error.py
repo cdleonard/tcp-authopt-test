@@ -2,6 +2,10 @@
 If no valid keys are found then an error should be reported on connect or send.
 """
 
+import errno
+import logging
+import os
+import socket
 import subprocess
 from contextlib import ExitStack
 
@@ -11,7 +15,7 @@ from scapy.packet import Packet
 from scapy.plist import PacketList
 
 from tcp_authopt_test.scapy_utils import scapy_tcp_get_authopt_val
-from tcp_authopt_test.utils import check_socket_echo
+from tcp_authopt_test.utils import check_socket_echo, randbytes
 
 from .linux_tcp_authopt import (
     TCP_AUTHOPT_KEY_FLAG,
@@ -20,6 +24,8 @@ from .linux_tcp_authopt import (
     tcp_authopt_key,
 )
 from .tcp_connection_fixture import TCPConnectionFixture
+
+logger = logging.getLogger(__name__)
 
 
 pytestmark = pytest.mark.xfail
@@ -51,6 +57,25 @@ def test_connect(exit_stack: ExitStack):
     assert not any(is_tcp_syn(p) for p in sniffer.results)
 
 
+def check_socket_send_error(sock: socket.socket, size=1000):
+    """Try to send random bytes and check an error is returned instead
+
+    Verifies that write returns zero and errno is set to EINVAL
+
+    Raises AssertionError on failure
+    """
+    buf = randbytes(size)
+    errno_value = 0
+    try:
+        write_result = os.write(sock.fileno(), buf)
+    except IOError as e:
+        logger.info("exception: %r", e)
+        errno_value = e.errno
+    else:
+        logger.info("no exception?")
+    assert write_result == 0 and errno_value == errno.EINVAL
+
+
 def test_client_key_expires(exit_stack: ExitStack):
     """Test key expires after succesful client connect
 
@@ -70,8 +95,8 @@ def test_client_key_expires(exit_stack: ExitStack):
     check_socket_echo(con.client_socket)
     client_key.nosend = True
     set_tcp_authopt_key(con.client_socket, client_key)
-    with pytest.raises(Exception):
-        check_socket_echo(con.client_socket)
+
+    check_socket_send_error(con.client_socket)
 
     con.sniffer.stop()
     assert_all_packets_have_ao(sniffer.results)
