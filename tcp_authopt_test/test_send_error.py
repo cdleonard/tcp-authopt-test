@@ -28,9 +28,6 @@ from .tcp_connection_fixture import TCPConnectionFixture
 logger = logging.getLogger(__name__)
 
 
-pytestmark = pytest.mark.xfail
-
-
 def test_connect(exit_stack: ExitStack):
     """Test connect() with an expired key
 
