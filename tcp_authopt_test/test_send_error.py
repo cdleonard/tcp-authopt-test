@@ -22,6 +22,9 @@ from .linux_tcp_authopt import (
 from .tcp_connection_fixture import TCPConnectionFixture
 
 
+pytestmark = pytest.mark.xfail
+
+
 def test_connect(exit_stack: ExitStack):
     """Test connect() with an expired key
 
