@@ -41,8 +41,10 @@ def test_connect(exit_stack: ExitStack):
     set_tcp_authopt_key(con.client_socket, client_key)
     set_tcp_authopt_key(con.listen_socket, server_key)
 
-    with pytest.raises(Exception):
+    with pytest.raises(IOError) as ei:
         con.client_socket.connect(con.server_addr_port)
+    assert ei.type == IOError
+    assert ei.value.errno == errno.ENOKEY
 
     sniffer.stop()
 
