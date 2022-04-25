@@ -128,6 +128,8 @@ class SimpleServerThread(Thread):
 
     def stop(self):
         """Try to stop nicely"""
+        if not self.is_alive():
+            return
         os.write(self._stop_pipe_wfd, b"Q")
         self.join()
         self.exit_stack.close()
