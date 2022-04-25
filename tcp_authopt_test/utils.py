@@ -26,19 +26,40 @@ def recvall(sock, todo):
         assert todo > 0
 
 
+def sendall_checked(sock: socket.socket, buf: bytes):
+    """Like socket.sendall but with more checks.
+
+    Check that return value from send() is not more than the length of the
+    buffer passed in, which indicates a serious kernel issue.
+    """
+    pos = 0
+    while pos < len(buf):
+        ret = sock.send(buf[pos:])
+        if ret > len(buf) - pos:
+            raise ValueError(f"socket send returned {ret} for buf len {len(buf) - pos}")
+        # Python should handle errors
+        if ret <= 0:
+            raise ValueError(f"socket send returned {ret} unexpected")
+        pos += ret
+
+
+
 def randbytes(count) -> bytes:
     """Return a random byte array"""
     return bytes([random.randint(0, 255) for index in range(count)])
 
 
-def check_socket_echo(sock: socket.socket, size=1000):
+def check_socket_echo(sock: socket.socket, size=1000, checked=True):
     """Send random bytes and check they are received
 
     The default size is equal to `SimpleServerThread.DEFAULT_BUFSIZE` which
     means that a single pair of packets will be sent at the TCP level.
     """
     send_buf = randbytes(size)
-    sock.sendall(send_buf)
+    if checked:
+        sendall_checked(sock, send_buf)
+    else:
+        sock.sendall(send_buf)
     recv_buf = recvall(sock, size)
     assert send_buf == recv_buf
 
