@@ -25,6 +25,8 @@ class SimpleServerThread(Thread):
     server_socket: typing.List[socket.socket]
     sel: typing.Optional[selectors.BaseSelector]
     _exception = None
+    raise_exception_on_exit: bool = True
+    """If an exception is raised on the server thread raise on __exit__ after the thread is joined"""
 
     def __init__(
         self,
@@ -140,5 +142,5 @@ class SimpleServerThread(Thread):
 
     def __exit__(self, *args):
         self.stop()
-        if self._exception is not None:
+        if self.raise_exception_on_exit and self._exception is not None:
             raise self._exception
