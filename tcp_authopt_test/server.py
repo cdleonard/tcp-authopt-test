@@ -24,7 +24,8 @@ class SimpleServerThread(Thread):
     _listen_socket_list: typing.List[socket.socket]
     server_socket: typing.List[socket.socket]
     sel: typing.Optional[selectors.BaseSelector]
-    _exception = None
+    exception: typing.Optional[Exception] = None
+    """Exception raised during run, if any"""
     raise_exception_on_exit: bool = True
     """If an exception is raised on the server thread raise on __exit__ after the thread is joined"""
 
@@ -125,7 +126,7 @@ class SimpleServerThread(Thread):
                     callback(key.fileobj, events)
         except Exception as e:
             logger.error("exception in server loop: %r", e, exc_info=True)
-            self._exception = e
+            self.exception = e
         # logger.debug("loop done")
 
     def stop(self):
@@ -142,5 +143,5 @@ class SimpleServerThread(Thread):
 
     def __exit__(self, *args):
         self.stop()
-        if self.raise_exception_on_exit and self._exception is not None:
-            raise self._exception
+        if self.raise_exception_on_exit and self.exception is not None:
+            raise self.exception
