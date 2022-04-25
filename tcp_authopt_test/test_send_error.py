@@ -141,6 +141,11 @@ def test_server_key_expires(exit_stack: ExitStack):
 
     con.sniffer.stop()
     assert_all_packets_have_ao(sniffer.results)
+    # Check server received IOError ENOKEY specifically
+    con.server_thread.raise_exception_on_exit = False
+    con.server_thread.stop()
+    assert type(con.server_thread.exception) == IOError
+    assert con.server_thread.exception.errno == errno.ENOKEY
 
 
 def assert_all_packets_have_ao(plist: PacketList):
