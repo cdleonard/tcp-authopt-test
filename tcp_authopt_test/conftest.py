@@ -57,9 +57,25 @@ def exit_stack():
         yield exit_stack
 
 
+def _pytest_chmod_junit_xml():
+    # The vscode python plugin creates a junitxml file in /tmp and passes it to
+    # pytest via --override-init. Because we run pytest as root and /tmp has the
+    # sticky bit the junitxml plugin will fail to write to this file.
+    #
+    # Work around this by doing chown and chmod
+    import sys, os
+    for arg in sys.argv:
+        if arg.startswith("--junit-xml="):
+            path = arg[12:]
+            assert os.path.exists(path)
+            os.chmod(path, 0o666)
+            os.chown(path, 0, 0)
+
+
 def pytest_configure():
     # Silence messages regarding netns enter/exit:
     logging.getLogger("nsenter").setLevel(logging.INFO)
+    _pytest_chmod_junit_xml()
     if has_tcp_authopt():
         enable_sysctl_tcp_authopt()
 
