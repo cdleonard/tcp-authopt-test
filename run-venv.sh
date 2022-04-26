@@ -6,7 +6,7 @@ print_help()
     cat >&2 <<MSG
 $(basename "$0"): Create virtualenv using pip and run pytest
 
-Accepts all options that pytest does, run \`\`$(basename $0) --pytest-help\`\` to
+Accepts all options that pytest does, run \`\`$(basename "$0") --pytest-help\`\` to
 see help from pytest itself.
 
 If current user is not already root this script with attempt sudo.
