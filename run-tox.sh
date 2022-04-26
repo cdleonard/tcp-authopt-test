@@ -12,7 +12,7 @@ if ! command -v tox >/dev/null; then
 	exit 1
 fi
 
-cmd=(tox -- -s --log-cli-level=DEBUG "$@")
+cmd=(tox -- "$@")
 if [[ $(id -u) -ne 0 ]]; then
 	echo >&2 "warning: running as non-root user, attempting sudo"
 	exec sudo -- "${cmd[@]}"

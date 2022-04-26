@@ -37,7 +37,7 @@ else
 	)
 fi
 
-cmd=(pytest -s --log-cli-level=DEBUG "$@")
+cmd=(pytest -s "$@")
 if [[ $(id -u) -ne 0 ]]; then
 	echo >&2 "warning: running as non-root user, attempting sudo"
 	# sudo -E to use the virtualenv:
