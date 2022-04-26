@@ -34,11 +34,11 @@ else
 		. venv/bin/activate
 		pip install wheel
 		pip install -r requirements.txt
-		echo > .venv/bin/sudo-python <<CODE
+		cat >venv/bin/sudo-python <<'CODE'
 #! /bin/sh
 exec sudo -HE "$(dirname "$0")/python" "$@"
 CODE
-		chmod +x .venv/bin/sudo-python
+		chmod +x venv/bin/sudo-python
 	)
 fi
 
