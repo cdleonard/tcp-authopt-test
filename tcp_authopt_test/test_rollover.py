@@ -396,3 +396,43 @@ def test_diffaddr_accept_unsigned(exit_stack: ExitStack):
     )
     con.client_socket.connect(con.server_addr_port)
     check_socket_echo(con.client_socket)
+
+
+def test_send_keyid_read_back(exit_stack: ExitStack):
+    """The send_keyid field in getsockopt TCP_AUTHOPT is the last outgoing keyid
+
+    If the user locks a specific keyid then reading back send_keyid still shows
+    the last outgoing keyid until a new packet is sent. Reporting the same
+    send_keyid to userspace that it configured is less useful.
+    """
+    con = exit_stack.enter_context(TCPConnectionFixture())
+    set_tcp_authopt_key(con.listen_socket,
+        tcp_authopt_key(send_id=1, recv_id=1, key="111", addr=con.client_addr),
+    )
+    set_tcp_authopt_key(con.listen_socket,
+        tcp_authopt_key(send_id=2, recv_id=2, key="222", addr=con.client_addr),
+    )
+    set_tcp_authopt_key(con.client_socket,
+        tcp_authopt_key(send_id=1, recv_id=1, key="111", addr=con.server_addr),
+    )
+    set_tcp_authopt_key(con.client_socket,
+        tcp_authopt_key(send_id=2, recv_id=2, key="222", addr=con.server_addr),
+    )
+    set_tcp_authopt(con.client_socket,
+        tcp_authopt(
+            flags=TCP_AUTHOPT_FLAG.LOCK_KEYID,
+            send_keyid=1,
+        ),
+    )
+    con.client_socket.connect(con.server_addr_port)
+    check_socket_echo(con.client_socket)
+    assert get_tcp_authopt(con.client_socket).send_keyid == 1
+    set_tcp_authopt(con.client_socket,
+        tcp_authopt(
+            flags=TCP_AUTHOPT_FLAG.LOCK_KEYID,
+            send_keyid=2,
+        ),
+    )
+    assert get_tcp_authopt(con.client_socket).send_keyid == 1
+    check_socket_echo(con.client_socket)
+    assert get_tcp_authopt(con.client_socket).send_keyid == 2
