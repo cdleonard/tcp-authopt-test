@@ -3,6 +3,10 @@ import os
 import socket
 import subprocess
 import time
+
+from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
+from .linux_tcp_repair_authopt import get_tcp_repair_authopt, set_tcp_repair_authopt
+from .conftest import parametrize_product
 from contextlib import ExitStack
 from ipaddress import IPv4Address, IPv6Address
 from tempfile import NamedTemporaryFile
@@ -213,11 +217,15 @@ def test_bond_switch(exit_stack: ExitStack, address_family):
     assert 0 != subprocess.call(cmd_ping_from_client2, shell=True)
 
 
-@pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
-def test_tcp_repair_noauth(exit_stack: ExitStack, address_family):
+@parametrize_product(
+    address_family=(socket.AF_INET, socket.AF_INET6),
+    ao=(False, True),
+)
+def test_tcp_repair(exit_stack: ExitStack, address_family, ao: bool):
     logger.info("hello")
     nsfixture = exit_stack.enter_context(TCPRepairNamespaceFixture())
     server_addr = nsfixture.get_server_addr(address_family)
+    client_addr = nsfixture.get_client_addr(address_family)
 
     # create server:
     listen_socket = exit_stack.push(
@@ -226,6 +234,8 @@ def test_tcp_repair_noauth(exit_stack: ExitStack, address_family):
             ns=nsfixture.server_netns_name,
         )
     )
+    if ao:
+        set_tcp_authopt_key(listen_socket, tcp_authopt_key(key="aaa", addr=client_addr))
     exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
     server_addrport = (str(server_addr), DEFAULT_TCP_SERVER_PORT)
     client_port = 27972
@@ -241,6 +251,9 @@ def test_tcp_repair_noauth(exit_stack: ExitStack, address_family):
         bind_port=client_port,
         family=address_family,
     )
+    if ao:
+        set_tcp_authopt_key(client1_socket, tcp_authopt_key(key="aaa", addr=server_addr))
+        set_tcp_authopt_key(client2_socket, tcp_authopt_key(key="aaa", addr=server_addr))
 
     # Suffers from some sort of DAD issue:
     if address_family == socket.AF_INET6:
@@ -255,6 +268,8 @@ def test_tcp_repair_noauth(exit_stack: ExitStack, address_family):
     c1_send_seq = get_tcp_queue_seq(client1_socket)
     client_tcp_repair_window = get_tcp_repair_window_buf(client1_socket)
     client1_tcp_info = get_tcp_info(client1_socket)
+    if ao:
+        client_repair_authopt = get_tcp_repair_authopt(client1_socket)
     # client1 is kept in the repair state
 
     logger.info("tcp repair recv queue: %d", c1_recv_seq)
@@ -273,6 +288,8 @@ def test_tcp_repair_noauth(exit_stack: ExitStack, address_family):
     set_tcp_queue_seq(client2_socket, c1_recv_seq)
     set_tcp_repair_queue(client2_socket, TCP_REPAIR_QUEUE_ID.SEND_QUEUE)
     set_tcp_queue_seq(client2_socket, c1_send_seq)
+    if ao:
+        set_tcp_repair_authopt(client2_socket, client_repair_authopt)
     client2_socket.connect(server_addrport)
     assert get_tcp_info(client2_socket).tcpi_state == 1
     set_tcp_repair_window_buf(client2_socket, client_tcp_repair_window)

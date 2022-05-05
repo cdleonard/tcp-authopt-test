@@ -42,6 +42,10 @@ def get_tcp_repair_authopt(sock: socket.socket) -> tcp_repair_authopt:
     return tcp_repair_authopt.unpack(b)
 
 
+def set_tcp_repair_authopt(sock: socket.socket, opt: tcp_repair_authopt):
+    sock.setsockopt(socket.SOL_TCP, TCP_REPAIR_AUTHOPT, opt.pack())
+
+
 def has_tcp_repair_authopt_on_sock(sock: socket.socket) -> bool:
     try:
         get_tcp_repair_authopt(sock)
