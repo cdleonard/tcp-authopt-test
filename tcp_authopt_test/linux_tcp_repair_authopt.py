@@ -47,11 +47,15 @@ def set_tcp_repair_authopt(sock: socket.socket, opt: tcp_repair_authopt):
 
 
 def has_tcp_repair_authopt_on_sock(sock: socket.socket) -> bool:
+    """Check if TCP_REPAIR_AUTHOPT is supported"""
     try:
         get_tcp_repair_authopt(sock)
         return True
     except OSError as e:
         if e.errno == errno.ENOPROTOOPT:
+            return False
+        # Return True if tcp_authopt supported but not enabled for this specific socket
+        if e.errno == errno.ENOENT:
             return False
         raise
 
