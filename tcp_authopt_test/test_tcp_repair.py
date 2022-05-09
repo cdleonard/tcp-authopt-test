@@ -3,15 +3,14 @@ import os
 import socket
 import subprocess
 import time
-
-from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
-from .linux_tcp_repair_authopt import get_tcp_repair_authopt, set_tcp_repair_authopt
-from .conftest import parametrize_product
 from contextlib import ExitStack
 from ipaddress import IPv4Address, IPv6Address
 from tempfile import NamedTemporaryFile
 
+from .conftest import parametrize_product
+from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
 from .linux_tcp_info import get_tcp_info
+from .linux_tcp_repair_authopt import get_tcp_repair_authopt, set_tcp_repair_authopt
 from .tcpdump import tcpdump_capture
 
 logger = logging.getLogger(__name__)
@@ -252,8 +251,12 @@ def test_tcp_repair(exit_stack: ExitStack, address_family, ao: bool):
         family=address_family,
     )
     if ao:
-        set_tcp_authopt_key(client1_socket, tcp_authopt_key(key="aaa", addr=server_addr))
-        set_tcp_authopt_key(client2_socket, tcp_authopt_key(key="aaa", addr=server_addr))
+        set_tcp_authopt_key(
+            client1_socket, tcp_authopt_key(key="aaa", addr=server_addr)
+        )
+        set_tcp_authopt_key(
+            client2_socket, tcp_authopt_key(key="aaa", addr=server_addr)
+        )
 
     # Suffers from some sort of DAD issue:
     if address_family == socket.AF_INET6:

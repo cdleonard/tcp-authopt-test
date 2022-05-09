@@ -43,7 +43,6 @@ def sendall_checked(sock: socket.socket, buf: bytes):
         pos += ret
 
 
-
 def randbytes(count) -> bytes:
     """Return a random byte array"""
     return bytes([random.randint(0, 255) for index in range(count)])

@@ -63,7 +63,9 @@ def _pytest_chmod_junit_xml():
     # sticky bit the junitxml plugin will fail to write to this file.
     #
     # Work around this by doing chown and chmod
-    import sys, os
+    import os
+    import sys
+
     for arg in sys.argv:
         if arg.startswith("--junit-xml="):
             path = arg[12:]
