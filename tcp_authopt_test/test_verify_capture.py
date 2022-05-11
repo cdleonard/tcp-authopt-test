@@ -321,6 +321,7 @@ def test_tw_ack(exit_stack: ExitStack, address_family):
 
     con = TCPConnectionFixture(address_family=address_family)
     con.tcp_authopt_key = key = DEFAULT_TCP_AUTHOPT_KEY
+    con.client_bind_port = 0
     exit_stack.enter_context(con)
 
     # connect and close nicely
@@ -373,6 +374,7 @@ def test_tw_rst(exit_stack: ExitStack, address_family):
         address_family=address_family,
         tcp_authopt_key=key,
     )
+    con.client_bind_port = 0
     con.server_thread.keep_half_open = True
     exit_stack.enter_context(con)
 
