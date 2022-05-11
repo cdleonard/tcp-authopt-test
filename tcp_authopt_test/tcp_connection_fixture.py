@@ -52,6 +52,17 @@ class TCPConnectionFixture:
 
     sniffer_session: FullTCPSniffSession
 
+    client_bind_port: int = 0
+    """Port to bind the client socket to"""
+
+    _client_real_port: int = 0
+    """Real port that the client socket is bound to"""
+
+    @property
+    def client_port(self) -> int:
+        """Real port that the client socket is bound to"""
+        return self._client_real_port
+
     def __init__(
         self,
         address_family=socket.AF_INET,
@@ -64,7 +75,7 @@ class TCPConnectionFixture:
     ):
         self.address_family = address_family
         self.server_port = DEFAULT_TCP_SERVER_PORT
-        self.client_port = 27972
+        self.client_bind_port = 27972
         self.server_thread = SimpleServerThread(
             mode="echo", **(server_thread_kwargs or {})
         )
@@ -144,7 +155,10 @@ class TCPConnectionFixture:
             bind_port=self.server_port,
         )
         self.exit_stack.enter_context(self.listen_socket)
-        self.client_socket = self.create_client_socket(bind_port=self.client_port)
+        self.client_socket = self.create_client_socket(bind_port=self.client_bind_port)
+        self._client_real_port = self.client_socket.getsockname()[1]
+        if self.client_bind_port:
+            assert self.client_port == self.client_bind_port
         self.exit_stack.enter_context(self.client_socket)
         self.server_thread.add_listen_socket(self.listen_socket)
         self.exit_stack.enter_context(self.server_thread)
@@ -251,12 +265,14 @@ class TCPConnectionFixture:
 
     def get_client_tcp_state(self) -> Optional[str]:
         return self._get_state_via_ss(
-            self.client_netns_name, f"dport {self.server_port}"
+            self.client_netns_name,
+            f"sport {self.client_port} dport {self.server_port}",
         )
 
     def get_server_tcp_state(self) -> Optional[str]:
         return self._get_state_via_ss(
-            self.server_netns_name, f"sport {self.server_port}"
+            self.server_netns_name,
+            f"sport {self.server_port} dport {self.client_port}",
         )
 
 
