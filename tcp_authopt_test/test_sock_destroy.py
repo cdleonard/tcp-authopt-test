@@ -48,7 +48,6 @@ def test_tw(exit_stack: ExitStack, address_family):
     assert con.get_server_tcp_state() is None
 
     # Kill the client side TIME-WAIT socket
-    ss = "/home/vagrant/iproute2/misc/ss"
     script = f"ss --net {con.client_netns_name} --tcp --kill state connected"
     subprocess.run(script, shell=True, check=True)
     assert con.get_client_tcp_state() is None
