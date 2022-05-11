@@ -13,6 +13,7 @@ from .utils import check_socket_echo
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
 def test_estab(exit_stack: ExitStack, address_family):
     con = TCPConnectionFixture(address_family=address_family)
+    con.client_bind_port = 0
     exit_stack.enter_context(con)
 
     con.client_socket.connect(con.server_addr_port)
@@ -34,6 +35,7 @@ def test_estab(exit_stack: ExitStack, address_family):
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
 def test_tw(exit_stack: ExitStack, address_family):
     con = TCPConnectionFixture(address_family=address_family)
+    con.client_bind_port = 0
     exit_stack.enter_context(con)
 
     con.client_socket.connect(con.server_addr_port)
