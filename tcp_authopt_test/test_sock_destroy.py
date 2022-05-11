@@ -22,7 +22,7 @@ def test_estab(exit_stack: ExitStack, address_family):
     assert con.get_server_tcp_state() == "ESTAB"
 
     # Kill the server side of the connection
-    script = f"ss --net {con.server_netns_name} --tcp --kill state all"
+    script = f"ss --net {con.server_netns_name} --tcp --kill state connected"
     subprocess.run(script, shell=True, check=True)
     assert con.get_server_tcp_state() == None
     with pytest.raises(socket.error) as e:
@@ -47,6 +47,6 @@ def test_tw(exit_stack: ExitStack, address_family):
 
     # Kill the client side TIME-WAIT socket
     ss = "/home/vagrant/iproute2/misc/ss"
-    script = f"ss --net {con.client_netns_name} --tcp --kill state all"
+    script = f"ss --net {con.client_netns_name} --tcp --kill state connected"
     subprocess.run(script, shell=True, check=True)
     assert con.get_client_tcp_state() is None
