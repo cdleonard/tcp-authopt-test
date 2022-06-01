@@ -102,10 +102,9 @@ ip netns exec {nsfixture.server_netns_name} cat /proc/net/sockstat
     def assert_no_snmp_failures():
         client_nstat = nstat_json(namespace=nsfixture.client_netns_name)
         server_nstat = nstat_json(namespace=nsfixture.server_netns_name)
-        assert (
-            client_nstat["TcpExtTCPAuthOptFailure"] == 0
-            and server_nstat["TcpExtTCPAuthOptFailure"] == 0
-        )
+        client_aofail = client_nstat.get("TcpExtTCPAuthOptFailure", 0)
+        server_aofail = server_nstat.get("TcpExtTCPAuthOptFailure", 0)
+        assert client_aofail == 0 and server_aofail == 0
 
     client_port_use_count: typing.Dict[int, int] = {}
 
