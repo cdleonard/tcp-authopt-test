@@ -51,3 +51,29 @@ def test_tw(exit_stack: ExitStack, address_family):
     script = f"ss --net {con.client_netns_name} --tcp --kill state connected"
     subprocess.run(script, shell=True, check=True)
     assert con.get_client_tcp_state() is None
+
+
+@pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
+def test_fw1(exit_stack: ExitStack, address_family):
+    con = TCPConnectionFixture(address_family=address_family)
+    con.client_bind_port = 0
+    exit_stack.enter_context(con)
+
+    con.client_socket.connect(con.server_addr_port)
+    check_socket_echo(con.client_socket)
+    assert con.get_client_tcp_state() == "ESTAB"
+    assert con.get_server_tcp_state() == "ESTAB"
+
+    subprocess.run(
+        f"ip -n {con.nsfixture.server_netns_name} link set veth0 down",
+        shell=True,
+        check=True,
+    )
+    con.client_socket.close()
+    assert con.get_client_tcp_state() == "FIN-WAIT-1"
+    assert con.get_server_tcp_state() == "ESTAB"
+
+    # Kill the client side TIME-WAIT socket
+    script = f"ss --net {con.client_netns_name} --tcp --kill state connected"
+    subprocess.run(script, shell=True, check=True)
+    assert con.get_client_tcp_state() is None
