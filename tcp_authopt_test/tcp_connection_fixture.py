@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 import logging
 import socket
+from socket import AddressFamily
 import subprocess
 from contextlib import ExitStack
 from typing import Optional
@@ -50,6 +51,10 @@ class TCPConnectionFixture:
     :ivar enable_sniffer: Enable the sniffer (default)
     """
 
+    address_family: AddressFamily
+    _server_address_family: Optional[AddressFamily]
+    _client_address_family: Optional[AddressFamily]
+
     sniffer_session: FullTCPSniffSession
 
     client_bind_port: int = 0
@@ -63,9 +68,20 @@ class TCPConnectionFixture:
         """Real port that the client socket is bound to"""
         return self._client_real_port
 
+    @property
+    def server_address_family(self) -> AddressFamily:
+        return self._server_address_family or self.address_family
+
+    @property
+    def client_address_family(self) -> AddressFamily:
+        return self._client_address_family or self.address_family
+
     def __init__(
         self,
-        address_family=socket.AF_INET,
+        *,
+        address_family: AddressFamily = socket.AF_INET,
+        server_address_family: Optional[AddressFamily] = None,
+        client_address_family: Optional[AddressFamily] = None,
         tcp_authopt_key: tcp_authopt_key = None,
         server_thread_kwargs=None,
         tcp_md5_key=None,
@@ -74,6 +90,8 @@ class TCPConnectionFixture:
         capture_on_client=False,
     ):
         self.address_family = address_family
+        self._server_address_family = server_address_family
+        self._client_address_family = client_address_family
         self.server_port = DEFAULT_TCP_SERVER_PORT
         self.client_bind_port = 27972
         self.server_thread = SimpleServerThread(
@@ -108,7 +126,7 @@ class TCPConnectionFixture:
     def create_client_socket(self, bind_port=0):
         return create_client_socket(
             ns=self.nsfixture.client_netns_name,
-            family=self.address_family,
+            family=self.client_address_family,
             bind_addr=self.client_addr,
             bind_port=bind_port,
         )
@@ -145,12 +163,12 @@ class TCPConnectionFixture:
         self.exit_stack.__enter__()
 
         self.nsfixture = self.exit_stack.enter_context(NamespaceFixture())
-        self.server_addr = self.nsfixture.get_server_addr(self.address_family)
-        self.client_addr = self.nsfixture.get_client_addr(self.address_family)
+        self.server_addr = self.nsfixture.get_server_addr(self.server_address_family)
+        self.client_addr = self.nsfixture.get_client_addr(self.client_address_family)
 
         self.listen_socket = create_listen_socket(
             ns=self.nsfixture.server_netns_name,
-            family=self.address_family,
+            family=self.server_address_family,
             bind_addr=self.server_addr,
             bind_port=self.server_port,
         )
