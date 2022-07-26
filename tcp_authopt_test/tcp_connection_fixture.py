@@ -55,6 +55,9 @@ class TCPConnectionFixture:
     _server_address_family: Optional[AddressFamily]
     _client_address_family: Optional[AddressFamily]
 
+    wildcard_listen: bool = False
+    """If true then listen on wildcard otherwise only on the specific server address"""
+
     sniffer_session: FullTCPSniffSession
 
     client_bind_port: int = 0
@@ -166,10 +169,14 @@ class TCPConnectionFixture:
         self.server_addr = self.nsfixture.get_server_addr(self.server_address_family)
         self.client_addr = self.nsfixture.get_client_addr(self.client_address_family)
 
+        if self.wildcard_listen:
+            listen_addr = ""
+        else:
+            listen_addr = self.server_addr
         self.listen_socket = create_listen_socket(
             ns=self.nsfixture.server_netns_name,
             family=self.server_address_family,
-            bind_addr=self.server_addr,
+            bind_addr=listen_addr,
             bind_port=self.server_port,
         )
         self.exit_stack.enter_context(self.listen_socket)
