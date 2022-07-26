@@ -10,6 +10,8 @@ import pytest
 import waiting
 from scapy.layers.inet import TCP
 
+from tcp_authopt_test import sockaddr
+
 from .conftest import (
     raises_optional_exception,
     skipif_cant_capture,
@@ -233,6 +235,36 @@ def test_v4mapv6(exit_stack, mode: str):
         client_socket.connect((str(server_ipv4_addr), DEFAULT_TCP_SERVER_PORT))
         check_socket_echo(client_socket)
     client_socket.close()
+
+
+@pytest.mark.parametrize("md5sig_enabled", [0, 1])
+def test_v4mapv6_md5(exit_stack, md5sig_enabled: bool):
+    """Test ipv4 client and ipv6 server with md5.
+
+    This needs to work if server has a key with ipv4-mapped-ipv6 address
+    """
+    con = TCPConnectionFixture(
+        address_family=socket.AF_INET6,
+        client_address_family=socket.AF_INET,
+    )
+    con.wildcard_listen = True
+    con = exit_stack.enter_context(con)
+
+    server_ipv4_addr = con.nsfixture.get_server_addr(socket.AF_INET)
+    client_ipv4_addr = con.nsfixture.get_client_addr(socket.AF_INET)
+
+    if md5sig_enabled:
+        from . import linux_tcp_md5sig
+        server_md5key = linux_tcp_md5sig.tcp_md5sig(key=b"hello")
+        server_md5key.addr = sockaddr.get_ipv6_mapped_ipv4(client_ipv4_addr)
+        linux_tcp_md5sig.setsockopt_md5sig(con.listen_socket, server_md5key)
+        client_md5key = linux_tcp_md5sig.tcp_md5sig(key=b"hello")
+        client_md5key.addr = server_ipv4_addr
+        linux_tcp_md5sig.setsockopt_md5sig(con.client_socket, client_md5key)
+
+    con.client_socket.connect((str(server_ipv4_addr), DEFAULT_TCP_SERVER_PORT))
+    check_socket_echo(con.client_socket)
+    con.client_socket.close()
 
 
 @pytest.mark.parametrize(
