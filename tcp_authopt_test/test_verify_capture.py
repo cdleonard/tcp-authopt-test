@@ -10,6 +10,8 @@ import pytest
 import waiting
 from scapy.layers.inet import TCP
 
+from tcp_authopt_test import sockaddr
+
 from .conftest import (
     raises_optional_exception,
     skipif_cant_capture,
@@ -189,60 +191,51 @@ def test_both_authopt_md5(exit_stack, address_family, use_tcp_authopt, use_tcp_m
 
 @pytest.mark.parametrize("mode", ["none", "ao", "ao-addrbind", "md5"])
 def test_v4mapv6(exit_stack, mode: str):
-    """Test ipv4 client and ipv6 server with and without TCP-AO
+    """Test ipv4 client and ipv6 server with md5.
 
-    By default any IPv6 server will also receive packets from IPv4 clients. This
-    is not currently supported by TCP_AUTHOPT but it should fail in an orderly
-    manner.
+    This needs to work if server has a key with ipv4-mapped-ipv6 address
     """
-    nsfixture = NamespaceFixture()
-    exit_stack.enter_context(nsfixture)
-    server_ipv4_addr = nsfixture.get_addr(socket.AF_INET, 1)
-
-    listen_socket = create_listen_socket(
-        ns=nsfixture.server_netns_name, family=socket.AF_INET6
+    con = TCPConnectionFixture(
+        address_family=socket.AF_INET6,
+        client_address_family=socket.AF_INET,
     )
-    listen_socket = exit_stack.enter_context(listen_socket)
+    con.wildcard_listen = True
+    con = exit_stack.enter_context(con)
 
-    server_thread = SimpleServerThread(listen_socket, mode="echo")
-    exit_stack.enter_context(server_thread)
-
-    client_socket = create_client_socket(
-        ns=nsfixture.client_netns_name,
-        family=socket.AF_INET,
-    )
-    client_socket = exit_stack.push(client_socket)
+    server_ipv4_addr = con.nsfixture.get_server_addr(socket.AF_INET)
+    client_ipv4_addr = con.nsfixture.get_client_addr(socket.AF_INET)
+    client_ipv4_mapped_ipv6_addr = sockaddr.get_ipv6_mapped_ipv4(client_ipv4_addr)
 
     if mode == "ao":
         alg = TCP_AUTHOPT_ALG.HMAC_SHA_1_96
-        key = tcp_authopt_key(alg=alg, key="hello")
-        set_tcp_authopt_key(listen_socket, key)
-        set_tcp_authopt_key(client_socket, key)
-
-    if mode == "ao-addrbind":
+        key = tcp_authopt_key(alg=alg, key=b"hello")
+        set_tcp_authopt_key(con.listen_socket, key)
+        set_tcp_authopt_key(con.client_socket, key)
+    elif mode == "ao-addrbind":
         alg = TCP_AUTHOPT_ALG.HMAC_SHA_1_96
-        client_ipv6_addr = nsfixture.get_addr(socket.AF_INET6, 2)
-        server_key = tcp_authopt_key(alg=alg, key="hello", addr=client_ipv6_addr)
-        server_key.flags = TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
-        set_tcp_authopt_key(listen_socket, server_key)
-
-        client_key = tcp_authopt_key(alg=alg, key="hello")
-        set_tcp_authopt_key(client_socket, client_key)
-
-    if mode == "md5":
+        server_key = tcp_authopt_key(alg=alg, key=b"hello", addr=client_ipv4_mapped_ipv6_addr)
+        set_tcp_authopt_key(con.listen_socket, server_key)
+        client_key = tcp_authopt_key(alg=alg, key=b"hello", addr=server_ipv4_addr)
+        set_tcp_authopt_key(con.client_socket, client_key)
+    elif mode == "md5":
         from . import linux_tcp_md5sig
+        server_md5key = linux_tcp_md5sig.tcp_md5sig(key=b"hello", addr=client_ipv4_mapped_ipv6_addr)
+        linux_tcp_md5sig.setsockopt_md5sig(con.listen_socket, server_md5key)
+        client_md5key = linux_tcp_md5sig.tcp_md5sig(key=b"hello", addr=server_ipv4_addr)
+        linux_tcp_md5sig.setsockopt_md5sig(con.client_socket, client_md5key)
+    elif mode == "none":
+        pass
+    else:
+        raise ValueError(f"Bad mode {mode}")
 
-        server_md5key = linux_tcp_md5sig.tcp_md5sig(key=b"hello")
-        server_md5key.set_ipv6_addr_all()
-        linux_tcp_md5sig.setsockopt_md5sig(listen_socket, server_md5key)
-        client_md5key = linux_tcp_md5sig.tcp_md5sig(key=b"hellx")
-        client_md5key.set_ipv4_addr_all()
-        linux_tcp_md5sig.setsockopt_md5sig(client_socket, client_md5key)
-
-    with raises_optional_exception(socket.timeout if mode != "none" else None):
-        client_socket.connect((str(server_ipv4_addr), DEFAULT_TCP_SERVER_PORT))
-        check_socket_echo(client_socket)
-    client_socket.close()
+    if mode in ["none", "md5"]:
+        expected_exception = None
+    else:
+        expected_exception = socket.timeout
+    with raises_optional_exception(expected_exception):
+        con.client_socket.connect((str(server_ipv4_addr), DEFAULT_TCP_SERVER_PORT))
+        check_socket_echo(con.client_socket)
+    con.client_socket.close()
 
 
 @pytest.mark.parametrize(
