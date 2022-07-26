@@ -187,7 +187,7 @@ def test_both_authopt_md5(exit_stack, address_family, use_tcp_authopt, use_tcp_m
     assert not fail
 
 
-@pytest.mark.parametrize("mode", ["none", "ao", "ao-addrbind", "md5"])
+@pytest.mark.parametrize("mode", ["none", "ao", "ao-addrbind"])
 def test_v4mapv6(exit_stack, mode: str):
     """Test ipv4 client and ipv6 server with and without TCP-AO
 
@@ -228,16 +228,6 @@ def test_v4mapv6(exit_stack, mode: str):
 
         client_key = tcp_authopt_key(alg=alg, key="hello")
         set_tcp_authopt_key(client_socket, client_key)
-
-    if mode == "md5":
-        from . import linux_tcp_md5sig
-
-        server_md5key = linux_tcp_md5sig.tcp_md5sig(key=b"hello")
-        server_md5key.set_ipv6_addr_all()
-        linux_tcp_md5sig.setsockopt_md5sig(listen_socket, server_md5key)
-        client_md5key = linux_tcp_md5sig.tcp_md5sig(key=b"hellx")
-        client_md5key.set_ipv4_addr_all()
-        linux_tcp_md5sig.setsockopt_md5sig(client_socket, client_md5key)
 
     with raises_optional_exception(socket.timeout if mode != "none" else None):
         client_socket.connect((str(server_ipv4_addr), DEFAULT_TCP_SERVER_PORT))
