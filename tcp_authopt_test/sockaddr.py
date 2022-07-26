@@ -120,3 +120,8 @@ def sockaddr_convert(val: SockaddrConvertType) -> sockaddr_base:
     if isinstance(val, str):
         return sockaddr_convert(ip_address(val))
     raise TypeError(f"Don't know how to convert {val!r} to sockaddr")
+
+
+def get_ipv6_mapped_ipv4(a: IPv4Address) -> IPv6Address:
+    ipv6_mapped_ipv4_prefix = b'\x00' * 10 + b'\xff' * 2
+    return IPv6Address(ipv6_mapped_ipv4_prefix + a.packed)
