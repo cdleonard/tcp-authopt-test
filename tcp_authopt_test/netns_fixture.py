@@ -5,6 +5,7 @@ import subprocess
 from ipaddress import IPv4Address, IPv6Address
 from tempfile import NamedTemporaryFile
 
+from .scapy_utils import IPvXAddress
 from .conftest import raise_skip_no_netns
 
 
@@ -38,7 +39,7 @@ class NamespaceFixture:
         return IPv6Address("fd00::") + (ns << 16) + index
 
     @classmethod
-    def get_addr(cls, address_family=socket.AF_INET, ns=1, index=1):
+    def get_addr(cls, address_family=socket.AF_INET, ns=1, index=1) -> IPvXAddress:
         if address_family == socket.AF_INET:
             return cls.get_ipv4_addr(ns, index)
         elif address_family == socket.AF_INET6:
@@ -46,10 +47,10 @@ class NamespaceFixture:
         else:
             raise ValueError(f"Bad address_family={address_family}")
 
-    def get_server_addr(cls, address_family=socket.AF_INET, index=1):
+    def get_server_addr(cls, address_family=socket.AF_INET, index=1) -> IPvXAddress:
         return cls.get_addr(ns=1, address_family=address_family, index=index)
 
-    def get_client_addr(cls, address_family=socket.AF_INET, index=1):
+    def get_client_addr(cls, address_family=socket.AF_INET, index=1) -> IPvXAddress:
         return cls.get_addr(ns=2, address_family=address_family, index=index)
 
     # 02:* means "locally administered"
