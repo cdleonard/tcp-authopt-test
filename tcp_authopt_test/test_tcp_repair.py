@@ -221,7 +221,6 @@ def test_bond_switch(exit_stack: ExitStack, address_family):
     ao=(False, True),
 )
 def test_tcp_repair(exit_stack: ExitStack, address_family, ao: bool):
-    logger.info("hello")
     nsfixture = exit_stack.enter_context(TCPRepairNamespaceFixture())
     server_addr = nsfixture.get_server_addr(address_family)
     client_addr = nsfixture.get_client_addr(address_family)
