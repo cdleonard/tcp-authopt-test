@@ -52,6 +52,8 @@ class TCPRepairNamespaceFixture:
     * Middle namespace has a bond device for the two clients, only one is active
     """
 
+    _tmp = None
+
     def _get_name_prefix(self):
         if self._tmp is None:
             raise RuntimeError("not yet setup")
