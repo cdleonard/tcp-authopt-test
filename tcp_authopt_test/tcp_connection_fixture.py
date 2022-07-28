@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0
 import logging
 import socket
-from socket import AddressFamily
 import subprocess
 from contextlib import ExitStack
+from socket import AddressFamily
 from typing import Optional
 
 import pytest

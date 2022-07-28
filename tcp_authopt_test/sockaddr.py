@@ -123,5 +123,5 @@ def sockaddr_convert(val: SockaddrConvertType) -> sockaddr_base:
 
 
 def get_ipv6_mapped_ipv4(a: IPv4Address) -> IPv6Address:
-    ipv6_mapped_ipv4_prefix = b'\x00' * 10 + b'\xff' * 2
+    ipv6_mapped_ipv4_prefix = b"\x00" * 10 + b"\xff" * 2
     return IPv6Address(ipv6_mapped_ipv4_prefix + a.packed)

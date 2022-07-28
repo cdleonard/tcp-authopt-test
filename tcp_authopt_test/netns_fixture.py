@@ -5,8 +5,8 @@ import subprocess
 from ipaddress import IPv4Address, IPv6Address
 from tempfile import NamedTemporaryFile
 
-from .scapy_utils import IPvXAddress
 from .conftest import raise_skip_no_netns
+from .scapy_utils import IPvXAddress
 
 
 class NamespaceFixture:
