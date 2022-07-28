@@ -163,7 +163,7 @@ def scapy_sniffer_start_block(sniffer: AsyncSniffer, timeout=1):
 
 
 def scapy_sniffer_stop(sniffer: AsyncSniffer):
-    """Like AsyncSniffer.stop except no error is raising if not running"""
+    """Like AsyncSniffer.stop except no error is raised if not running"""
     if sniffer is not None and sniffer.running:
         sniffer.stop()
 
