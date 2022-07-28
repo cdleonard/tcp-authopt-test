@@ -5,6 +5,7 @@ import os
 import subprocess
 import time
 from contextlib import contextmanager
+from typing import Optional, List
 
 from .netns_fixture import NamespaceFixture
 
@@ -29,7 +30,12 @@ def subprocess_kill(popen: subprocess.Popen, kill_timeout=1, term_timeout=1):
 
 
 @contextmanager
-def tcpdump_capture(namespace=None, interface=None, extra_args=None, filename=None):
+def tcpdump_capture(
+    namespace: Optional[str] = None,
+    interface: Optional[str] = None,
+    extra_args: Optional[List[str]] = None,
+    filename: Optional[str] = None,
+):
     import subprocess
 
     cmd = ["tcpdump"]
