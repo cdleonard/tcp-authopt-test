@@ -11,6 +11,11 @@ from .conftest import parametrize_product
 from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
 from .linux_tcp_info import get_tcp_info
 from .linux_tcp_repair_authopt import get_tcp_repair_authopt, set_tcp_repair_authopt
+from .scapy_utils import (
+    AsyncSnifferContext,
+    create_capture_socket,
+    format_tcp_authopt_packet,
+)
 from .tcpdump import tcpdump_capture
 
 logger = logging.getLogger(__name__)
@@ -309,3 +314,77 @@ def test_tcp_repair(exit_stack: ExitStack, address_family, ao: bool):
     set_tcp_repair(client2_socket, TCP_REPAIR_VAL.OFF_NO_WP)
 
     check_socket_echo(client2_socket)
+
+
+def test_tcp_repair_both_sides(exit_stack: ExitStack):
+    """Create a TCP connection without SYN, just using TCP_REPAIR on both sides"""
+    address_family = socket.AF_INET
+    nsfixture = exit_stack.enter_context(TCPRepairNamespaceFixture())
+    server_thread = exit_stack.enter_context(SimpleServerThread(mode="echo"))
+    sniffer = exit_stack.enter_context(
+        AsyncSnifferContext(
+            opened_socket=create_capture_socket(
+                ns=nsfixture.client1_netns_name,
+                iface="veth0",
+                filter="tcp",
+            ),
+            prn=lambda p: logger.info(
+                "sniff %s", format_tcp_authopt_packet(p, include_seq=True)
+            ),
+        )
+    )
+    server_addr = nsfixture.get_server_addr(address_family)
+    client_addr = nsfixture.get_client_addr(address_family)
+    client_port = 17271
+    server_port = 27272
+    server_addrport = (str(server_addr), server_port)
+    client_addrport = (str(client_addr), client_port)
+
+    # create synthetic server socket
+    server_socket = exit_stack.push(
+        create_client_socket(
+            ns=nsfixture.server_netns_name,
+            family=address_family,
+            bind_addr=server_addr,
+            bind_port=server_port,
+        )
+    )
+    client_socket = exit_stack.push(
+        create_client_socket(
+            ns=nsfixture.client1_netns_name,
+            family=address_family,
+            bind_addr=client_addr,
+            bind_port=client_port,
+        )
+    )
+
+    client_isn = 0x12345678
+    server_isn = 0x87654321
+
+    set_tcp_repair(client_socket, TCP_REPAIR_VAL.ON)
+    set_tcp_repair_queue(client_socket, TCP_REPAIR_QUEUE_ID.RECV_QUEUE)
+    set_tcp_queue_seq(client_socket, server_isn)
+    set_tcp_repair_queue(client_socket, TCP_REPAIR_QUEUE_ID.SEND_QUEUE)
+    set_tcp_queue_seq(client_socket, client_isn)
+    set_tcp_repair(server_socket, TCP_REPAIR_VAL.ON)
+    set_tcp_repair_queue(server_socket, TCP_REPAIR_QUEUE_ID.RECV_QUEUE)
+    set_tcp_queue_seq(server_socket, client_isn)
+    set_tcp_repair_queue(server_socket, TCP_REPAIR_QUEUE_ID.SEND_QUEUE)
+    set_tcp_queue_seq(server_socket, server_isn)
+
+    assert get_tcp_info(client_socket).tcpi_state == 7
+    assert get_tcp_info(server_socket).tcpi_state == 7
+    client_socket.connect(server_addrport)
+    server_socket.connect(client_addrport)
+    assert get_tcp_info(client_socket).tcpi_state == 1
+    assert get_tcp_info(server_socket).tcpi_state == 1
+
+    server_thread._register_server_socket(server_socket)
+    set_tcp_repair(client_socket, TCP_REPAIR_VAL.OFF)
+    set_tcp_repair(server_socket, TCP_REPAIR_VAL.OFF)
+
+    # Check traffic works
+    # Use very small packet because of lack of window initialization
+    size = 128
+    check_socket_echo(client_socket, size=size)
+    check_socket_echo(client_socket, size=size)
