@@ -178,7 +178,10 @@ class AsyncSnifferContext(AsyncSniffer):
 
 
 def format_tcp_authopt_packet(
-    p: Packet, include_ethernet=False, include_seq=False, include_md5=True
+    p: Packet,
+    include_ethernet=False,
+    include_seq=False,
+    include_md5=True,
 ) -> str:
     """Format a TCP packet in a way that is useful for TCP-AO testing"""
     if not TCP in p:
