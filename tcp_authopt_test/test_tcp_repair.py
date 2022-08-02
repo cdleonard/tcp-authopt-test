@@ -414,3 +414,36 @@ def test_tcp_repair_both_sides(exit_stack: ExitStack):
     size = 128
     check_socket_echo(client_socket, size=size)
     check_socket_echo(client_socket, size=size)
+
+
+def test_tcp_repair_before_sne_rollver(exit_stack: ExitStack):
+    """Test TCP_REPAIR with a sequence number that causes quick SNE rollover"""
+    address_family = socket.AF_INET
+    nsfixture = exit_stack.enter_context(TCPRepairNamespaceFixture())
+    server_addr = nsfixture.get_server_addr(address_family)
+    client_addr = nsfixture.get_client_addr(address_family)
+    server_thread = exit_stack.enter_context(SimpleServerThread(mode="echo"))
+    init_debug_sniffer(exit_stack, nsfixture)
+    client_socket, server_socket = init_tcp_repair_sock_pair(
+        exit_stack,
+        nsfixture,
+        address_family,
+        client_isn=0xFFFFFF00,
+        server_isn=0x10000000,
+    )
+
+    set_tcp_authopt_key(client_socket, tcp_authopt_key(key="aaa", addr=server_addr))
+    set_tcp_authopt_key(server_socket, tcp_authopt_key(key="aaa", addr=client_addr))
+    server_thread._register_server_socket(server_socket)
+    set_tcp_repair(client_socket, TCP_REPAIR_VAL.OFF)
+    set_tcp_repair(server_socket, TCP_REPAIR_VAL.OFF)
+
+    size = 128
+    check_socket_echo(client_socket, size=size)
+    check_socket_echo(client_socket, size=size)
+    check_socket_echo(client_socket, size=size)
+
+    client_authopt_repair_info = get_tcp_repair_authopt(client_socket)
+    assert client_authopt_repair_info.snd_sne == 1
+    server_authopt_repair_info = get_tcp_repair_authopt(server_socket)
+    assert server_authopt_repair_info.rcv_sne == 1
