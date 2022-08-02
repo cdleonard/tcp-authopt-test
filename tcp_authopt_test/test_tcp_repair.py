@@ -48,6 +48,9 @@ from .utils import (
     create_listen_socket,
 )
 
+DEFAULT_TCP_SERVER_PORT = 17971
+DEFAULT_TCP_CLIENT_PORT = 27972
+
 
 class TCPRepairNamespaceFixture:
     """Namespace fixture for testing TCP repair
@@ -290,7 +293,7 @@ def test_tcp_repair(exit_stack: ExitStack, address_family, ao: bool):
     server_addr = nsfixture.get_server_addr(address_family)
     client_addr = nsfixture.get_client_addr(address_family)
     server_addrport = (str(server_addr), DEFAULT_TCP_SERVER_PORT)
-    client_port = 27972
+    client_port = DEFAULT_TCP_CLIENT_PORT
 
     # create server:
     listen_socket = exit_stack.push(
@@ -353,10 +356,8 @@ def init_tcp_repair_sock_pair(
 ) -> typing.Tuple[socket.socket, socket.socket]:
     server_addr = nsfixture.get_server_addr(address_family)
     client_addr = nsfixture.get_client_addr(address_family)
-    client_port = 27272
-    server_port = 17271
-    server_addrport = (str(server_addr), server_port)
-    client_addrport = (str(client_addr), client_port)
+    server_addrport = (str(server_addr), DEFAULT_TCP_SERVER_PORT)
+    client_addrport = (str(client_addr), DEFAULT_TCP_CLIENT_PORT)
 
     # create synthetic server socket
     server_socket = exit_stack.push(
@@ -364,7 +365,7 @@ def init_tcp_repair_sock_pair(
             ns=nsfixture.server_netns_name,
             family=address_family,
             bind_addr=server_addr,
-            bind_port=server_port,
+            bind_port=DEFAULT_TCP_SERVER_PORT,
         )
     )
     client_socket = exit_stack.push(
@@ -372,7 +373,7 @@ def init_tcp_repair_sock_pair(
             ns=nsfixture.client1_netns_name,
             family=address_family,
             bind_addr=client_addr,
-            bind_port=client_port,
+            bind_port=DEFAULT_TCP_CLIENT_PORT,
         )
     )
 
