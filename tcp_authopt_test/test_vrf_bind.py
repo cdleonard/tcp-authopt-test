@@ -265,7 +265,8 @@ class TestVRFOverlapAOBoundKeyPrecedence:
         params=[socket.AF_INET, socket.AF_INET6],
     )
     def init(self, request: pytest.FixtureRequest):
-        address_family = request.param
+        assert hasattr(request, "param")
+        address_family = request.param  # type: ignore
         logger.info("init address_family=%s", address_family)
         with ExitStack() as exit_stack:
             fix = exit_stack.enter_context(VrfFixture(address_family))
