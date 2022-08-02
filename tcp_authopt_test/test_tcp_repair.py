@@ -190,6 +190,21 @@ done
             return self.server_ipv6_addr
 
 
+def init_debug_sniffer(exit_stack: ExitStack, nsfixture: TCPRepairNamespaceFixture):
+    return exit_stack.enter_context(
+        AsyncSnifferContext(
+            opened_socket=create_capture_socket(
+                ns=nsfixture.server_netns_name,
+                iface="veth0",
+                filter="tcp",
+            ),
+            prn=lambda p: logger.info(
+                "sniff %s", format_tcp_authopt_packet(p, include_seq=True)
+            ),
+        )
+    )
+
+
 @pytest.mark.parametrize("address_family", [socket.AF_INET, socket.AF_INET6])
 def test_bond_switch(exit_stack: ExitStack, address_family):
     """Verify bond switching via ping"""
@@ -317,18 +332,7 @@ def test_tcp_repair_both_sides(exit_stack: ExitStack):
     address_family = socket.AF_INET
     nsfixture = exit_stack.enter_context(TCPRepairNamespaceFixture())
     server_thread = exit_stack.enter_context(SimpleServerThread(mode="echo"))
-    sniffer = exit_stack.enter_context(
-        AsyncSnifferContext(
-            opened_socket=create_capture_socket(
-                ns=nsfixture.client1_netns_name,
-                iface="veth0",
-                filter="tcp",
-            ),
-            prn=lambda p: logger.info(
-                "sniff %s", format_tcp_authopt_packet(p, include_seq=True)
-            ),
-        )
-    )
+    init_debug_sniffer(exit_stack, nsfixture)
     server_addr = nsfixture.get_server_addr(address_family)
     client_addr = nsfixture.get_client_addr(address_family)
     client_port = 17271
