@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
+import errno
 import logging
 import os
 import selectors
@@ -56,11 +57,18 @@ class SimpleServerThread(Thread):
         # logger.debug("events=%r", events)
         try:
             data = conn.recv(self.bufsize)
-        except ConnectionResetError:
-            # logger.info("reset %r", conn)
+        except ConnectionResetError as e:
+            logger.debug("conn %r error %r", conn, e)
             conn.close()
             self.sel.unregister(conn)
             return
+        except OSError as e:
+            logger.debug("conn %r error %r", conn, e)
+            if e.errno == errno.EBADF and conn.fileno() < 0:
+                logger.debug("conn %r closed externally", conn)
+                self.sel.unregister(conn)
+                return
+            raise
         # logger.debug("len(data)=%r", len(data))
         if len(data) == 0:
             if not self.keep_half_open:
