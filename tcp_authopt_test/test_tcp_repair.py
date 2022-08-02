@@ -3,6 +3,7 @@ import os
 import socket
 import subprocess
 import time
+import typing
 from contextlib import ExitStack
 from ipaddress import IPv4Address, IPv6Address
 from tempfile import NamedTemporaryFile
@@ -327,16 +328,17 @@ def test_tcp_repair(exit_stack: ExitStack, address_family, ao: bool):
     check_socket_echo(client2_socket)
 
 
-def test_tcp_repair_both_sides(exit_stack: ExitStack):
-    """Create a TCP connection without SYN, just using TCP_REPAIR on both sides"""
-    address_family = socket.AF_INET
-    nsfixture = exit_stack.enter_context(TCPRepairNamespaceFixture())
-    server_thread = exit_stack.enter_context(SimpleServerThread(mode="echo"))
-    init_debug_sniffer(exit_stack, nsfixture)
+def init_tcp_repair_sock_pair(
+    exit_stack: ExitStack,
+    nsfixture: TCPRepairNamespaceFixture,
+    address_family: socket.AddressFamily = socket.AF_INET,
+    client_isn: int = 0x11111111,
+    server_isn: int = 0x22222222,
+) -> typing.Tuple[socket.socket, socket.socket]:
     server_addr = nsfixture.get_server_addr(address_family)
     client_addr = nsfixture.get_client_addr(address_family)
-    client_port = 17271
-    server_port = 27272
+    client_port = 27272
+    server_port = 17271
     server_addrport = (str(server_addr), server_port)
     client_addrport = (str(client_addr), client_port)
 
@@ -358,9 +360,6 @@ def test_tcp_repair_both_sides(exit_stack: ExitStack):
         )
     )
 
-    client_isn = 0x12345678
-    server_isn = 0x87654321
-
     set_tcp_repair(client_socket, TCP_REPAIR_VAL.ON)
     set_tcp_repair_queue(client_socket, TCP_REPAIR_QUEUE_ID.RECV_QUEUE)
     set_tcp_queue_seq(client_socket, server_isn)
@@ -372,12 +371,23 @@ def test_tcp_repair_both_sides(exit_stack: ExitStack):
     set_tcp_repair_queue(server_socket, TCP_REPAIR_QUEUE_ID.SEND_QUEUE)
     set_tcp_queue_seq(server_socket, server_isn)
 
-    assert get_tcp_info(client_socket).tcpi_state == 7
-    assert get_tcp_info(server_socket).tcpi_state == 7
     client_socket.connect(server_addrport)
     server_socket.connect(client_addrport)
-    assert get_tcp_info(client_socket).tcpi_state == 1
-    assert get_tcp_info(server_socket).tcpi_state == 1
+
+    return client_socket, server_socket
+
+
+def test_tcp_repair_both_sides(exit_stack: ExitStack):
+    """Create a TCP connection without SYN, just using TCP_REPAIR on both sides"""
+    address_family = socket.AF_INET
+    nsfixture = exit_stack.enter_context(TCPRepairNamespaceFixture())
+    server_thread = exit_stack.enter_context(SimpleServerThread(mode="echo"))
+    init_debug_sniffer(exit_stack, nsfixture)
+    client_socket, server_socket = init_tcp_repair_sock_pair(
+        exit_stack,
+        nsfixture,
+        address_family,
+    )
 
     server_thread._register_server_socket(server_socket)
     set_tcp_repair(client_socket, TCP_REPAIR_VAL.OFF)
