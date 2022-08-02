@@ -448,3 +448,58 @@ def test_tcp_repair_before_sne_rollver(exit_stack: ExitStack):
     assert client_authopt_repair_info.snd_sne == 1
     server_authopt_repair_info = get_tcp_repair_authopt(server_socket)
     assert server_authopt_repair_info.rcv_sne == 1
+
+
+def test_tcp_repair_after_sne_rollver(exit_stack: ExitStack):
+    """Test TCP_REPAIR with a sequence number that causes quick SNE rollover.
+
+    Do a second repair after the SNE rollover itself
+    """
+    address_family = socket.AF_INET
+    nsfixture = exit_stack.enter_context(TCPRepairNamespaceFixture())
+    server_addr = nsfixture.get_server_addr(address_family)
+    client_addr = nsfixture.get_client_addr(address_family)
+    server_addrport = (str(server_addr), DEFAULT_TCP_SERVER_PORT)
+    server_thread = exit_stack.enter_context(SimpleServerThread(mode="echo"))
+    init_debug_sniffer(exit_stack, nsfixture)
+    client1_socket, server_socket = init_tcp_repair_sock_pair(
+        exit_stack,
+        nsfixture,
+        address_family,
+        client_isn=0xFFFFFF00,
+        server_isn=0x10000000,
+    )
+
+    set_tcp_authopt_key(client1_socket, tcp_authopt_key(key="aaa", addr=server_addr))
+    set_tcp_authopt_key(server_socket, tcp_authopt_key(key="aaa", addr=client_addr))
+    server_thread._register_server_socket(server_socket)
+    set_tcp_repair(client1_socket, TCP_REPAIR_VAL.OFF)
+    set_tcp_repair(server_socket, TCP_REPAIR_VAL.OFF)
+
+    size = 128
+    check_socket_echo(client1_socket, size=size)
+    check_socket_echo(client1_socket, size=size)
+    check_socket_echo(client1_socket, size=size)
+
+    client_repair_data = TCPRepairData()
+    set_tcp_repair(client1_socket, TCP_REPAIR_VAL.ON)
+    client_repair_data.get(client1_socket, ao=True)
+    # client1 is kept in the repair state
+
+    # transfer to client2
+    client2_socket = create_client_socket(
+        ns=nsfixture.client2_netns_name,
+        bind_port=DEFAULT_TCP_CLIENT_PORT,
+        family=address_family,
+    )
+    set_tcp_authopt_key(client2_socket, tcp_authopt_key(key="aaa", addr=server_addr))
+    set_tcp_repair(client2_socket, TCP_REPAIR_VAL.ON)
+    client_repair_data.set(client2_socket)
+    client2_socket.connect(server_addrport)
+    client_repair_data.set_estab(client2_socket)
+    nsfixture.set_active_client(2)
+    set_tcp_repair(client2_socket, TCP_REPAIR_VAL.OFF)
+
+    check_socket_echo(client2_socket, size=size)
+    check_socket_echo(client2_socket, size=size)
+    check_socket_echo(client2_socket, size=size)

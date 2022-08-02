@@ -199,6 +199,7 @@ def format_tcp_authopt_packet(
         result = p.sprintf(r"%Ether.src% > %Ether.dst% ") + result
     if include_seq:
         result += p.sprintf(r" seq %08xr,TCP.seq% ack %08xr,TCP.ack%")
+        result += p.sprintf(r" wnd %04xr,TCP.window%")
         result += f" len {len(p[TCP].payload)}"
     authopt = scapy_tcp_get_authopt_val(p[TCP])
     if authopt:
