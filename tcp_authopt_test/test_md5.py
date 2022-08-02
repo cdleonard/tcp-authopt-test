@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
 import socket
-from contextlib import nullcontext
 from ipaddress import IPv4Address
 
 import pytest

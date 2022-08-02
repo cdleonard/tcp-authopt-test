@@ -17,13 +17,7 @@ from .conftest import (
     skipif_cant_capture,
     skipif_missing_tcp_authopt,
 )
-from .linux_tcp_authopt import (
-    TCP_AUTHOPT_ALG,
-    TCP_AUTHOPT_KEY_FLAG,
-    set_tcp_authopt_key,
-    tcp_authopt_key,
-)
-from .netns_fixture import NamespaceFixture
+from .linux_tcp_authopt import TCP_AUTHOPT_ALG, set_tcp_authopt_key, tcp_authopt_key
 from .scapy_tcp_authopt import (
     TcpAuthOptAlg_HMAC_SHA1,
     add_tcp_authopt_signature,
@@ -35,13 +29,10 @@ from .scapy_utils import (
     scapy_tcp_get_md5_sig,
     tcp_seq_wrap,
 )
-from .server import SimpleServerThread
 from .tcp_connection_fixture import TCPConnectionFixture
 from .utils import (
     DEFAULT_TCP_SERVER_PORT,
     check_socket_echo,
-    create_client_socket,
-    create_listen_socket,
     nstat_json,
     socket_set_linger,
 )

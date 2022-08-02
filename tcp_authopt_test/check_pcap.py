@@ -5,7 +5,6 @@
 import logging
 import sys
 
-from scapy.packet import Packet
 from scapy.utils import rdpcap
 
 logger = logging.getLogger()

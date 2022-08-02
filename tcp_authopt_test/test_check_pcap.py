@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: GPL-2.0
-import os
 from pathlib import Path
 
 from .check_pcap import main

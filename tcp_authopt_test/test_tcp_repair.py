@@ -16,7 +16,6 @@ from .scapy_utils import (
     create_capture_socket,
     format_tcp_authopt_packet,
 )
-from .tcpdump import tcpdump_capture
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +25,10 @@ from .conftest import raise_skip_no_netns
 from .linux_tcp_repair import (
     TCP_REPAIR_QUEUE_ID,
     TCP_REPAIR_VAL,
-    TCPOPT_WINDOW,
     get_tcp_queue_seq,
-    get_tcp_repair_queue,
     get_tcp_repair_window_buf,
     set_tcp_queue_seq,
     set_tcp_repair,
-    set_tcp_repair_option,
     set_tcp_repair_queue,
     set_tcp_repair_window_buf,
     set_tcp_repair_window_option,

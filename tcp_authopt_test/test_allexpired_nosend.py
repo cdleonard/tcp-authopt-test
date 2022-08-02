@@ -16,7 +16,6 @@ from tcp_authopt_test.utils import check_socket_echo
 
 from .linux_tcp_authopt import (
     TCP_AUTHOPT_KEY_FLAG,
-    del_tcp_authopt_key,
     set_tcp_authopt_key,
     tcp_authopt_key,
 )

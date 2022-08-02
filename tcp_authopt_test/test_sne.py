@@ -6,7 +6,6 @@ import socket
 import subprocess
 from contextlib import ExitStack
 from ipaddress import ip_address
-from threading import Thread
 
 import pytest
 import waiting
@@ -39,7 +38,6 @@ from .utils import (
     check_socket_echo,
     create_client_socket,
     create_listen_socket,
-    netns_context,
     randbytes,
     socket_set_linger,
 )
