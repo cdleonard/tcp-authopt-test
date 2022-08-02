@@ -20,7 +20,7 @@ def read_proc_tcp_authopt_keys_as_lines(
 
 
 @contextmanager
-def verify_global_key_leak(netns: str = "") -> typing.Iterable[None]:
+def verify_global_key_leak(netns: str = "") -> typing.Iterator[None]:
     """Context manager which checks that keys are not leaked after a test"""
     if not has_proc_tcp_authopt():
         yield
