@@ -5,13 +5,18 @@ import subprocess
 import time
 import typing
 from contextlib import ExitStack
+from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address
 from tempfile import NamedTemporaryFile
 
 from .conftest import parametrize_product
 from .linux_tcp_authopt import set_tcp_authopt_key, tcp_authopt_key
-from .linux_tcp_info import get_tcp_info
-from .linux_tcp_repair_authopt import get_tcp_repair_authopt, set_tcp_repair_authopt
+from .linux_tcp_info import get_tcp_info, tcp_info
+from .linux_tcp_repair_authopt import (
+    get_tcp_repair_authopt,
+    set_tcp_repair_authopt,
+    tcp_repair_authopt,
+)
 from .scapy_utils import (
     AsyncSnifferContext,
     create_capture_socket,
@@ -235,6 +240,47 @@ def test_bond_switch(exit_stack: ExitStack, address_family):
     assert 0 != subprocess.call(cmd_ping_from_client2, shell=True)
 
 
+@dataclass(init=False)
+class TCPRepairData:
+    """Wrapper around TCP repair fields to transfer from one sock to another"""
+
+    recv_queue_seq: int
+    send_queue_seq: int
+    window_buf: bytes
+    tcp_info: tcp_info
+    authopt_info: typing.Optional[tcp_repair_authopt]
+
+    def get(self, sock: socket.socket, ao: bool = False):
+        set_tcp_repair_queue(sock, TCP_REPAIR_QUEUE_ID.RECV_QUEUE)
+        self.recv_queue_seq = get_tcp_queue_seq(sock)
+        set_tcp_repair_queue(sock, TCP_REPAIR_QUEUE_ID.SEND_QUEUE)
+        self.send_queue_seq = get_tcp_queue_seq(sock)
+        self.tcp_info = get_tcp_info(sock)
+        self.window_buf = get_tcp_repair_window_buf(sock)
+        if ao:
+            self.authopt_info = get_tcp_repair_authopt(sock)
+        else:
+            self.authopt_info = None
+
+    def set(self, sock: socket.socket):
+        set_tcp_repair_queue(sock, TCP_REPAIR_QUEUE_ID.RECV_QUEUE)
+        set_tcp_queue_seq(sock, self.recv_queue_seq)
+        set_tcp_repair_queue(sock, TCP_REPAIR_QUEUE_ID.SEND_QUEUE)
+        set_tcp_queue_seq(sock, self.send_queue_seq)
+        if self.authopt_info is not None:
+            set_tcp_repair_authopt(sock, self.authopt_info)
+
+    def set_estab(self, sock: socket.socket):
+        set_tcp_repair_window_buf(sock, self.window_buf)
+        wscale_ok = (self.tcp_info.tcpi_options & 4) != 0
+        if wscale_ok:
+            set_tcp_repair_window_option(
+                sock,
+                self.tcp_info.tcpi_rcv_wscale,
+                self.tcp_info.tcpi_snd_wscale,
+            )
+
+
 @parametrize_product(
     address_family=(socket.AF_INET, socket.AF_INET6),
     ao=(False, True),
@@ -243,6 +289,8 @@ def test_tcp_repair(exit_stack: ExitStack, address_family, ao: bool):
     nsfixture = exit_stack.enter_context(TCPRepairNamespaceFixture())
     server_addr = nsfixture.get_server_addr(address_family)
     client_addr = nsfixture.get_client_addr(address_family)
+    server_addrport = (str(server_addr), DEFAULT_TCP_SERVER_PORT)
+    client_port = 27972
 
     # create server:
     listen_socket = exit_stack.push(
@@ -251,11 +299,7 @@ def test_tcp_repair(exit_stack: ExitStack, address_family, ao: bool):
             ns=nsfixture.server_netns_name,
         )
     )
-    if ao:
-        set_tcp_authopt_key(listen_socket, tcp_authopt_key(key="aaa", addr=client_addr))
     exit_stack.enter_context(SimpleServerThread(listen_socket, mode="echo"))
-    server_addrport = (str(server_addr), DEFAULT_TCP_SERVER_PORT)
-    client_port = 27972
 
     # create client socket:
     client1_socket = create_client_socket(
@@ -269,6 +313,7 @@ def test_tcp_repair(exit_stack: ExitStack, address_family, ao: bool):
         family=address_family,
     )
     if ao:
+        set_tcp_authopt_key(listen_socket, tcp_authopt_key(key="aaa", addr=client_addr))
         set_tcp_authopt_key(
             client1_socket, tcp_authopt_key(key="aaa", addr=server_addr)
         )
@@ -282,44 +327,15 @@ def test_tcp_repair(exit_stack: ExitStack, address_family, ao: bool):
     client1_socket.connect(server_addrport)
     check_socket_echo(client1_socket)
 
+    client_repair_data = TCPRepairData()
     set_tcp_repair(client1_socket, TCP_REPAIR_VAL.ON)
-    set_tcp_repair_queue(client1_socket, TCP_REPAIR_QUEUE_ID.RECV_QUEUE)
-    c1_recv_seq = get_tcp_queue_seq(client1_socket)
-    set_tcp_repair_queue(client1_socket, TCP_REPAIR_QUEUE_ID.SEND_QUEUE)
-    c1_send_seq = get_tcp_queue_seq(client1_socket)
-    client_tcp_repair_window = get_tcp_repair_window_buf(client1_socket)
-    client1_tcp_info = get_tcp_info(client1_socket)
-    if ao:
-        client_repair_authopt = get_tcp_repair_authopt(client1_socket)
+    client_repair_data.get(client1_socket, ao=ao)
     # client1 is kept in the repair state
 
-    logger.info("tcp repair recv queue: %d", c1_recv_seq)
-    logger.info("tcp repair send queue: %d", c1_send_seq)
-    logger.info("%s", tcp_repair_window.unpack(client_tcp_repair_window))
-    client1_wscale_ok = (client1_tcp_info.tcpi_options & 4) != 0
-    logger.info(
-        "wscale_ok=%d snd_wscale=%s rcv_wscale=%s",
-        client1_wscale_ok,
-        client1_tcp_info.tcpi_snd_wscale,
-        client1_tcp_info.tcpi_rcv_wscale,
-    )
-
     set_tcp_repair(client2_socket, TCP_REPAIR_VAL.ON)
-    set_tcp_repair_queue(client2_socket, TCP_REPAIR_QUEUE_ID.RECV_QUEUE)
-    set_tcp_queue_seq(client2_socket, c1_recv_seq)
-    set_tcp_repair_queue(client2_socket, TCP_REPAIR_QUEUE_ID.SEND_QUEUE)
-    set_tcp_queue_seq(client2_socket, c1_send_seq)
-    if ao:
-        set_tcp_repair_authopt(client2_socket, client_repair_authopt)
+    client_repair_data.set(client2_socket)
     client2_socket.connect(server_addrport)
-    assert get_tcp_info(client2_socket).tcpi_state == 1
-    set_tcp_repair_window_buf(client2_socket, client_tcp_repair_window)
-    if client1_wscale_ok:
-        set_tcp_repair_window_option(
-            client2_socket,
-            client1_tcp_info.tcpi_rcv_wscale,
-            client1_tcp_info.tcpi_snd_wscale,
-        )
+    client_repair_data.set_estab(client2_socket)
 
     # Switch and release from the repair state:
     nsfixture.set_active_client(2)
