@@ -270,10 +270,10 @@ class TCPRepairData:
         set_tcp_queue_seq(sock, self.recv_queue_seq)
         set_tcp_repair_queue(sock, TCP_REPAIR_QUEUE_ID.SEND_QUEUE)
         set_tcp_queue_seq(sock, self.send_queue_seq)
-        if self.authopt_info is not None:
-            set_tcp_repair_authopt(sock, self.authopt_info)
 
     def set_estab(self, sock: socket.socket):
+        if self.authopt_info is not None:
+            set_tcp_repair_authopt(sock, self.authopt_info)
         set_tcp_repair_window_buf(sock, self.window_buf)
         wscale_ok = (self.tcp_info.tcpi_options & 4) != 0
         if wscale_ok:
@@ -290,6 +290,7 @@ class TCPRepairData:
 )
 def test_tcp_repair(exit_stack: ExitStack, address_family, ao: bool):
     nsfixture = exit_stack.enter_context(TCPRepairNamespaceFixture())
+    init_debug_sniffer(exit_stack, nsfixture)
     server_addr = nsfixture.get_server_addr(address_family)
     client_addr = nsfixture.get_client_addr(address_family)
     server_addrport = (str(server_addr), DEFAULT_TCP_SERVER_PORT)
@@ -339,6 +340,7 @@ def test_tcp_repair(exit_stack: ExitStack, address_family, ao: bool):
     client_repair_data.set(client2_socket)
     client2_socket.connect(server_addrport)
     client_repair_data.set_estab(client2_socket)
+    logger.info("AO REPAIR: %s", client_repair_data.authopt_info)
 
     # Switch and release from the repair state:
     nsfixture.set_active_client(2)
