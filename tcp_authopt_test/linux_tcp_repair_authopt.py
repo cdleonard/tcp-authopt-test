@@ -56,11 +56,15 @@ def has_tcp_repair_authopt_on_sock(sock: socket.socket) -> bool:
         get_tcp_repair_authopt(sock)
         return True
     except OSError as e:
+        # ENOPROTOOPT means sockopt not implemented
         if e.errno == errno.ENOPROTOOPT:
             return False
-        # Return True if tcp_authopt supported but not enabled for this specific socket
+        # ENOENT means tcp_authopt supported but not enabled for this specific socket
         if e.errno == errno.ENOENT:
             return False
+        # ENOENT means TCP_REPAIR mode not enabled on the socket
+        if e.errno == errno.EPERM:
+            return True
         raise
 
 
