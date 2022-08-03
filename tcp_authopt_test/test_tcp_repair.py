@@ -38,6 +38,7 @@ from .linux_tcp_repair import (
     set_tcp_repair_queue,
     set_tcp_repair_window_buf,
     set_tcp_repair_window_option,
+    tcp_repair_toggle,
     tcp_repair_window,
 )
 from .server import SimpleServerThread
@@ -446,10 +447,12 @@ def test_tcp_repair_before_sne_rollver(exit_stack: ExitStack):
     check_socket_echo(client_socket, size=size)
     check_socket_echo(client_socket, size=size)
 
-    client_authopt_repair_info = get_tcp_repair_authopt(client_socket)
-    assert client_authopt_repair_info.snd_sne == 1
-    server_authopt_repair_info = get_tcp_repair_authopt(server_socket)
-    assert server_authopt_repair_info.rcv_sne == 1
+    with tcp_repair_toggle(client_socket):
+        client_authopt_repair_info = get_tcp_repair_authopt(client_socket)
+        assert client_authopt_repair_info.snd_sne == 1
+    with tcp_repair_toggle(server_socket):
+        server_authopt_repair_info = get_tcp_repair_authopt(server_socket)
+        assert server_authopt_repair_info.rcv_sne == 1
 
 
 def test_tcp_repair_after_sne_rollver(exit_stack: ExitStack):
