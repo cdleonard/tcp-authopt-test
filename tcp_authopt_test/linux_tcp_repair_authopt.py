@@ -15,8 +15,10 @@ class tcp_repair_authopt:
     dst_isn: int = 0
     snd_sne: int = 0
     rcv_sne: int = 0
+    snd_seq: int = 0
+    rcv_seq: int = 0
 
-    struct_format = "IIII"
+    struct_format = "IIIIII"
     sizeof = struct.calcsize(struct_format)
 
     def pack(self) -> bytes:
@@ -26,6 +28,8 @@ class tcp_repair_authopt:
             self.dst_isn,
             self.snd_sne,
             self.rcv_sne,
+            self.snd_seq,
+            self.rcv_seq,
         )
 
     def __bytes__(self):
