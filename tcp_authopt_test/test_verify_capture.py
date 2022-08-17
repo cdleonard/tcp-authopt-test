@@ -205,19 +205,29 @@ def test_v4mapv6(exit_stack, mode: str):
     elif mode == "ao-addrbind":
         alg = TCP_AUTHOPT_ALG.HMAC_SHA_1_96
         server_key = tcp_authopt_key(
-            alg=alg, key=b"hello", addr=client_ipv4_mapped_ipv6_addr
+            alg=alg,
+            key=b"hello",
+            addr=client_ipv4_mapped_ipv6_addr,
         )
         set_tcp_authopt_key(con.listen_socket, server_key)
-        client_key = tcp_authopt_key(alg=alg, key=b"hello", addr=server_ipv4_addr)
+        client_key = tcp_authopt_key(
+            alg=alg,
+            key=b"hello",
+            addr=server_ipv4_addr,
+        )
         set_tcp_authopt_key(con.client_socket, client_key)
     elif mode == "md5":
         from . import linux_tcp_md5sig
 
         server_md5key = linux_tcp_md5sig.tcp_md5sig(
-            key=b"hello", addr=client_ipv4_mapped_ipv6_addr
+            key=b"hello",
+            addr=client_ipv4_mapped_ipv6_addr,
         )
         linux_tcp_md5sig.setsockopt_md5sig(con.listen_socket, server_md5key)
-        client_md5key = linux_tcp_md5sig.tcp_md5sig(key=b"hello", addr=server_ipv4_addr)
+        client_md5key = linux_tcp_md5sig.tcp_md5sig(
+            key=b"hello",
+            addr=server_ipv4_addr,
+        )
         linux_tcp_md5sig.setsockopt_md5sig(con.client_socket, client_md5key)
     elif mode == "none":
         pass
