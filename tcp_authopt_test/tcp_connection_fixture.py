@@ -55,8 +55,11 @@ class TCPConnectionFixture:
     _server_address_family: Optional[AddressFamily]
     _client_address_family: Optional[AddressFamily]
 
-    wildcard_listen: bool = False
-    """If true then listen on wildcard otherwise only on the specific server address"""
+    bind_client_addr: bool = True
+    """If True then bind client socket to client_addr"""
+
+    bind_server_addr: bool = True
+    """If False then listen on wildcard otherwise only on the specific server address"""
 
     sniffer_session: FullTCPSniffSession
 
@@ -127,10 +130,11 @@ class TCPConnectionFixture:
         )
 
     def create_client_socket(self, bind_port=0):
+        bind_addr = self.client_addr if self.bind_client_addr else ""
         return create_client_socket(
             ns=self.nsfixture.client_netns_name,
             family=self.client_address_family,
-            bind_addr=self.client_addr,
+            bind_addr=bind_addr,
             bind_port=bind_port,
         )
 
@@ -169,10 +173,7 @@ class TCPConnectionFixture:
         self.server_addr = self.nsfixture.get_server_addr(self.server_address_family)
         self.client_addr = self.nsfixture.get_client_addr(self.client_address_family)
 
-        if self.wildcard_listen:
-            listen_addr = ""
-        else:
-            listen_addr = self.server_addr
+        listen_addr = self.server_addr if self.bind_server_addr else ""
         self.listen_socket = create_listen_socket(
             ns=self.nsfixture.server_netns_name,
             family=self.server_address_family,

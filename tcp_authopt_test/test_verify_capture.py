@@ -190,7 +190,7 @@ def test_v4mapv6(exit_stack, mode: str):
         address_family=socket.AF_INET6,
         client_address_family=socket.AF_INET,
     )
-    con.wildcard_listen = True
+    con.bind_server_addr = False
     con = exit_stack.enter_context(con)
 
     server_ipv4_addr = con.nsfixture.get_server_addr(socket.AF_INET)
