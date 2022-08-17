@@ -224,13 +224,8 @@ def test_v4mapv6(exit_stack, mode: str):
     else:
         raise ValueError(f"Bad mode {mode}")
 
-    if mode in ["none", "md5"]:
-        expected_exception = None
-    else:
-        expected_exception = socket.timeout
-    with raises_optional_exception(expected_exception):
-        con.client_socket.connect((str(server_ipv4_addr), DEFAULT_TCP_SERVER_PORT))
-        check_socket_echo(con.client_socket)
+    con.client_socket.connect((str(server_ipv4_addr), DEFAULT_TCP_SERVER_PORT))
+    check_socket_echo(con.client_socket)
     con.client_socket.close()
 
 
