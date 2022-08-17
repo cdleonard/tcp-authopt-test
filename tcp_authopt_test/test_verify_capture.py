@@ -239,6 +239,46 @@ def test_v4mapv6(exit_stack, mode: str):
     con.client_socket.close()
 
 
+def test_v6_conn_v4_ao(exit_stack):
+    """Test ipv6 client and ipv4 server with ao.
+
+    This needs to work if client has a key with ipv4-mapped-ipv6 address
+    """
+    con = TCPConnectionFixture(
+        address_family=socket.AF_INET6,
+        server_address_family=socket.AF_INET,
+    )
+    con.bind_client_addr = False
+    con = exit_stack.enter_context(con)
+
+    server_ipv4_addr = con.nsfixture.get_server_addr(socket.AF_INET)
+    server_ipv4_mapped_ipv6_addr = sockaddr.get_ipv6_mapped_ipv4(server_ipv4_addr)
+    client_ipv4_addr = con.nsfixture.get_client_addr(socket.AF_INET)
+
+    alg = TCP_AUTHOPT_ALG.HMAC_SHA_1_96
+    server_key = tcp_authopt_key(
+        alg=alg,
+        key=b"hello",
+        addr=client_ipv4_addr,
+    )
+    set_tcp_authopt_key(con.listen_socket, server_key)
+    client_key = tcp_authopt_key(
+        alg=alg,
+        key=b"hello",
+        addr=server_ipv4_mapped_ipv6_addr,
+    )
+    set_tcp_authopt_key(con.client_socket, client_key)
+
+    con.client_socket.connect(
+        (
+            str(server_ipv4_mapped_ipv6_addr),
+            DEFAULT_TCP_SERVER_PORT,
+        )
+    )
+    check_socket_echo(con.client_socket)
+    con.client_socket.close()
+
+
 @pytest.mark.parametrize(
     "address_family,signed",
     [
