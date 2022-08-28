@@ -7,6 +7,7 @@ import socket
 import struct
 import typing
 from dataclasses import dataclass
+from datetime import datetime
 from enum import IntEnum, IntFlag
 
 from .flag_property import FlagProperty
@@ -46,6 +47,10 @@ class TCP_AUTHOPT_KEY_FLAG(IntFlag):
     NOSEND = BIT(4)
     NORECV = BIT(5)
     PREFIXLEN = BIT(6)
+    SEND_LIFETIME_BEGIN = BIT(7)
+    SEND_LIFETIME_END = BIT(8)
+    RECV_LIFETIME_BEGIN = BIT(9)
+    RECV_LIFETIME_END = BIT(10)
 
 
 class TCP_AUTHOPT_ALG(IntEnum):
@@ -92,6 +97,14 @@ def get_tcp_authopt(sock: socket.socket) -> tcp_authopt:
     return tcp_authopt.unpack(b)
 
 
+def _datetime_to_kernel(dt: typing.Optional[datetime]) -> int:
+    # Convert datetime to UTC seconds since epoch
+    if dt is None:
+        return 0
+    else:
+        return int(dt.timestamp())
+
+
 class tcp_authopt_key:
     """Like linux struct tcp_authopt_key
 
@@ -103,6 +116,10 @@ class tcp_authopt_key:
     send_id: int
     recv_id: int
     prefixlen: typing.Optional[int]
+    send_lifetime_begin: typing.Optional[datetime]
+    send_lifetime_end: typing.Optional[datetime]
+    recv_lifetime_begin: typing.Optional[datetime]
+    recv_lifetime_end: typing.Optional[datetime]
 
     def __init__(
         self,
@@ -118,6 +135,10 @@ class tcp_authopt_key:
         include_options=None,
         nosend: bool = False,
         norecv: bool = False,
+        send_lifetime_begin=typing.Optional[datetime],
+        send_lifetime_end=typing.Optional[datetime],
+        recv_lifetime_begin=typing.Optional[datetime],
+        recv_lifetime_end=typing.Optional[datetime],
     ):
         self.flags = flags
         self.send_id = send_id
@@ -130,25 +151,48 @@ class tcp_authopt_key:
         self.auto_flags = auto_flags
         self.nosend = nosend
         self.norecv = norecv
+        self.send_lifetime_begin = send_lifetime_begin
+        self.send_lifetime_end = send_lifetime_end
+        self.recv_lifetime_begin = recv_lifetime_begin
+        self.recv_lifetime_end = recv_lifetime_end
         if include_options is not None:
             self.include_options = include_options
 
     def get_real_flags(self) -> TCP_AUTHOPT_KEY_FLAG:
         result = self.flags
         if self.auto_flags:
-            if self.ifindex is not None:
-                result |= TCP_AUTHOPT_KEY_FLAG.IFINDEX
-            else:
-                result &= ~TCP_AUTHOPT_KEY_FLAG.IFINDEX
-            if self.addr is not None:
-                result |= TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
-            else:
-                result &= ~TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
-            if self.prefixlen is not None:
-                result |= TCP_AUTHOPT_KEY_FLAG.PREFIXLEN
-            else:
-                result &= ~TCP_AUTHOPT_KEY_FLAG.PREFIXLEN
+
+            def _handle_auto_flag(prop_name, flag):
+                nonlocal result
+                if getattr(self, prop_name) is not None:
+                    result |= flag
+                else:
+                    result &= ~flag
+
+            _handle_auto_flag("ifindex", TCP_AUTHOPT_KEY_FLAG.SEND_LIFETIME_BEGIN)
+            _handle_auto_flag("addr", TCP_AUTHOPT_KEY_FLAG.BIND_ADDR)
+            _handle_auto_flag("prefixlen", TCP_AUTHOPT_KEY_FLAG.PREFIXLEN)
+            _handle_auto_flag(
+                "send_lifetime_begin", TCP_AUTHOPT_KEY_FLAG.SEND_LIFETIME_BEGIN
+            )
+            _handle_auto_flag(
+                "send_lifetime_begin", TCP_AUTHOPT_KEY_FLAG.SEND_LIFETIME_END
+            )
+            _handle_auto_flag(
+                "recv_lifetime_begin", TCP_AUTHOPT_KEY_FLAG.RECV_LIFETIME_BEGIN
+            )
+            _handle_auto_flag(
+                "recv_lifetime_begin", TCP_AUTHOPT_KEY_FLAG.RECV_LIFETIME_END
+            )
         return result
+
+    def has_lifetime_info(self) -> bool:
+        return (
+            self.send_lifetime_begin is not None
+            or self.send_lifetime_end is not None
+            or self.recv_lifetime_begin is not None
+            or self.recv_lifetime_end is not None
+        )
 
     def pack(self):
         if len(self.key) > TCP_AUTHOPT_MAXKEYLEN:
@@ -163,10 +207,24 @@ class tcp_authopt_key:
             self.key,
         )
         data += bytes(self.addrbuf.ljust(sockaddr_storage.sizeof, b"\x00"))
-        if self.ifindex is not None or self.prefixlen is not None:
+        if (
+            self.ifindex is not None
+            or self.prefixlen is not None
+            or self.has_lifetime_info()
+        ):
             data += bytes(struct.pack("I", self.ifindex or 0))
-        if self.prefixlen is not None:
-            data += bytes(struct.pack("I", self.prefixlen))
+        if self.prefixlen is not None or self.has_lifetime_info():
+            data += bytes(struct.pack("I", self.prefixlen or 0))
+        if self.has_lifetime_info():
+            data += bytes(
+                struct.pack(
+                    "QQQQ",
+                    _datetime_to_kernel(self.send_lifetime_begin),
+                    _datetime_to_kernel(self.send_lifetime_end),
+                    _datetime_to_kernel(self.recv_lifetime_begin),
+                    _datetime_to_kernel(self.recv_lifetime_end),
+                )
+            )
         return data
 
     def __bytes__(self):
