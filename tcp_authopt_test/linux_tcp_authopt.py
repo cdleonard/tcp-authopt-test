@@ -136,18 +136,20 @@ class tcp_authopt_key:
     def get_real_flags(self) -> TCP_AUTHOPT_KEY_FLAG:
         result = self.flags
         if self.auto_flags:
-            if self.ifindex is not None:
-                result |= TCP_AUTHOPT_KEY_FLAG.IFINDEX
-            else:
-                result &= ~TCP_AUTHOPT_KEY_FLAG.IFINDEX
-            if self.addr is not None:
-                result |= TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
-            else:
-                result &= ~TCP_AUTHOPT_KEY_FLAG.BIND_ADDR
-            if self.prefixlen is not None:
-                result |= TCP_AUTHOPT_KEY_FLAG.PREFIXLEN
-            else:
-                result &= ~TCP_AUTHOPT_KEY_FLAG.PREFIXLEN
+
+            def _handle_auto_flag(prop_name, flag_name=None):
+                nonlocal result
+                if flag_name is None:
+                    flag_name = prop_name
+                flag = getattr(TCP_AUTHOPT_KEY_FLAG, flag_name.upper())
+                if getattr(self, prop_name) is not None:
+                    result |= flag
+                else:
+                    result &= ~flag
+
+            _handle_auto_flag("ifindex")
+            _handle_auto_flag("addr", "BIND_ADDR")
+            _handle_auto_flag("prefixlen")
         return result
 
     def pack(self):
