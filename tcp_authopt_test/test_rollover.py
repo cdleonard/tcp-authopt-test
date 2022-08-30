@@ -245,7 +245,6 @@ def test_synack_with_syn_rnextkeyid(exit_stack: ExitStack, address_family):
     server_tcp_authopt = get_tcp_authopt(server_socket)
     assert server_tcp_authopt.send_keyid == ck.recv_id
     assert server_tcp_authopt.recv_keyid == ck.send_id
-    assert server_tcp_authopt.send_rnextkeyid == ck.send_id
     assert server_tcp_authopt.recv_rnextkeyid == ck.recv_id
 
 
