@@ -281,10 +281,12 @@ def test_nosend_accept_recv():
     )
     with context as (client_socket, server_socket):
         check_socket_echo(client_socket)
-        assert get_tcp_authopt(server_socket).send_keyid == 2
+        server_info = get_tcp_authopt(server_socket)
+        assert server_info.send_keyid == 2
         # client still sends key1 because it is locked
-        assert get_tcp_authopt(client_socket).recv_rnextkeyid == 2
-        assert get_tcp_authopt(client_socket).send_keyid == 1
+        client_info = get_tcp_authopt(client_socket)
+        assert client_info.recv_keyid == 2
+        assert client_info.send_keyid == 1
 
 
 def test_norecv_accept_send():
