@@ -1,4 +1,4 @@
-import socket
+import errno
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -75,8 +75,9 @@ def test_basic():
         check_socket_echo(client_socket)
 
         # At T=5 K2 expires and at T=6 we are definitely out of luck
-        with pytest.raises(socket.timeout):
+        with pytest.raises(OSError) as e:
             time.sleep(td_float)
             check_socket_echo(client_socket)
             time.sleep(td_float)
             check_socket_echo(client_socket)
+        assert e.value.errno in [errno.ETIMEDOUT, errno.ENOKEY]
