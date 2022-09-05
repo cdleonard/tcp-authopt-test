@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
     "sign_mode",
     [
         pytest.param("ao", marks=pytest.mark.xfail),
-        "md5",
+        pytest.param("md5", marks=pytest.mark.xfail(reason="Issue #15")),
         "none",
     ],
 )
